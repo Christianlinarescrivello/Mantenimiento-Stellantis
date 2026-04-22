@@ -688,6 +688,13 @@ function sbPost(table,data){return fetch(SB_URL+"/rest/v1/"+table,{method:"POST"
 function sbPatch(table,id,data){return fetch(SB_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
 function sbPatchWhere(table,where,data){return fetch(SB_URL+"/rest/v1/"+table+"?"+where,{method:"PATCH",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
 function sbDelete(table,id){return fetch(SB_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"DELETE",headers:sbH()}).then(sbParse);}
+function sbUpsert(table,data,onConflict){
+  return fetch(SB_URL+"/rest/v1/"+table+"?on_conflict="+encodeURIComponent(onConflict),{
+    method:"POST",
+    headers:Object.assign({"Prefer":"resolution=merge-duplicates,return=representation"},sbH()),
+    body:JSON.stringify(data)
+  }).then(sbParse);
+}
 function restDelete(path){return fetch(SB_URL+path,{method:"DELETE",headers:sbH()}).then(sbParse);}
 
 async function uploadPhoto(file,bucket,path){
@@ -1315,41 +1322,72 @@ function blockIsActive(r){
   if(hasUnblock)return false;
   return true;
 }
-async function importBlockRows(rows){
+async function importBlockRows(rows,fileName){
   var cordobaRows=rows.filter(isCordobaRow).filter(function(r){return normUpper(r["VIN"]||r["vin"]);});
   if(!cordobaRows.length)throw new Error("El listado de bloqueos no trae VIN de Córdoba.");
-  setImportProgress(40,"Analizando bloqueos de Córdoba: "+cordobaRows.length+" filas...");
-  var latestByVinBlock={};
+  setImportProgress(40,"Consolidando bloqueos de Córdoba: "+cordobaRows.length+" filas...");
+
+  var aggregated={};
   cordobaRows.forEach(function(r){
     var vin=normUpper(r["VIN"]||r["vin"]);
-    var block=normUpper(r["Block"]||r["block"]);
-    if(!vin||!block)return;
+    var block=normUpper(r["Block"]||r["block"]||"SIN_CODIGO");
+    if(!vin)return;
     var key=vin+"__"+block;
-    var ts=blockEventTimestamp(r);
-    if(!latestByVinBlock[key] || ts>=latestByVinBlock[key].ts){
-      latestByVinBlock[key]={ts:ts,vin:vin,block:block,row:r};
+    var blockDate=pdate(r["Block Date"]||r["block date"]||r["Fecha de Bloqueo"]||r["fecha_bloqueo"]);
+    var unblockDate=pdate(r["Unblock Date"]||r["unblock date"]||r["Fecha de Desbloqueo"]||r["fecha_desbloqueo"]);
+    if(!aggregated[key]){
+      aggregated[key]={
+        vin:vin,
+        block_code:block,
+        block_date:blockDate,
+        unblock_date:unblockDate,
+        compound_code:r["Compound Code"]||r["compound_code"]||null,
+        compound_descr:r["Compound Descr"]||r["compound_descr"]||r["compound"]||null
+      };
+      return;
     }
+    if(blockDate && (!aggregated[key].block_date || blockDate>aggregated[key].block_date)) aggregated[key].block_date=blockDate;
+    if(unblockDate && (!aggregated[key].unblock_date || unblockDate>aggregated[key].unblock_date)) aggregated[key].unblock_date=unblockDate;
   });
-  var perVin={};
-  Object.keys(latestByVinBlock).forEach(function(key){
-    var item=latestByVinBlock[key];
-    if(!perVin[item.vin])perVin[item.vin]=[];
-    if(blockIsActive(item.row))perVin[item.vin].push(item.block);
+
+  var records=Object.keys(aggregated).map(function(key){
+    var rec=aggregated[key];
+    var isActive=!rec.unblock_date || (rec.block_date && rec.unblock_date<rec.block_date);
+    return {
+      vin:rec.vin,
+      block_code:rec.block_code,
+      block_date:rec.block_date?rec.block_date.toISOString().slice(0,10):null,
+      unblock_date:rec.unblock_date?rec.unblock_date.toISOString().slice(0,10):null,
+      is_active:!!isActive,
+      compound_code:rec.compound_code,
+      compound_descr:rec.compound_descr,
+      source_file:fileName||null,
+      imported_at:new Date().toISOString()
+    };
   });
-  var vins=Object.keys(perVin);
-  if(!vins.length)throw new Error("No se pudieron determinar bloqueos activos por VIN.");
-  var updated=0;
-  for(var i=0;i<vins.length;i++){
-    var vin=vins[i];
-    var activeBlocks=uniqueList(perVin[vin]).join(";");
-    await sbPatchWhere("stock","vin=eq."+encodeURIComponent(vin),{blocks:activeBlocks||null});
-    updated++;
-    setImportProgress(40+Math.round(((i+1)/vins.length)*55),"Actualizando bloqueos en stock: "+(i+1)+" / "+vins.length+" VIN...");
+
+  if(!records.length)throw new Error("No se pudieron consolidar bloqueos válidos para importar.");
+
+  setImportProgress(55,"Subiendo bloqueos consolidados: "+records.length+" registros únicos...");
+  var upserted=0;
+  try{
+    for(var i=0;i<records.length;i+=500){
+      var batch=records.slice(i,i+500);
+      await sbUpsert("bloqueos_historial",batch,"vin,block_code");
+      upserted+=batch.length;
+      setImportProgress(55+Math.round((upserted/records.length)*40),"Guardando bloqueos: "+upserted+" / "+records.length+"...");
+    }
+  }catch(err){
+    var msg=(err&&err.message?err.message:String(err||""));
+    if(msg.toLowerCase().indexOf('relation "bloqueos_historial" does not exist')>=0 || msg.toLowerCase().indexOf('could not find the table')>=0){
+      throw new Error("No existe la tabla bloqueos_historial en Supabase. Creala primero con el SQL que te pasé junto al index.");
+    }
+    throw err;
   }
-  await loadStock();renderDashboard();renderPreventivo();
-  setImportProgress(100,"Listado de bloqueos procesado correctamente.");
-  setImportResult(true,"✅ Se actualizaron los bloqueos activos de "+updated+" VIN en el stock de Córdoba.");
-  showToast("Bloqueos/desbloqueos actualizados correctamente","success");
+
+  setImportProgress(100,"Bloqueos importados correctamente.");
+  setImportResult(true,"✅ Se guardaron "+upserted+" registros únicos de bloqueos/desbloqueos en bloqueos_historial.");
+  showToast("Bloqueos/desbloqueos importados correctamente","success");
 }
 async function importStock(evt){
   var file=evt.target.files[0];if(!file)return;
@@ -1364,7 +1402,7 @@ async function importStock(evt){
       if(!rows.length)throw new Error("El archivo no tiene datos.");
       var importType=detectImportType(rows,file.name);
       setImportProgress(25,importType==="blocks"?"Archivo detectado: bloqueos / desbloqueos":"Archivo detectado: stock");
-      if(importType==="blocks") await importBlockRows(rows);
+      if(importType==="blocks") await importBlockRows(rows,file.name);
       else await importStockRows(rows);
     }catch(err){
       console.error(err);
