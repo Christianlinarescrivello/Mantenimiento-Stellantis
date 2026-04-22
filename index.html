@@ -253,6 +253,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="nav-item" onclick="showPage('gomas')" id="nav-gomas"><span class="icon">🟡</span> Gomas (C37)</div>
     <div class="nav-section">Reportes</div>
     <div class="nav-item supervisor-only" onclick="showPage('kpis')" id="nav-kpis"><span class="icon">📈</span> KPIs y Exportar</div>
+    <div class="nav-item supervisor-only" onclick="showPage('historial')" id="nav-historial"><span class="icon">🗂️</span> Historial bloqueos</div>
     <div class="nav-section supervisor-only">Config</div>
     <div class="nav-item supervisor-only" onclick="showPage('stock')" id="nav-stock"><span class="icon">📦</span> Importar Stock</div>
     <div class="nav-item supervisor-only" onclick="showPage('usuarios')" id="nav-usuarios"><span class="icon">👥</span> Usuarios</div>
@@ -405,6 +406,37 @@ tbody td{padding:9px 12px;color:var(--text);}
         <button class="btn btn-gold btn-sm" onclick="exportKPIs()">⬇ Exportar Excel completo</button>
       </div>
       <div class="kpi-grid" id="kpi-grid"></div>
+    </div>
+
+
+    <!-- HISTORIAL BLOQUEOS -->
+    <div class="page" id="page-historial">
+      <div class="page-title">Historial de bloqueos</div>
+      <div class="page-sub">Consultá lo realizado en un rango de fechas y lo que todavía sigue activo</div>
+      <div class="filters">
+        <input type="date" id="hist-desde">
+        <input type="date" id="hist-hasta">
+        <select id="hist-tipo" onchange="renderHistorial()">
+          <option value="all">Todo</option>
+          <option value="done">Hecho en rango</option>
+          <option value="blocked">Bloqueados en rango</option>
+          <option value="unblocked">Desbloqueados en rango</option>
+          <option value="active">Falta / activos</option>
+          <option value="closed">Cerrados</option>
+        </select>
+        <input type="text" id="hist-search" placeholder="🔍 VIN / código / archivo..." oninput="renderHistorial()" style="width:220px">
+        <button class="btn btn-primary btn-sm" onclick="renderHistorial()">Actualizar</button>
+        <button class="btn btn-gold btn-sm" onclick="exportHistorial()">⬇ Exportar Excel</button>
+        <span id="hist-count" style="margin-left:auto;font-size:12px;color:var(--text3)"></span>
+      </div>
+      <div class="stats-row" id="hist-stats"></div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Detalle del historial</span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>VIN</th><th>Código</th><th>Fecha bloqueo</th><th>Fecha desbloqueo</th><th>Estado</th><th>Días abierto</th><th>Compound</th><th>Archivo</th><th>Importado</th></tr></thead>
+          <tbody id="hist-tbody"></tbody>
+        </table></div>
+      </div>
     </div>
 
     <!-- STOCK -->
@@ -803,6 +835,8 @@ async function initApp(){
   document.getElementById("kpi-hasta").value=now.toISOString().slice(0,10);
   var from=new Date(now);from.setDate(from.getDate()-30);
   document.getElementById("kpi-desde").value=from.toISOString().slice(0,10);
+  document.getElementById("hist-hasta").value=now.toISOString().slice(0,10);
+  document.getElementById("hist-desde").value=from.toISOString().slice(0,10);
   await loadStock();
   await loadOperarios();
   renderDashboard();
@@ -1053,6 +1087,92 @@ async function resolveGoma(id,vin,cc){
   var wsOk=false;try{var r=await callWS(vin,cc,"C37","U");wsOk=r.success;}catch(e){}
   await sbPatch("gomas",id,{estado_stock:"ok",ws_desbloqueo_ok:wsOk,updated_at:new Date().toISOString()});
   renderGomas();showToast(wsOk?"Goma resuelta y desbloqueada":"Resuelta (verificar WS)","success");
+}
+
+
+function daysBetween(a,b){
+  if(!a||!b)return null;
+  return Math.round((b-a)/86400000);
+}
+function safeDateStr(v){return v?fmt(pdate(v)):"—";}
+function sameOrAfter(date,from){return !from || (date && date.getTime()>=from.getTime());}
+function sameOrBefore(date,to){return !to || (date && date.getTime()<=to.getTime());}
+function inRange(date,from,to){return !!date && sameOrAfter(date,from) && sameOrBefore(date,to);}
+async function loadBloqueosHistorial(){
+  try{
+    var data=await sbGet("bloqueos_historial","select=*&order=imported_at.desc&limit=10000");
+    return Array.isArray(data)?data:[];
+  }catch(e){
+    return [];
+  }
+}
+async function renderHistorial(){
+  var desdeVal=document.getElementById("hist-desde").value;
+  var hastaVal=document.getElementById("hist-hasta").value;
+  var tipo=document.getElementById("hist-tipo").value;
+  var search=(document.getElementById("hist-search").value||"").toLowerCase().trim();
+  var from=desdeVal?pdate(desdeVal):null;
+  var to=hastaVal?pdate(hastaVal):null;
+  if(to){to.setHours(23,59,59,999);}
+  var data=await loadBloqueosHistorial();
+  var enriched=data.map(function(r){
+    var bd=pdate(r.block_date), ud=pdate(r.unblock_date), idt=pdate(r.imported_at);
+    var active=!!r.is_active || (!ud && !!bd);
+    var blockedInRange=inRange(bd,from,to);
+    var unblockedInRange=inRange(ud,from,to);
+    var doneInRange=blockedInRange || unblockedInRange;
+    var daysOpen = bd ? daysBetween(bd, active?new Date():(ud||new Date())) : null;
+    return Object.assign({},r,{_blockDate:bd,_unblockDate:ud,_importedAt:idt,_active:active,_blockedInRange:blockedInRange,_unblockedInRange:unblockedInRange,_doneInRange:doneInRange,_daysOpen:daysOpen});
+  });
+
+  var filtered=enriched.filter(function(r){
+    if(search){
+      var hay=[r.vin,r.block_code,r.compound_descr,r.source_file].join(' ').toLowerCase();
+      if(hay.indexOf(search)<0)return false;
+    }
+    if(tipo==="done" && !r._doneInRange)return false;
+    if(tipo==="blocked" && !r._blockedInRange)return false;
+    if(tipo==="unblocked" && !r._unblockedInRange)return false;
+    if(tipo==="active" && !r._active)return false;
+    if(tipo==="closed" && r._active)return false;
+    if(tipo==="all" && from && to){
+      if(!(r._doneInRange || r._active)) return false;
+    }
+    return true;
+  });
+
+  var stats={
+    total: filtered.length,
+    unique: new Set(filtered.map(function(r){return r.vin;})).size,
+    blockedRange: enriched.filter(function(r){return r._blockedInRange;}).length,
+    unblockedRange: enriched.filter(function(r){return r._unblockedInRange;}).length,
+    active: enriched.filter(function(r){return r._active;}).length,
+    closed: enriched.filter(function(r){return !r._active;}).length
+  };
+  document.getElementById("hist-count").textContent=filtered.length+" registros";
+  document.getElementById("hist-stats").innerHTML=[
+    {lbl:"Registros visibles",val:stats.total,c:"var(--blue)"},
+    {lbl:"VIN únicos visibles",val:stats.unique,c:"var(--gold)"},
+    {lbl:"Bloqueados en rango",val:stats.blockedRange,c:"#C62828"},
+    {lbl:"Desbloqueados en rango",val:stats.unblockedRange,c:"#2E7D32"},
+    {lbl:"Falta / activos",val:stats.active,c:"#E65100"},
+    {lbl:"Cerrados",val:stats.closed,c:"#1565C0"}
+  ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
+
+  document.getElementById("hist-tbody").innerHTML=filtered.map(function(r){
+    var estado=r._active?'<span class="badge b-pending">ACTIVO</span>':'<span class="badge b-done">CERRADO</span>';
+    return '<tr>'
+      +'<td style="font-family:monospace;font-size:11px">'+esc(r.vin||"")+'</td>'
+      +'<td><b style="color:var(--gold)">'+esc(r.block_code||"—")+'</b></td>'
+      +'<td>'+safeDateStr(r.block_date)+'</td>'
+      +'<td>'+safeDateStr(r.unblock_date)+'</td>'
+      +'<td>'+estado+'</td>'
+      +'<td>'+(r._daysOpen==null?'—':r._daysOpen+' d')+'</td>'
+      +'<td style="font-size:11px">'+esc(r.compound_descr||r.compound_code||"—")+'</td>'
+      +'<td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.source_file||"—")+'</td>'
+      +'<td style="font-size:11px">'+safeDateStr(r.imported_at)+'</td>'
+      +'</tr>';
+  }).join("") || '<tr><td colspan="9"><div class="empty"><div class="empty-icon">🗂️</div>Sin registros para ese filtro</div></td></tr>';
 }
 
 // ══════════════════════════════════════════════════════
@@ -1446,6 +1566,56 @@ async function exportPlan(){
   var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Plan "+fecha);
   XLSX.writeFile(wb,"Plan_Diario_"+fecha+".xlsx");
 }
+
+async function exportHistorial(){
+  var data=await loadBloqueosHistorial();
+  var desdeVal=document.getElementById("hist-desde").value;
+  var hastaVal=document.getElementById("hist-hasta").value;
+  var tipo=document.getElementById("hist-tipo").value;
+  var search=(document.getElementById("hist-search").value||"").toLowerCase().trim();
+  var from=desdeVal?pdate(desdeVal):null;
+  var to=hastaVal?pdate(hastaVal):null;
+  if(to){to.setHours(23,59,59,999);}
+  var rows=data.map(function(r){
+    var bd=pdate(r.block_date), ud=pdate(r.unblock_date);
+    var active=!!r.is_active || (!ud && !!bd);
+    var blockedInRange=inRange(bd,from,to);
+    var unblockedInRange=inRange(ud,from,to);
+    var doneInRange=blockedInRange || unblockedInRange;
+    return {
+      raw:r, active:active, blockedInRange:blockedInRange, unblockedInRange:unblockedInRange, doneInRange:doneInRange,
+      searchText:[r.vin,r.block_code,r.compound_descr,r.source_file].join(' ').toLowerCase()
+    };
+  }).filter(function(x){
+    if(search && x.searchText.indexOf(search)<0)return false;
+    if(tipo==="done" && !x.doneInRange)return false;
+    if(tipo==="blocked" && !x.blockedInRange)return false;
+    if(tipo==="unblocked" && !x.unblockedInRange)return false;
+    if(tipo==="active" && !x.active)return false;
+    if(tipo==="closed" && x.active)return false;
+    if(tipo==="all" && from && to){
+      if(!(x.doneInRange || x.active)) return false;
+    }
+    return true;
+  }).map(function(x){
+    var r=x.raw, bd=pdate(r.block_date), ud=pdate(r.unblock_date);
+    return {
+      VIN:r.vin,
+      Codigo:r.block_code,
+      Fecha_Bloqueo:bd?fmt(bd):"",
+      Fecha_Desbloqueo:ud?fmt(ud):"",
+      Estado:x.active?"ACTIVO":"CERRADO",
+      Dias_Abierto:bd?daysBetween(bd,x.active?new Date():(ud||new Date())):"",
+      Compound:r.compound_descr||r.compound_code||"",
+      Archivo:r.source_file||"",
+      Importado:r.imported_at?fmt(pdate(r.imported_at)):""
+    };
+  });
+  var ws=XLSX.utils.json_to_sheet(rows);
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Historial");
+  XLSX.writeFile(wb,"Historial_Bloqueos_"+new Date().toISOString().slice(0,10)+".xlsx");
+}
+
 async function exportKPIs(){
   var wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(pendingCache.map(function(p){return{VIN:p.vin,Modelo:p.modelDescr,Boxatura:p.boxatura,Código:p.maint.code,Servicio:p.maint.service,Vencimiento:fmt(p.dueDate),Días:p.daysToDue,Estado:URGLBL[p.urgency]};})),"Preventivo");
@@ -1470,6 +1640,7 @@ function showPage(name){
   if(name==="danos")renderDanos();
   if(name==="gomas")renderGomas();
   if(name==="kpis")renderKPIs();
+  if(name==="historial")renderHistorial();
   if(name==="usuarios")renderUsuarios();
 }
 
