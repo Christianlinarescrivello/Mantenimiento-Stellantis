@@ -409,14 +409,14 @@ tbody td{padding:9px 12px;color:var(--text);}
 
     <!-- STOCK -->
     <div class="page" id="page-stock">
-      <div class="page-title">Importar Stock</div>
-      <div class="page-sub">Reemplaza el stock actual con el archivo del día (filtra Córdoba automáticamente)</div>
+      <div class="page-title">Importar archivos</div>
+      <div class="page-sub">Reconoce automáticamente si el archivo es Stock o listado de bloqueos / desbloqueos y filtra Córdoba</div>
       <div class="card" style="padding:32px;max-width:500px">
         <label style="display:block;border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer" id="stock-zone" for="stock-file">
           <input type="file" id="stock-file" accept=".xlsx" style="display:none" onchange="importStock(event)">
           <div style="font-size:36px;margin-bottom:8px" id="stock-icon">📦</div>
-          <div style="font-weight:700;color:var(--text);margin-bottom:4px">Stock_Playa_*.xlsx</div>
-          <div style="font-size:12px;color:var(--text3)" id="stock-hint">Hacé clic para seleccionar</div>
+          <div style="font-weight:700;color:var(--text);margin-bottom:4px">Stock_Playa_*.xlsx o Unidades Bloqueadas*.xlsx</div>
+          <div style="font-size:12px;color:var(--text3)" id="stock-hint">Hacé clic para seleccionar. El sistema detecta el tipo de archivo automáticamente.</div>
         </label>
         <div id="stock-progress" style="display:none;margin-top:16px">
           <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden">
@@ -673,10 +673,22 @@ function togglePass(inputId, btn){
 // SUPABASE
 // ══════════════════════════════════════════════════════
 function sbH(){return{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY};}
-function sbGet(table,params){return fetch(SB_URL+"/rest/v1/"+table+"?"+params,{headers:sbH()}).then(function(r){return r.json();});}
-function sbPost(table,data){return fetch(SB_URL+"/rest/v1/"+table,{method:"POST",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(function(r){return r.json();});}
-function sbPatch(table,id,data){return fetch(SB_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(function(r){return r.json();});}
-function sbDelete(table,id){return fetch(SB_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"DELETE",headers:sbH()});}
+async function sbParse(r){
+  var txt=await r.text();
+  var data=null;
+  try{data=txt?JSON.parse(txt):null;}catch(e){data=txt||null;}
+  if(!r.ok){
+    var msg=(data&&data.message)||(data&&data.error_description)||(data&&data.error)||txt||("HTTP "+r.status);
+    throw new Error(msg);
+  }
+  return data;
+}
+function sbGet(table,params){return fetch(SB_URL+"/rest/v1/"+table+"?"+params,{headers:sbH()}).then(sbParse);}
+function sbPost(table,data){return fetch(SB_URL+"/rest/v1/"+table,{method:"POST",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
+function sbPatch(table,id,data){return fetch(SB_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
+function sbPatchWhere(table,where,data){return fetch(SB_URL+"/rest/v1/"+table+"?"+where,{method:"PATCH",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
+function sbDelete(table,id){return fetch(SB_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"DELETE",headers:sbH()}).then(sbParse);}
+function restDelete(path){return fetch(SB_URL+path,{method:"DELETE",headers:sbH()}).then(sbParse);}
 
 async function uploadPhoto(file,bucket,path){
   if(!file)return null;
@@ -1220,40 +1232,148 @@ async function saveAsignacion(){
 // ══════════════════════════════════════════════════════
 // IMPORT STOCK
 // ══════════════════════════════════════════════════════
+function resetImportUI(){
+  document.getElementById("stock-progress").style.display="block";
+  document.getElementById("stock-result").style.display="none";
+  document.getElementById("stock-bar").style.width="0%";
+  document.getElementById("stock-msg").textContent="";
+}
+function setImportProgress(pct,msg){
+  document.getElementById("stock-bar").style.width=pct+"%";
+  document.getElementById("stock-msg").textContent=msg||"";
+}
+function setImportResult(ok,msg){
+  var res=document.getElementById("stock-result");
+  res.style.display="block";
+  res.style.background=ok?"#E8F5E9":"#FFEBEE";
+  res.style.color=ok?"#2E7D32":"#C62828";
+  res.textContent=msg;
+}
+function normUpper(v){return String(v||"").trim().toUpperCase();}
+function normalizeBlockList(v){
+  if(v==null)return [];
+  return String(v).split(/[;,]/).map(function(s){return String(s||"").trim().toUpperCase();}).filter(Boolean);
+}
+function uniqueList(arr){
+  var seen={};
+  return arr.filter(function(x){ if(seen[x]) return false; seen[x]=true; return true; });
+}
+function detectImportType(rows,fileName){
+  var first=rows&&rows.length?rows[0]:{};
+  var keys=Object.keys(first||{});
+  var lowerKeys=keys.map(function(k){return k.toLowerCase();});
+  var has=function(name){return lowerKeys.indexOf(String(name).toLowerCase())>=0;};
+  if(has("Block")||has("Block Date")||has("Unblock Date")||has("Unblocked/Deleted"))return"blocks";
+  if(has("Assignment date")||has("Boxatura")||has("Blocks"))return"stock";
+  var lc=String(fileName||"").toLowerCase();
+  if(lc.indexOf("bloquead")>=0||lc.indexOf("block")>=0)return"blocks";
+  return"stock";
+}
+function isCordobaRow(r){
+  var comp=String(r["Compound Descr"]||r["compound"]||r["Compound"]||"").toLowerCase();
+  var code=String(r["Compound Code"]||r["compound_code"]||"");
+  return comp.indexOf("ordoba")>=0 || code==="00214";
+}
+function normalizeDateForDb(v){
+  var d=pdate(v);
+  if(!d)return null;
+  return d.toISOString().slice(0,10);
+}
+async function importStockRows(rows){
+  var cordobaRows=rows.filter(isCordobaRow);
+  if(!cordobaRows.length)throw new Error("El archivo no trae registros de Córdoba.");
+  setImportProgress(40,"Preparando stock de Córdoba: "+cordobaRows.length+" filas...");
+  var mapped=cordobaRows.map(function(r){return{
+    vin:normUpper(r["VIN"]||r["vin"]||null),
+    model_descr:r["Model Descr"]||r["model_descr"]||null,
+    compound:r["Compound Descr"]||r["compound"]||r["Compound"]||null,
+    compound_code:r["Compound Code"]||r["compound_code"]||null,
+    boxatura:r["Boxatura"]||r["boxatura"]||null,
+    blocks:r["Blocks"]||r["blocks"]||null,
+    assignment_date:normalizeDateForDb(r["Assignment date"]||r["assignment_date"]||null)
+  };}).filter(function(r){return r.vin;});
+  if(!mapped.length)throw new Error("No se encontraron VIN válidos para importar.");
+  await restDelete("/rest/v1/stock?compound=ilike.*ordoba*");
+  for(var i=0;i<mapped.length;i+=200){
+    await sbPost("stock",mapped.slice(i,i+200));
+    setImportProgress(40+Math.round(((i+200)/mapped.length)*55),"Subiendo stock: "+Math.min(i+200,mapped.length)+" / "+mapped.length+"...");
+  }
+  await loadStock();renderDashboard();renderPreventivo();
+  setImportProgress(100,"Stock importado correctamente.");
+  setImportResult(true,"✅ "+mapped.length+" unidades de Córdoba importadas al stock.");
+  showToast("Stock actualizado correctamente","success");
+}
+function blockEventTimestamp(r){
+  var candidates=[pdate(r["Unblock Date"]),pdate(r["Block Date"]),pdate(r["Assignment date"]),new Date(0)];
+  candidates=candidates.filter(function(d){return d && !isNaN(d);});
+  return Math.max.apply(null,candidates.map(function(d){return d.getTime();}));
+}
+function blockIsActive(r){
+  var status=String(r["Unblocked/Deleted"]||r["unblocked/deleted"]||"").trim().toLowerCase();
+  var hasUnblock=!!pdate(r["Unblock Date"]||r["unblock date"]);
+  if(status==="yes"||status==="true"||status==="1"||status==="si"||status==="sí")return false;
+  if(hasUnblock)return false;
+  return true;
+}
+async function importBlockRows(rows){
+  var cordobaRows=rows.filter(isCordobaRow).filter(function(r){return normUpper(r["VIN"]||r["vin"]);});
+  if(!cordobaRows.length)throw new Error("El listado de bloqueos no trae VIN de Córdoba.");
+  setImportProgress(40,"Analizando bloqueos de Córdoba: "+cordobaRows.length+" filas...");
+  var latestByVinBlock={};
+  cordobaRows.forEach(function(r){
+    var vin=normUpper(r["VIN"]||r["vin"]);
+    var block=normUpper(r["Block"]||r["block"]);
+    if(!vin||!block)return;
+    var key=vin+"__"+block;
+    var ts=blockEventTimestamp(r);
+    if(!latestByVinBlock[key] || ts>=latestByVinBlock[key].ts){
+      latestByVinBlock[key]={ts:ts,vin:vin,block:block,row:r};
+    }
+  });
+  var perVin={};
+  Object.keys(latestByVinBlock).forEach(function(key){
+    var item=latestByVinBlock[key];
+    if(!perVin[item.vin])perVin[item.vin]=[];
+    if(blockIsActive(item.row))perVin[item.vin].push(item.block);
+  });
+  var vins=Object.keys(perVin);
+  if(!vins.length)throw new Error("No se pudieron determinar bloqueos activos por VIN.");
+  var updated=0;
+  for(var i=0;i<vins.length;i++){
+    var vin=vins[i];
+    var activeBlocks=uniqueList(perVin[vin]).join(";");
+    await sbPatchWhere("stock","vin=eq."+encodeURIComponent(vin),{blocks:activeBlocks||null});
+    updated++;
+    setImportProgress(40+Math.round(((i+1)/vins.length)*55),"Actualizando bloqueos en stock: "+(i+1)+" / "+vins.length+" VIN...");
+  }
+  await loadStock();renderDashboard();renderPreventivo();
+  setImportProgress(100,"Listado de bloqueos procesado correctamente.");
+  setImportResult(true,"✅ Se actualizaron los bloqueos activos de "+updated+" VIN en el stock de Córdoba.");
+  showToast("Bloqueos/desbloqueos actualizados correctamente","success");
+}
 async function importStock(evt){
   var file=evt.target.files[0];if(!file)return;
-  document.getElementById("stock-progress").style.display="block";
-  document.getElementById("stock-bar").style.width="10%";
-  document.getElementById("stock-msg").textContent="Leyendo archivo...";
+  resetImportUI();
+  setImportProgress(10,"Leyendo archivo...");
   var reader=new FileReader();
   reader.onload=async function(e){
-    var wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
-    var ws=wb.Sheets[wb.SheetNames[0]];
-    var rows=XLSX.utils.sheet_to_json(ws,{defval:null});
-    document.getElementById("stock-bar").style.width="30%";
-    var cordobaRows=rows.filter(function(r){
-      var comp=String(r["Compound Descr"]||r["compound"]||"").toLowerCase();
-      return comp.indexOf("ordoba")>=0;
-    });
-    await fetch(SB_URL+"/rest/v1/stock?compound=ilike.*ordoba*",{method:"DELETE",headers:sbH()});
-    document.getElementById("stock-bar").style.width="50%";
-    document.getElementById("stock-msg").textContent="Subiendo "+cordobaRows.length+" unidades...";
-    var mapped=cordobaRows.map(function(r){return{
-      vin:r["VIN"]||r["vin"]||null,model_descr:r["Model Descr"]||null,
-      compound:r["Compound Descr"]||null,compound_code:r["Compound Code"]||null,
-      boxatura:r["Boxatura"]||null,blocks:r["Blocks"]||null,
-      assignment_date:r["Assignment date"]||null,
-    };}).filter(function(r){return r.vin;});
-    for(var i=0;i<mapped.length;i+=200){
-      await sbPost("stock",mapped.slice(i,i+200));
-      document.getElementById("stock-bar").style.width=(50+Math.round((i/mapped.length)*45))+"%";
+    try{
+      var wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{defval:null});
+      if(!rows.length)throw new Error("El archivo no tiene datos.");
+      var importType=detectImportType(rows,file.name);
+      setImportProgress(25,importType==="blocks"?"Archivo detectado: bloqueos / desbloqueos":"Archivo detectado: stock");
+      if(importType==="blocks") await importBlockRows(rows);
+      else await importStockRows(rows);
+    }catch(err){
+      console.error(err);
+      setImportProgress(100,"Error en la importación.");
+      setImportResult(false,"❌ No se pudo importar: "+(err&&err.message?err.message:err));
+      showToast("Falló la importación","error");
+    }finally{
+      evt.target.value="";
     }
-    document.getElementById("stock-bar").style.width="100%";
-    var res=document.getElementById("stock-result");
-    res.style.display="block";res.style.background="#E8F5E9";res.style.color="#2E7D32";
-    res.textContent="✅ "+mapped.length+" unidades de Córdoba importadas";
-    await loadStock();renderDashboard();renderPreventivo();
-    showToast("Stock actualizado correctamente","success");
   };
   reader.readAsArrayBuffer(file);
 }
