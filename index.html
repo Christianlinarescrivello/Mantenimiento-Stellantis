@@ -357,6 +357,7 @@ tbody td{padding:9px 12px;color:var(--text);}
         <input type="text" id="dano-search" placeholder="🔍 VIN..." oninput="renderDanos()" style="width:160px">
         <select id="dano-estado" onchange="renderDanos()">
           <option value="ALL">Todos los estados</option>
+          <option value="sin_datos">⚠ Sin datos (solo stock)</option>
           <option value="pendiente">Pendiente</option>
           <option value="en_reparacion">En reparación</option>
           <option value="resuelto">Resuelto</option>
@@ -1031,29 +1032,66 @@ async function renderDanos(){
   var estado=document.getElementById("dano-estado").value;
   var fact=document.getElementById("dano-facturado").value;
   var params="select=*&order=created_at.desc";
-  if(estado!=="ALL")params+="&estado=eq."+estado;
+  if(estado!=="ALL"&&estado!=="sin_datos")params+="&estado=eq."+estado;
   if(fact!=="ALL")params+="&facturado=eq."+fact;
-  var data=[];try{data=await sbGet("danos",params);}catch(e){}
-  if(!Array.isArray(data))data=[];
-  if(search)data=data.filter(function(d){return(d.vin||"").toLowerCase().indexOf(search)>=0;});
-  var html=data.map(function(d){
+  var dbDanos=[];try{dbDanos=await sbGet("danos",params);}catch(e){}
+  if(!Array.isArray(dbDanos))dbDanos=[];
+  var danoByVin={};
+  dbDanos.forEach(function(d){danoByVin[(d.vin||"").toUpperCase()]=d;});
+  var stockC30=[];
+  if(estado==="ALL"||estado==="sin_datos"){
+    stockC30=stockCache.filter(function(v){
+      var vin=(v.vin||v.VIN||"").toUpperCase();if(!vin)return false;
+      var blocks=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
+      return blocks.indexOf("C30")>=0&&!danoByVin[vin];
+    }).map(function(v){
+      return{_fromStock:true,vin:(v.vin||v.VIN||"").toUpperCase(),
+        model_descr:v.model_descr||v["Model Descr"]||"—",
+        boxatura:v.boxatura||v["Boxatura"]||"—",
+        compound_code:String(v.compound_code||v["Compound Code"]||"00214").padStart(5,"0"),
+        compound:v.compound||v["Compound Descr"]||"Córdoba"};
+    });
+  }
+  var allRows=[].concat(dbDanos).concat(stockC30);
+  if(search)allRows=allRows.filter(function(d){return(d.vin||"").toLowerCase().indexOf(search)>=0;});
+  var html=allRows.map(function(d){
+    if(d._fromStock){
+      return'<tr style="border-left:3px solid var(--gold)">'
+        +'<td style="font-family:monospace;font-size:11px;font-weight:700;color:var(--gold)">'+esc(d.vin)+'</td>'
+        +'<td style="font-size:11px">'+esc(d.model_descr)+'</td>'
+        +'<td style="font-size:11px">'+esc(d.boxatura)+'</td>'
+        +'<td colspan="2" style="font-size:11px;color:var(--text3);font-style:italic">Sin datos cargados</td>'
+        +'<td>—</td>'
+        +'<td><span class="badge b-pending">SIN DATOS</span></td>'
+        +'<td><span class="badge b-inprog">C30 Activo</span></td>'
+        +'<td>—</td>'
+        +'<td><button class="btn btn-gold btn-sm" onclick="openDanoModalForVin(\''+esc(d.vin)+'\')" >+ Cargar daño</button></td>'
+        +'</tr>';
+    }
     var wsH=d.ws_desbloqueo_ok?'<span class="badge b-done">Desbloqueado</span>':d.ws_bloqueo_ok?'<span class="badge b-inprog">C30 Activo</span>':'<span style="font-size:10px;color:var(--text3)">—</span>';
-    var fotoH=d.foto_url?'<a href="'+d.foto_url+'" target="_blank" style="font-size:11px;color:var(--gold)">Ver 📷</a>':'—';
-    var acc='';
+    var fotoH=d.foto_url?'<a href="'+d.foto_url+'" target="_blank" style="font-size:11px;color:var(--gold)">Ver 📷</a>':"—";
+    var acc="";
     if(d.estado==="pendiente")acc='<button class="btn btn-primary btn-sm" onclick="updateDano(\''+d.id+'\',\'en_reparacion\')">En reparación</button>';
-    else if(d.estado==="en_reparacion")acc='<button class="btn btn-success btn-sm" onclick="resolveDano(\''+d.id+'\',\''+esc(d.vin)+'\',\''+esc(d.compound_code||"00214")+'\')">✅ Resolver</button>';
+    else if(d.estado==="en_reparacion")acc='<button class="btn btn-success btn-sm" onclick="resolveDano(\''+d.id+'\',\''+esc(d.vin)+'\',\''+esc(d.compound_code||"00214")+'\')" >✅ Resolver</button>';
     var factB=d.facturado?'<span class="badge b-done">Sí</span>':'<span class="badge b-ko">No</span>';
-    var estadoClass='pendiente'===d.estado?'b-pending':'en_reparacion'===d.estado?'b-inprog':'b-done';
+    var estadoClass="pendiente"===d.estado?"b-pending":"en_reparacion"===d.estado?"b-inprog":"b-done";
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc(d.vin)+'</td>'
       +'<td style="font-size:11px">'+esc(d.model_descr||"—")+'</td>'
       +'<td style="font-size:11px">'+esc(d.boxatura||"—")+'</td>'
-      +'<td style="max-width:160px;font-size:11px">'+esc(d.descripcion)+'</td>'
+      +'<td style="max-width:160px;font-size:11px">'+esc(d.descripcion||"—")+'</td>'
       +'<td style="font-size:11px">'+esc(d.ubicacion||"—")+'</td>'
       +'<td>'+factB+'</td>'
       +'<td><span class="badge '+estadoClass+'">'+esc(d.estado)+'</span></td>'
       +'<td>'+wsH+'</td><td>'+fotoH+'</td><td>'+acc+'</td></tr>';
   }).join("");
-  document.getElementById("dano-tbody").innerHTML=html||'<tr><td colspan="10"><div class="empty"><div class="empty-icon">✅</div>Sin daños registrados</div></td></tr>';
+  document.getElementById("dano-tbody").innerHTML=html||'<tr><td colspan="10"><div class="empty"><div class="empty-icon">✅</div>Sin C30 en el stock ni daños registrados</div></td></tr>';
+}
+function openDanoModalForVin(vin){
+  openDanoModal();
+  setTimeout(function(){
+    var el=document.getElementById("d-vin");
+    if(el){el.value=vin;lookupVin("d-vin","d-modelo","d-box");}
+  },50);
 }
 async function updateDano(id,estado){await sbPatch("danos",id,{estado:estado,updated_at:new Date().toISOString()});renderDanos();showToast("Estado actualizado","success");}
 async function resolveDano(id,vin,cc){
@@ -1070,28 +1108,64 @@ async function renderGomas(){
   var estado=document.getElementById("goma-estado").value;
   var modelo=document.getElementById("goma-modelo").value;
   var params="select=*&order=created_at.desc";
-  if(estado!=="ALL")params+="&estado_stock=eq."+estado;
-  var data=[];try{data=await sbGet("gomas",params);}catch(e){}
-  if(!Array.isArray(data))data=[];
-  if(search)data=data.filter(function(g){return(g.vin||"").toLowerCase().indexOf(search)>=0;});
-  if(modelo!=="ALL")data=data.filter(function(g){return(g.modelo_neumatico||"").indexOf(modelo)>=0;});
-  document.getElementById("goma-ok-count").textContent=data.filter(function(g){return g.estado_stock==="ok";}).length;
-  document.getElementById("goma-ko-count").textContent=data.filter(function(g){return g.estado_stock==="ko";}).length;
+  if(estado!=="ALL"&&estado!=="sin_datos")params+="&estado_stock=eq."+estado;
+  var dbGomas=[];try{dbGomas=await sbGet("gomas",params);}catch(e){}
+  if(!Array.isArray(dbGomas))dbGomas=[];
+  var gomaByVin={};
+  dbGomas.forEach(function(g){gomaByVin[(g.vin||"").toUpperCase()]=g;});
+  var stockC37=[];
+  if(estado==="ALL"||estado==="sin_datos"){
+    stockC37=stockCache.filter(function(v){
+      var vin=(v.vin||v.VIN||"").toUpperCase();if(!vin)return false;
+      var blocks=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
+      return blocks.indexOf("C37")>=0&&!gomaByVin[vin];
+    }).map(function(v){
+      return{_fromStock:true,vin:(v.vin||v.VIN||"").toUpperCase(),
+        model_descr:v.model_descr||v["Model Descr"]||"—",
+        boxatura:v.boxatura||v["Boxatura"]||"—",
+        compound_code:String(v.compound_code||v["Compound Code"]||"00214").padStart(5,"0"),
+        modelo_neumatico:"",posicion:"",observaciones:"",estado_stock:"ko"};
+    });
+  }
+  var allRows=[].concat(dbGomas).concat(stockC37);
+  if(search)allRows=allRows.filter(function(g){return(g.vin||"").toLowerCase().indexOf(search)>=0;});
+  if(modelo!=="ALL")allRows=allRows.filter(function(g){return(g.modelo_neumatico||"").indexOf(modelo)>=0;});
+  document.getElementById("goma-ok-count").textContent=allRows.filter(function(g){return g.estado_stock==="ok";}).length;
+  document.getElementById("goma-ko-count").textContent=allRows.filter(function(g){return g.estado_stock==="ko";}).length;
   var POS={delantera_izq:"Del. Izq",delantera_der:"Del. Der",trasera_izq:"Tras. Izq",trasera_der:"Tras. Der",auxilio:"Auxilio"};
-  var html=data.map(function(g){
+  var html=allRows.map(function(g){
+    if(g._fromStock){
+      return'<tr style="border-left:3px solid var(--gold)">'
+        +'<td style="font-family:monospace;font-size:11px;font-weight:700;color:var(--gold)">'+esc(g.vin)+'</td>'
+        +'<td style="font-size:11px">'+esc(g.model_descr)+'</td>'
+        +'<td style="font-size:11px">'+esc(g.boxatura)+'</td>'
+        +'<td colspan="2" style="font-size:11px;color:var(--text3);font-style:italic">Sin datos cargados</td>'
+        +'<td><span class="badge b-ko">KO</span></td>'
+        +'<td><span class="badge b-inprog">C37 Activo</span></td>'
+        +'<td>—</td>'
+        +'<td><button class="btn btn-gold btn-sm" onclick="openGomaModalForVin(\''+esc(g.vin)+'\')">+ Cargar goma</button></td>'
+        +'</tr>';
+    }
     var wsH=g.ws_desbloqueo_ok?'<span class="badge b-done">OK</span>':g.ws_bloqueo_ok?'<span class="badge b-inprog">C37 Activo</span>':'<span style="font-size:10px;color:var(--text3)">—</span>';
-    var acc=g.estado_stock==="ko"?'<button class="btn btn-success btn-sm" onclick="resolveGoma(\''+g.id+'\',\''+esc(g.vin)+'\',\''+esc(g.compound_code||"00214")+'\')">✅ Resolver</button>':'';
+    var acc=g.estado_stock==="ko"?'<button class="btn btn-success btn-sm" onclick="resolveGoma(\''+g.id+'\',\''+esc(g.vin)+'\',\''+esc(g.compound_code||"00214")+'\')" >✅ Resolver</button>':"";
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc(g.vin)+'</td>'
       +'<td style="font-size:11px">'+esc(g.model_descr||"—")+'</td>'
       +'<td style="font-size:11px">'+esc(g.boxatura||"—")+'</td>'
       +'<td style="font-size:11px">'+esc(g.modelo_neumatico||"—")+'</td>'
-      +'<td style="font-size:11px">'+(POS[g.posicion]||g.posicion||"—")+'</td>'
-      +'<td><span class="badge '+('ok'===g.estado_stock?'b-stok':'b-ko')+'">'+('ok'===g.estado_stock?'OK':'KO')+'</span></td>'
+      +'<td style="font-size:11px">'+( POS[g.posicion]||g.posicion||"—")+'</td>'
+      +'<td><span class="badge '+("ok"===g.estado_stock?"b-stok":"b-ko")+">"+(g.estado_stock==="ok"?"OK":"KO")+'</span></td>'
       +'<td>'+wsH+'</td>'
       +'<td style="font-size:11px;max-width:120px">'+esc(g.observaciones||"—")+'</td>'
       +'<td>'+acc+'</td></tr>';
   }).join("");
-  document.getElementById("goma-tbody").innerHTML=html||'<tr><td colspan="9"><div class="empty"><div class="empty-icon">🟢</div>Sin registros</div></td></tr>';
+  document.getElementById("goma-tbody").innerHTML=html||'<tr><td colspan="9"><div class="empty"><div class="empty-icon">🟢</div>Sin C37 en el stock ni gomas registradas</div></td></tr>';
+}
+function openGomaModalForVin(vin){
+  openGomaModal();
+  setTimeout(function(){
+    var el=document.getElementById("g-vin");
+    if(el){el.value=vin;lookupVin("g-vin","g-modelo","g-box");}
+  },50);
 }
 async function resolveGoma(id,vin,cc){
   var wsOk=false;try{var r=await callWS(vin,cc,"C37","U");wsOk=r.success;}catch(e){}
@@ -1192,31 +1266,97 @@ async function renderKPIs(){
   var desde=document.getElementById("kpi-desde").value;
   var hasta=document.getElementById("kpi-hasta").value;
   var danos=[],gomas=[];
-  try{danos=await sbGet("danos","created_at=gte."+desde+"&created_at=lte."+hasta+"T23:59:59&select=*");}catch(e){}
-  try{gomas=await sbGet("gomas","created_at=gte."+desde+"&created_at=lte."+hasta+"T23:59:59&select=*");}catch(e){}
+  try{danos=await sbGet("danos","select=*");}catch(e){}
+  try{gomas=await sbGet("gomas","select=*");}catch(e){}
   if(!Array.isArray(danos))danos=[];if(!Array.isArray(gomas))gomas=[];
+  // Completados = bloqueos de mantenimiento preventivo con unblock_date en el historial
+  var historial=[];
+  try{
+    var hp="select=*&limit=20000";
+    var hdata=await sbGet("bloqueos_historial",hp);
+    if(Array.isArray(hdata))historial=hdata;
+  }catch(e){}
+  var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
+  var completados=historial.filter(function(r){
+    return PREV_CODES.indexOf(r.block_code)>=0 && !r.is_active && r.unblock_date;
+  });
+  // Filter by date range if set
+  var compEnRango=completados;
+  if(desde||hasta){
+    compEnRango=completados.filter(function(r){
+      var ud=r.unblock_date?r.unblock_date.slice(0,10):"";
+      if(desde&&ud<desde)return false;
+      if(hasta&&ud>hasta)return false;
+      return true;
+    });
+  }
+  // Completados por servicio en el rango
+  var compByCode={};
+  PREV_CODES.forEach(function(code){
+    compByCode[code]=compEnRango.filter(function(r){return r.block_code===code;}).length;
+  });
+  // Pendientes por servicio (stock)
   var prevTotal=pendingCache.length||1;
   var byService={};
-  CATALOG.forEach(function(m){byService[m.code]=pendingCache.filter(function(p){return p.maint.code===m.code;}).length;});
-  var maxServ=Math.max.apply(null,Object.values(byService))||1;
+  PREV_CODES.forEach(function(m){byService[m]=pendingCache.filter(function(p){return p.maint.code===m;}).length;});
+  var maxServ=Math.max.apply(null,PREV_CODES.map(function(c){return (byService[c]||0)+(compByCode[c]||0);})||[1])||1;
+  // C30 from stock
+  var stockC30count=stockCache.filter(function(v){
+    var blocks=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
+    return blocks.indexOf("C30")>=0;
+  }).length;
+  // C37 from stock
+  var stockC37count=stockCache.filter(function(v){
+    var blocks=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
+    return blocks.indexOf("C37")>=0;
+  }).length;
+  var totalComp=compEnRango.length;
+  var totalPend=pendingCache.length;
   document.getElementById("kpi-grid").innerHTML=
-    '<div class="kpi-card"><h4>Preventivo por servicio</h4>'
-    +CATALOG.map(function(m){var val=byService[m.code]||0;var pct=Math.round(val/maxServ*100);return'<div class="bar-item"><div class="bar-label">'+m.code+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:var(--blue)"></div></div><div class="bar-val">'+val+'</div></div>';}).join("")+'</div>'
-    +'<div class="kpi-card"><h4>Por urgencia</h4>'
+    '<div class="kpi-card"><h4>Preventivo — Completados vs Pendientes</h4>'
+    +PREV_CODES.map(function(code){
+      var comp=compByCode[code]||0;
+      var pend=byService[code]||0;
+      var total=comp+pend||1;
+      var pctComp=Math.round(comp/maxServ*100);
+      var pctPend=Math.round(pend/maxServ*100);
+      return'<div class="bar-item" style="margin-bottom:10px">'
+        +'<div class="bar-label" style="width:45px">'+code+'</div>'
+        +'<div style="flex:1">'
+        +'<div style="display:flex;gap:2px;height:8px;border-radius:4px;overflow:hidden;background:var(--border)">'
+        +'<div style="width:'+pctComp+'%;background:#2E7D32;transition:width .5s" title="Completados: '+comp+'"></div>'
+        +'<div style="width:'+pctPend+'%;background:var(--blue);transition:width .5s" title="Pendientes: '+pend+'"></div>'
+        +'</div>'
+        +'<div style="display:flex;gap:12px;margin-top:3px;font-size:10px">'
+        +'<span style="color:#2E7D32">&#10003; '+comp+' hechos</span>'
+        +'<span style="color:var(--text3)">'+pend+' pendientes</span>'
+        +'</div></div></div>';
+    }).join("")
+    +'<div style="display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:12px">'
+    +'<span style="color:#2E7D32;font-weight:700">&#10003; '+totalComp+' completados en el período</span>'
+    +'<span style="color:var(--text3)">/ '+totalPend+' pendientes totales</span>'
+    +'</div></div>'
+    +'<div class="kpi-card"><h4>Por urgencia (pendientes)</h4>'
     +[{l:"Vencidos",v:pendingCache.filter(function(p){return p.urgency==="overdue";}).length,c:"#C62828"},
       {l:"Urgentes",v:pendingCache.filter(function(p){return p.urgency==="urgent";}).length,c:"#E65100"},
       {l:"Próximos",v:pendingCache.filter(function(p){return p.urgency==="soon";}).length,c:"#1565C0"},
       {l:"A tiempo",v:pendingCache.filter(function(p){return p.urgency==="ok";}).length,c:"#2E7D32"},
     ].map(function(s){var pct=Math.round(s.v/prevTotal*100)||0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>'
-    +'<div class="kpi-card"><h4>Daños C30 (período)</h4>'
-    +[{l:"Total",v:danos.length},{l:"Pendientes",v:danos.filter(function(d){return d.estado==="pendiente";}).length},
-      {l:"Reparación",v:danos.filter(function(d){return d.estado==="en_reparacion";}).length},
-      {l:"Resueltos",v:danos.filter(function(d){return d.estado==="resuelto";}).length},
-      {l:"Facturados",v:danos.filter(function(d){return d.facturado;}).length},
-    ].map(function(s){var pct=danos.length?Math.round(s.v/danos.length*100):0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:#C62828"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>'
-    +'<div class="kpi-card"><h4>Gomas C37 (período)</h4>'
-    +[{l:"Total",v:gomas.length},{l:"KO activas",v:gomas.filter(function(g){return g.estado_stock==="ko";}).length},{l:"OK resueltas",v:gomas.filter(function(g){return g.estado_stock==="ok";}).length}]
-    .map(function(s){var pct=gomas.length?Math.round(s.v/gomas.length*100):0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:#E65100"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>';
+    +'<div class="kpi-card"><h4>Daños C30</h4>'
+    +[{l:"En stock",v:stockC30count,c:"var(--gold)"},
+      {l:"Con datos",v:danos.length,c:"var(--blue)"},
+      {l:"Pendientes",v:danos.filter(function(d){return d.estado==="pendiente";}).length,c:"#E65100"},
+      {l:"En reparación",v:danos.filter(function(d){return d.estado==="en_reparacion";}).length,c:"#1565C0"},
+      {l:"Resueltos",v:danos.filter(function(d){return d.estado==="resuelto";}).length,c:"#2E7D32"},
+      {l:"Sin datos aún",v:stockC30count-danos.length>0?stockC30count-danos.length:0,c:"var(--text3)"},
+    ].map(function(s){var pct=stockC30count?Math.round(s.v/stockC30count*100):0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>'
+    +'<div class="kpi-card"><h4>Neumáticos C37</h4>'
+    +[{l:"En stock",v:stockC37count,c:"var(--gold)"},
+      {l:"Con datos",v:gomas.length,c:"var(--blue)"},
+      {l:"KO activas",v:gomas.filter(function(g){return g.estado_stock==="ko";}).length,c:"#C62828"},
+      {l:"OK resueltas",v:gomas.filter(function(g){return g.estado_stock==="ok";}).length,c:"#2E7D32"},
+      {l:"Sin datos aún",v:stockC37count-gomas.length>0?stockC37count-gomas.length:0,c:"var(--text3)"},
+    ].map(function(s){var pct=stockC37count?Math.round(s.v/stockC37count*100):0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>';
 }
 
 // ══════════════════════════════════════════════════════
@@ -1453,9 +1593,14 @@ function blockIsActive(r){
   return true;
 }
 async function importBlockRows(rows,fileName){
-  var cordobaRows=rows.filter(isCordobaRow).filter(function(r){return normUpper(r["VIN"]||r["vin"]);});
-  if(!cordobaRows.length)throw new Error("El listado de bloqueos no trae VIN de Córdoba.");
-  setImportProgress(40,"Consolidando bloqueos de Córdoba: "+cordobaRows.length+" filas...");
+  var OUR_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA","C30","C37"];
+  var cordobaRows=rows.filter(isCordobaRow).filter(function(r){
+    var vin=normUpper(r["VIN"]||r["vin"]);
+    var block=normUpper(r["Block"]||r["block"]||"");
+    return vin && OUR_CODES.indexOf(block)>=0;
+  });
+  if(!cordobaRows.length)throw new Error("No hay bloqueos de mantenimiento (M90/BSE/MDI/DSE/AN1/CAF/FLU/UREA/C30/C37) para Córdoba en este archivo.");
+  setImportProgress(40,"Bloqueos de mantenimiento Córdoba: "+cordobaRows.length+" filas (de "+rows.length+" totales)...");
 
   var aggregated={};
   cordobaRows.forEach(function(r){
