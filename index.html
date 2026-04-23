@@ -7,6 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <style>
 [data-theme="dark"]{--navy:#0D1F3C;--blue:#1A3C6E;--gold:#C8A44A;--gold2:#E8C06A;--red:#C62828;--orange:#E65100;--green2:#2E7D32;--bg:#0F172A;--bg2:#1E293B;--card:#1E293B;--border:#2D3F55;--text:#F1F5F9;--text2:#94A3B8;--text3:#64748B;--topbar:#0D1F3C;--sidenav:#0D1F3C;--ibg:#0F172A;--iborder:#2D3F55;--icolor:#F1F5F9;--shadow:0 2px 12px rgba(0,0,0,0.4);}
 [data-theme="light"]{--navy:#0D1F3C;--blue:#1A3C6E;--gold:#C8A44A;--gold2:#E8C06A;--red:#C62828;--orange:#E65100;--green2:#2E7D32;--bg:#F0F4F8;--bg2:#E8EDF4;--card:#FFFFFF;--border:#E2E8F0;--text:#1A202C;--text2:#4A5568;--text3:#718096;--topbar:#0D1F3C;--sidenav:#0D1F3C;--ibg:#FFFFFF;--iborder:#CBD5E0;--icolor:#1A202C;--shadow:0 2px 8px rgba(0,0,0,0.08);}
@@ -97,6 +99,15 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}tbody
 .pdf-opt{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);cursor:pointer;}
 .pdf-opt input[type=checkbox]{width:15px;height:15px;accent-color:var(--gold);cursor:pointer;}
 .resp-badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;}
+
+.obt-layout{display:grid;grid-template-columns:1fr;gap:16px;}
+.xml-box{width:100%;min-height:260px;max-height:60vh;overflow:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;color:var(--text);font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
+.ws-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.4px;}
+.ws-pill.ok{background:#E8F5E9;color:#2E7D32;}
+.ws-pill.ko{background:#FFEBEE;color:#C62828;}
+.ws-error-cell{max-width:320px;white-space:normal;line-height:1.35;color:var(--text2);}
+.obt-head-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.obt-mini{font-size:11px;color:var(--text3);}
 @media(max-width:768px){.sidenav{display:none;}.main{margin-left:0;padding:16px;}.charts-grid{grid-template-columns:1fr;}.field-row{grid-template-columns:1fr;}}
 @media print{.no-print{display:none!important;}.print-only{display:block!important;}body{background:white;}.sidenav,.topbar{display:none;}@page{margin:12mm;}}
 .print-only{display:none;}
@@ -120,7 +131,7 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}tbody
     </div>
     <button class="login-btn" onclick="doLogin()">INGRESAR</button>
     <div class="login-err" id="login-err">Usuario o contrasena incorrectos</div>
-    <div class="login-version" id="login-version-tag">v2.2.0 · Mantenimiento Preventivo · Cordoba</div>
+    <div class="login-version" id="login-version-tag">v2.4.0-obt-integraciones · Mantenimiento Preventivo · Cordoba</div>
   </div>
 </div>
 <div id="forgot-screen">
@@ -158,6 +169,7 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}tbody
     <div class="nav-section supervisor-only">Reportes</div>
     <div class="nav-item supervisor-only" onclick="showPage('kpis')" id="nav-kpis"><span class="icon">&#128200;</span> KPIs y Programa</div>
     <div class="nav-item supervisor-only" onclick="showPage('resp')" id="nav-resp"><span class="icon">&#128101;</span> Responsabilidades</div>
+    <div class="nav-item supervisor-only" onclick="showPage('obt')" id="nav-obt"><span class="icon">&#128279;</span> Integraciones OBT</div>
     <div class="nav-section">Archivos</div>
     <div class="nav-item" onclick="showPage('stock')" id="nav-stock"><span class="icon">&#128230;</span> Importar archivos</div>
     <div class="nav-section supervisor-only">Config</div>
@@ -346,6 +358,35 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}tbody
         </table></div>
       </div>
     </div>
+    <!-- INTEGRACIONES OBT -->
+    <div class="page" id="page-obt">
+      <div class="page-title">Integraciones OBT</div>
+      <div class="page-sub">Trazabilidad completa de Web Service SOAP · request / response XML · reintentos manuales sobre integraciones KO</div>
+      <div class="stats-row" id="obt-stats"></div>
+      <div class="filters">
+        <input type="date" id="obt-desde" onchange="renderOBT()">
+        <span style="color:var(--text3);font-size:13px;align-self:center">al</span>
+        <input type="date" id="obt-hasta" onchange="renderOBT()">
+        <input type="text" id="obt-search" placeholder="Buscar VIN / error..." oninput="renderOBT()" style="width:180px">
+        <select id="obt-code" onchange="renderOBT()"><option value="ALL">Todos los codigos</option><option value="C30">C30</option><option value="C37">C37</option></select>
+        <select id="obt-op" onchange="renderOBT()"><option value="ALL">Todas las operaciones</option><option value="B">Bloqueo</option><option value="U">Desbloqueo</option></select>
+        <select id="obt-result" onchange="renderOBT()"><option value="ALL">Todos los resultados</option><option value="OK">Solo OK</option><option value="KO">Solo KO</option></select>
+        <span id="obt-count" style="margin-left:auto;font-size:12px;color:var(--text3)"></span>
+        <button class="btn btn-gold btn-sm" onclick="exportOBTExcel(false)">Exportar TODO</button>
+        <button class="btn btn-danger btn-sm" onclick="exportOBTExcel(true)">Exportar solo KO</button>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Historial de integraciones</span>
+          <div class="obt-head-actions"><span class="obt-mini">Cada reintento genera un nuevo registro y preserva el historial.</span></div>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Fecha y hora</th><th>VIN</th><th>Codigo</th><th>Operacion</th><th>Resultado</th><th>Mensaje de error</th><th>Detalle</th><th>Reintentar</th></tr></thead>
+          <tbody id="obt-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
     <!-- IMPORTAR -->
     <div class="page" id="page-stock">
       <div class="page-title">Importar Archivos</div>
@@ -575,9 +616,21 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}tbody
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('modal-usuario')">Cancelar</button><button class="btn btn-primary" onclick="saveUsuario()">Guardar</button></div>
   </div>
 </div>
+<div class="modal-overlay" id="modal-obt-detail">
+  <div class="modal" style="max-width:1100px">
+    <div class="modal-head"><h3>Detalle de integracion OBT</h3><button class="modal-close" onclick="closeModal('modal-obt-detail')">&#10005;</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Request XML</label><pre class="xml-box" id="obt-request-xml"></pre></div>
+        <div class="field"><label>Response XML</label><pre class="xml-box" id="obt-response-xml"></pre></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('modal-obt-detail')">Cerrar</button></div>
+  </div>
+</div>
 <div id="pdf-area" class="print-only" style="font-family:Arial,sans-serif;background:white;color:#1A202C;"></div>
 <script>
-var APP_VERSION="v2.3.1-import-topbar";
+var APP_VERSION="v2.4.0-obt-integraciones";
 var SB_URL="https://hdxphbwxwwcdbewxmwxl.supabase.co";
 var SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkeHBoYnd4d3djZGJld3htd3hsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MTY4ODksImV4cCI6MjA5MjM5Mjg4OX0._NDuvtirjunZT3Pr7w6yY8bOTOaRa7Okw4jrHE3B9dc";
 var WS_URL="http://172.20.60.93:9086/tralocWS/services/TralocWsApp";
@@ -611,7 +664,7 @@ var RESP_CLASS={
 };
 var FERIADOS=["2025-01-01","2025-03-03","2025-03-04","2025-03-24","2025-04-02","2025-04-18","2025-05-01","2025-05-25","2025-06-20","2025-07-09","2025-08-17","2025-10-12","2025-11-20","2025-12-08","2025-12-25","2026-01-01","2026-02-16","2026-02-17","2026-03-23","2026-03-24","2026-04-02","2026-04-03","2026-05-01","2026-05-25","2026-06-19","2026-07-09","2026-08-17","2026-10-12","2026-11-20","2026-12-08","2026-12-25"];
 
-var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], catalogoCache=[], asignPending=null, chartInstances={};
+var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], catalogoCache=[], obtCache=[], asignPending=null, chartInstances={};
 var cfgCapacidad=10, cfgSupervisor="Supervisor Cordoba";
 
 function pdate(v){if(!v)return null;if(v instanceof Date)return isNaN(v)?null:v;var s=String(v).trim();var m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m)return new Date(+m[3],+m[2]-1,+m[1]);var m2=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m2)return new Date(+m2[1],+m2[2]-1,+m2[3]);var d=new Date(s);return isNaN(d)?null:d;}
@@ -641,7 +694,57 @@ function sbDelete(t,id){return fetch(SB_URL+"/rest/v1/"+t+"?id=eq."+id,{method:"
 function sbUpsert(t,d,oc){return fetch(SB_URL+"/rest/v1/"+t+"?on_conflict="+encodeURIComponent(oc),{method:"POST",headers:Object.assign({"Prefer":"resolution=merge-duplicates,return=minimal"},sbH()),body:JSON.stringify(d)}).then(sbParse);}
 function restDelete(path){return fetch(SB_URL+path,{method:"DELETE",headers:sbH()}).then(sbParse);}
 async function uploadPhoto(file,bucket,path){if(!file)return null;var fd=new FormData();fd.append('file',file);var r=await fetch(SB_URL+"/storage/v1/object/"+bucket+"/"+path,{method:'POST',headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY},body:fd});return r.ok?SB_URL+"/storage/v1/object/public/"+bucket+"/"+path:null;}
-function callWS(vin,cc,code,op){var now=new Date();var xml='<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"><soapenv:Body><executeBSR003WSB xmlns="http://ws.service.be.traloc.reply.it"><input xmlns=""><returnCode>0</returnCode><user>'+WS_USER+'</user><password>'+WS_PASS+'</password><vet><WS3BInput><vin>'+vin+'</vin><compound>'+cc+'</compound><date>'+fmtWS(now)+'</date><time>'+fmtTWS(now)+'</time><operationCode>'+op+'</operationCode><blockCode>'+code+'</blockCode></WS3BInput></vet></input></executeBSR003WSB></soapenv:Body></soapenv:Envelope>';return fetch(WS_URL,{method:"POST",headers:{"Content-Type":"text/xml; charset=UTF-8","SOAPAction":""},body:xml}).then(function(r){return r.text();}).then(function(t){var m=t.match(/<successFlag>(\d+)<\/successFlag>/);return{success:m&&m[1]==="0"};}).catch(function(){return{success:false};});}
+function buildOBTSoapRequest(vin,cc,code,op,now){
+  now=now||new Date();
+  return '<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"><soapenv:Body><executeBSR003WSB xmlns="http://ws.service.be.traloc.reply.it"><input xmlns=""><returnCode>0</returnCode><user>'+WS_USER+'</user><password>'+WS_PASS+'</password><vet><WS3BInput><vin>'+escXml(vin)+'</vin><compound>'+escXml(cc)+'</compound><date>'+fmtWS(now)+'</date><time>'+fmtTWS(now)+'</time><operationCode>'+escXml(op)+'</operationCode><blockCode>'+escXml(code)+'</blockCode></WS3BInput></vet></input></executeBSR003WSB></soapenv:Body></soapenv:Envelope>';
+}
+function escXml(v){return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');}
+function parseWSResultFromXml(xmlText){
+  var txt=String(xmlText||'');
+  var successFlag=(txt.match(/<successFlag>([^<]*)<\/successFlag>/i)||[])[1]||null;
+  var errorCode=(txt.match(/<errorCode>([^<]*)<\/errorCode>/i)||[])[1]||(txt.match(/<cod(?:e)?(?:Error)?>([^<]*)<\/[^>]+>/i)||[])[1]||null;
+  var errorMessage=(txt.match(/<errorMessage>([^<]*)<\/errorMessage>/i)||[])[1]||(txt.match(/<message>([^<]*)<\/message>/i)||[])[1]||(txt.match(/<faultstring>([^<]*)<\/faultstring>/i)||[])[1]||null;
+  var success=successFlag==="0" || /<success>(true|1)<\/success>/i.test(txt);
+  return {success:!!success,success_flag:successFlag,error_code:errorCode,error_message:errorMessage};
+}
+async function logOBTIntegration(payload){
+  try{await sbPost('ws_integrations_obt',[payload]);}catch(e){console.error('No se pudo registrar ws_integrations_obt',e,payload);}
+}
+async function callWS(vin,cc,code,op,extra){
+  var now=new Date();
+  var requestXml=buildOBTSoapRequest(vin,cc,code,op,now);
+  var result={success:false,success_flag:null,error_code:null,error_message:null,request_xml:requestXml,response_xml:null,vin:vin,compound_code:cc,block_code:code,operation:op};
+  try{
+    var resp=await fetch(WS_URL,{method:'POST',headers:{'Content-Type':'text/xml; charset=UTF-8','SOAPAction':''},body:requestXml});
+    var txt=await resp.text();
+    var parsed=parseWSResultFromXml(txt);
+    result.success=!!parsed.success && resp.ok;
+    result.success_flag=parsed.success_flag;
+    result.error_code=parsed.error_code || (resp.ok?null:String(resp.status));
+    result.error_message=parsed.error_message || (resp.ok?null:('HTTP '+resp.status));
+    result.response_xml=txt;
+  }catch(err){
+    result.success=false;
+    result.error_message=err&&err.message?err.message:'Error de red o CORS';
+    result.response_xml='<clientError>'+escXml(result.error_message)+'</clientError>';
+  }
+  await logOBTIntegration({
+    executed_by:currentUser&&currentUser.id?currentUser.id:null,
+    vin:vin,
+    compound_code:cc,
+    block_code:code,
+    operation:op,
+    success:!!result.success,
+    success_flag:result.success_flag,
+    error_code:result.error_code,
+    error_message:result.error_message,
+    request_xml:result.request_xml,
+    response_xml:result.response_xml,
+    source:(extra&&extra.source)||'manual',
+    reference_id:(extra&&extra.reference_id)||null
+  });
+  return result;
+}
 function showForgot(){document.getElementById("login-screen").style.display="none";document.getElementById("forgot-screen").style.display="flex";}
 function showLogin(){document.getElementById("forgot-screen").style.display="none";document.getElementById("login-screen").style.display="flex";}
 async function sendReset(){var email=document.getElementById("f-email").value.trim();if(!email){showToast("Ingresa tu email","error");return;}var data=await sbGet("usuarios","email=eq."+encodeURIComponent(email)+"&select=id").catch(function(){return[];});var msg=document.getElementById("forgot-msg");msg.style.display="block";if(Array.isArray(data)&&data.length>0){msg.textContent="OK. El supervisor actualizara tu contrasena.";await sbPost("reset_requests",{email:email,created_at:new Date().toISOString()}).catch(function(){});}else{msg.style.color="#FC8181";msg.textContent="No se encontro ese email.";}}
@@ -676,9 +779,12 @@ async function initApp(){
   document.getElementById("resp-hasta").value=fmtISO(now);
   var from=new Date(now);from.setDate(from.getDate()-30);
   document.getElementById("kpi-desde").value=fmtISO(from);
+  document.getElementById("obt-hasta").value=fmtISO(now);
+  document.getElementById("obt-desde").value=fmtISO(from);
   document.getElementById("hist-hasta").value=fmtISO(now);
   document.getElementById("hist-desde").value=fmtISO(from);
   document.getElementById("resp-desde").value=fmtISO(from);
+  var verTag=document.getElementById("login-version-tag");if(verTag)verTag.textContent=APP_VERSION+" · Mantenimiento Preventivo · Cordoba";
   await loadConfig();await loadStock();await loadOperarios();await loadCatalogo();
   renderDashboard();renderPreventivo();
 }
@@ -791,7 +897,7 @@ async function renderDanos(){
 async function updateDano(id,estado){await sbPatch("danos",id,{estado:estado,updated_at:new Date().toISOString()});renderDanos();showToast("Estado actualizado","success");}
 async function resolveDano(id,vin,cc){
   showToast("Enviando desbloqueo C30 a OBT...","info");
-  var wsOk=false;try{var r=await callWS(vin,cc,"C30","U");wsOk=r.success;}catch(e){}
+  var wsOk=false;try{var r=await callWS(vin,cc,"C30","U",{source:'danos_resolver',reference_id:id});wsOk=r.success;}catch(e){}
   await sbPatch("danos",id,{estado:"resuelto",ws_desbloqueo_ok:wsOk,updated_at:new Date().toISOString()});
   renderDanos();showToast(wsOk?"Resuelto y C30 desbloqueado en OBT":"Resuelto (WS fallo, verificar)","success");
 }
@@ -818,7 +924,7 @@ async function renderNeumaticos(){
 }
 async function resolveNeumatico(id,vin,cc){
   showToast("Enviando desbloqueo C37 a OBT...","info");
-  var wsOk=false;try{var r=await callWS(vin,cc,"C37","U");wsOk=r.success;}catch(e){}
+  var wsOk=false;try{var r=await callWS(vin,cc,"C37","U",{source:'gomas_resolver',reference_id:id});wsOk=r.success;}catch(e){}
   await sbPatch("gomas",id,{estado_stock:"ok",ws_desbloqueo_ok:wsOk,updated_at:new Date().toISOString()});
   renderNeumaticos();showToast(wsOk?"Neumatico resuelto y C37 desbloqueado":"Resuelto (WS fallo, verificar)","success");
 }
@@ -1040,6 +1146,106 @@ async function generarPDF(){
   document.getElementById("pdf-area").innerHTML=html;
   setTimeout(function(){window.print();},300);
 }
+// OBT INTEGRACIONES
+async function loadOBTIntegrations(){
+  try{
+    var data=await sbGet("ws_integrations_obt","select=*&limit=5000&order=created_at.desc");
+    obtCache=Array.isArray(data)?data:[];
+  }catch(e){obtCache=[];}
+  return obtCache;
+}
+function obtOpLabel(op){return op==='B'?'Bloqueo':op==='U'?'Desbloqueo':(op||'---');}
+function formatDateTime(v){if(!v)return '---';var d=new Date(v);if(isNaN(d))return String(v);return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+async function renderOBT(){
+  if(!obtCache.length)await loadOBTIntegrations();
+  var desde=document.getElementById('obt-desde').value;
+  var hasta=document.getElementById('obt-hasta').value;
+  var search=normUpper(document.getElementById('obt-search').value);
+  var code=document.getElementById('obt-code').value;
+  var op=document.getElementById('obt-op').value;
+  var result=document.getElementById('obt-result').value;
+  var ds=desde?pdate(desde):null, hs=hasta?pdate(hasta):null; if(hs) hs=addDays(hs,1);
+  var rows=obtCache.filter(function(r){
+    var cd=r.created_at?new Date(r.created_at):null;
+    if(ds&&(!cd||cd<ds))return false;
+    if(hs&&(!cd||cd>=hs))return false;
+    if(code!=='ALL'&&String(r.block_code||'')!==code)return false;
+    if(op!=='ALL'&&String(r.operation||'')!==op)return false;
+    if(result==='OK'&&!r.success)return false;
+    if(result==='KO'&&r.success)return false;
+    if(search){
+      var hay=(r.vin||'')+' '+(r.error_message||'')+' '+(r.error_code||'')+' '+(r.block_code||'')+' '+(r.operation||'');
+      if(normUpper(hay).indexOf(search)<0)return false;
+    }
+    return true;
+  });
+  document.getElementById('obt-count').textContent=rows.length+' registros';
+  var ok=rows.filter(function(r){return !!r.success;}).length, ko=rows.length-ok, reint=rows.filter(function(r){return String(r.source||'').toLowerCase()==='retry';}).length;
+  document.getElementById('obt-stats').innerHTML=`
+    <div class="stat" style="border-color:#1A3C6E"><div class="stat-val">${rows.length}</div><div class="stat-lbl">Integraciones visibles</div></div>
+    <div class="stat" style="border-color:#2E7D32"><div class="stat-val" style="color:#2E7D32">${ok}</div><div class="stat-lbl">Resultado OK</div></div>
+    <div class="stat" style="border-color:#C62828"><div class="stat-val" style="color:#C62828">${ko}</div><div class="stat-lbl">Resultado KO</div></div>
+    <div class="stat" style="border-color:#C8A44A"><div class="stat-val" style="color:#C8A44A">${reint}</div><div class="stat-lbl">Reintentos</div></div>`;
+  document.getElementById('obt-tbody').innerHTML=rows.map(function(r){
+    var safeId=String(r.id||'').replace(/'/g,"\'");
+    return `<tr>
+      <td>${formatDateTime(r.created_at)}</td>
+      <td style="font-family:monospace;font-size:11px">${esc(r.vin||'---')}</td>
+      <td><b>${esc(r.block_code||'---')}</b></td>
+      <td>${obtOpLabel(r.operation)}</td>
+      <td><span class="ws-pill ${r.success?'ok':'ko'}">${r.success?'OK':'KO'}</span></td>
+      <td class="ws-error-cell">${esc(r.error_message||r.error_code||'---')}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="openOBTDetail('${safeId}')">Ver</button></td>
+      <td>${r.success?'—':`<button class="btn btn-primary btn-sm" onclick="retryOBTIntegration('${safeId}')">Reintentar</button>`}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8"><div class="empty"><div class="empty-icon">&#128279;</div>Sin integraciones para mostrar</div></td></tr>';}
+function openOBTDetail(id){
+  var row=obtCache.find(function(r){return String(r.id)===String(id);}); if(!row){showToast('No se encontro el registro','error');return;}
+  document.getElementById('obt-request-xml').textContent=row.request_xml||'Sin request XML';
+  document.getElementById('obt-response-xml').textContent=row.response_xml||'Sin response XML';
+  openModal('modal-obt-detail');
+}
+async function retryOBTIntegration(id){
+  var row=obtCache.find(function(r){return String(r.id)===String(id);}); if(!row){showToast('No se encontro el registro a reintentar','error');return;}
+  showToast('Reintentando integracion OBT...','info');
+  var res=await callWS(row.vin,row.compound_code||'00214',row.block_code,row.operation,{source:'retry',reference_id:id});
+  await loadOBTIntegrations();
+  await renderOBT();
+  showToast(res.success?'Reintento OK':'Reintento KO, revisar detalle','success');
+}
+async function getOBTRowsForExport(onlyKO){
+  await loadOBTIntegrations();
+  var rows=obtCache.slice();
+  if(onlyKO)rows=rows.filter(function(r){return !r.success;});
+  return rows;
+}
+
+function svgToPngDataUrl(svgText,width,height){return new Promise(function(resolve,reject){try{var img=new Image();var svgBlob=new Blob([svgText],{type:'image/svg+xml;charset=utf-8'});var url=URL.createObjectURL(svgBlob);img.onload=function(){try{var canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;var ctx=canvas.getContext('2d');ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,width,height);ctx.drawImage(img,0,0,width,height);URL.revokeObjectURL(url);resolve(canvas.toDataURL('image/png'));}catch(err){reject(err);}};img.onerror=function(err){URL.revokeObjectURL(url);reject(err);};img.src=url;}catch(e){reject(e);}});}
+async function exportOBTExcel(onlyKO){
+  if(typeof ExcelJS==='undefined'){showToast('ExcelJS no esta disponible','error');return;}
+  var rows=await getOBTRowsForExport(onlyKO);
+  var wb=new ExcelJS.Workbook();
+  wb.creator='ChatGPT';
+  wb.created=new Date();
+  var ws=wb.addWorksheet('Integraciones OBT',{views:[{state:'frozen',ySplit:5}]});
+  var logoSvg=`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="180" viewBox="0 0 800 180"><rect width="800" height="180" fill="#ffffff"/><text x="400" y="92" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="64" font-weight="700" fill="#0D1F3C" letter-spacing="10">STELLANTIS</text></svg>`;
+  var logoPng=await svgToPngDataUrl(logoSvg,800,180);
+  var logoId=wb.addImage({base64:logoPng,extension:'png'});
+  ws.addImage(logoId,'A1:B3');
+  ws.mergeCells('C1:G1'); ws.getCell('C1').value='REPORTE DE INTEGRACIONES OBT'; ws.getCell('C1').font={bold:true,size:18,color:{argb:'FF0D1F3C'}}; ws.getCell('C1').alignment={horizontal:'center',vertical:'middle'};
+  ws.mergeCells('C2:G2'); ws.getCell('C2').value='Planta Córdoba'; ws.getCell('C2').font={bold:true,size:12,color:{argb:'FF1A3C6E'}}; ws.getCell('C2').alignment={horizontal:'center'};
+  ws.mergeCells('C3:G3'); ws.getCell('C3').value='Generado: '+formatDateTime(new Date().toISOString())+' · Versión: '+APP_VERSION; ws.getCell('C3').font={italic:true,size:10,color:{argb:'FF475569'}}; ws.getCell('C3').alignment={horizontal:'center'};
+  var headerRow=5;
+  ws.getRow(headerRow).values=['Fecha','Hora','VIN','Código','Operación','Resultado','Mensaje'];
+  ws.getRow(headerRow).height=22;
+  ws.columns=[{key:'fecha',width:14},{key:'hora',width:12},{key:'vin',width:22},{key:'codigo',width:10},{key:'operacion',width:16},{key:'resultado',width:12},{key:'mensaje',width:48}];
+  ws.getRow(headerRow).eachCell(function(cell){cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0D1F3C'}};cell.font={bold:true,color:{argb:'FFFFFFFF'}};cell.alignment={vertical:'middle',horizontal:'center'};cell.border={top:{style:'thin',color:{argb:'FFCBD5E1'}},left:{style:'thin',color:{argb:'FFCBD5E1'}},bottom:{style:'thin',color:{argb:'FFCBD5E1'}},right:{style:'thin',color:{argb:'FFCBD5E1'}}};});
+  rows.forEach(function(r){var d=r.created_at?new Date(r.created_at):null; var fecha=d?d.toLocaleDateString('es-AR'):'---'; var hora=d?d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'---'; var row=ws.addRow([fecha,hora,r.vin||'',r.block_code||'',obtOpLabel(r.operation),r.success?'OK':'KO',r.error_message||r.error_code||'']); row.eachCell(function(cell){cell.border={top:{style:'thin',color:{argb:'FFE2E8F0'}},left:{style:'thin',color:{argb:'FFE2E8F0'}},bottom:{style:'thin',color:{argb:'FFE2E8F0'}},right:{style:'thin',color:{argb:'FFE2E8F0'}}}; cell.alignment={vertical:'top',wrapText:true};}); row.getCell(6).font={bold:true,color:{argb:r.success?'FF2E7D32':'FFC62828'}}; row.getCell(6).fill={type:'pattern',pattern:'solid',fgColor:{argb:r.success?'FFE8F5E9':'FFFFEBEE'}};});
+  ws.autoFilter={from:'A5',to:'G5'};
+  ws.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:0.3,right:0.3,top:0.5,bottom:0.5,header:0.2,footer:0.2}};
+  var buffer=await wb.xlsx.writeBuffer();
+  saveAs(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Reporte_Integraciones_OBT_'+(onlyKO?'Solo_KO_':'')+new Date().toISOString().slice(0,10)+'.xlsx');
+}
 // IMPORT
 function setProgress(pct,msg){document.getElementById("import-progress").style.display="block";document.getElementById("import-bar").style.width=pct+"%";document.getElementById("import-msg").textContent=msg||"";}
 function setResult(ok,msg){var r=document.getElementById("import-result");r.style.display="block";r.style.background=ok?"#E8F5E9":"#FFEBEE";r.style.color=ok?"#2E7D32":"#C62828";r.textContent=msg;}
@@ -1171,7 +1377,7 @@ async function saveDano(){
   var fotoFile=document.getElementById("d-foto-input").files[0];
   var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","danos/"+uuid()+"-"+fotoFile.name);
   showToast("Enviando bloqueo C30 a OBT...","info");
-  var wsOk=false;try{var r=await callWS(vin,cc,"C30","B");wsOk=r.success;}catch(e){}
+  var wsOk=false;try{var r=await callWS(vin,cc,"C30","B",{source:'danos',reference_id:vin+'-C30-'+Date.now()});wsOk=r.success;}catch(e){}
   var detEl=document.getElementById("d-detectado");var factEl=document.getElementById("d-fact");
   await sbPost("danos",{
     vin:vin,
@@ -1201,7 +1407,7 @@ async function saveNeumatico(){
   var fotoFile=document.getElementById("n-foto-input").files[0];
   var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","neumaticos/"+uuid()+"-"+fotoFile.name);
   showToast("Enviando bloqueo C37 a OBT...","info");
-  var wsOk=false;try{var r=await callWS(vin,cc,"C37","B");wsOk=r.success;}catch(e){}
+  var wsOk=false;try{var r=await callWS(vin,cc,"C37","B",{source:'gomas',reference_id:vin+'-C37-'+Date.now()});wsOk=r.success;}catch(e){}
   await sbPost("gomas",{
     vin:vin,
     model_descr:v?(v.model_descr||v["Model Descr"]||null):null,
@@ -1245,6 +1451,7 @@ function showPage(name){
   if(name==="historial")renderHistorial();
   if(name==="kpis")renderKPIs();
   if(name==="resp")renderResp();
+  if(name==="obt")renderOBT();
   if(name==="catalogo")renderCatalogo();
   if(name==="usuarios")renderUsuarios();
   if(name==="config")loadConfig();
@@ -1252,6 +1459,7 @@ function showPage(name){
 (function startup(){
   initTheme();
   var se=localStorage.getItem("saved_email");var sp=localStorage.getItem("saved_pass");
+  var verTag=document.getElementById('login-version-tag'); if(verTag) verTag.textContent=APP_VERSION+' · Mantenimiento Preventivo · Cordoba';
   if(se&&sp){document.getElementById("l-email").value=se;document.getElementById("l-pass").value=sp;document.getElementById("l-remember").checked=true;}
 })();
 </script>
