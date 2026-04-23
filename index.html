@@ -861,32 +861,56 @@ async function loadStock(){
   try{
     var data=await sbGet("stock","compound=ilike.*ordoba*&select=*&limit=5000");
     stockCache=Array.isArray(data)?data:[];
-    pendingCache=computePending(stockCache);
+    // Load historial for all patios to get the most recent unblock_date per VIN+code
+    var hist=[];
+    try{
+      var hdata=await sbGet("bloqueos_historial","select=vin,block_code,unblock_date,is_active&limit=20000");
+      if(Array.isArray(hdata))hist=hdata;
+    }catch(e){}
+    pendingCache=computePending(stockCache,hist);
   }catch(e){stockCache=[];pendingCache=[];}
 }
 
-function computePending(rows){
+function computePending(rows, hist){
+  // Build index: for each VIN+code, get the most recent unblock_date from historial (any patio)
+  var lastDone={};
+  if(hist&&hist.length){
+    hist.forEach(function(r){
+      if(!r.unblock_date)return;
+      var ud=pdate(r.unblock_date);
+      if(!ud)return;
+      var key=(r.vin||"").toUpperCase()+"__"+(r.block_code||"").toUpperCase();
+      if(!lastDone[key]||ud>lastDone[key])lastDone[key]=ud;
+    });
+  }
   var result=[];var today=new Date();
   for(var j=0;j<rows.length;j++){
     var v=rows[j];
-    var vin=v.vin||v.VIN;if(!vin)continue;
+    var vin=(v.vin||v.VIN||"").toUpperCase();if(!vin)continue;
     var ad=pdate(v.assignment_date||v["Assignment date"]);if(!ad)continue;
     var md=String(v.model_descr||v["Model Descr"]||"").toUpperCase();
-    var ab=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim();});
+    var ab=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
     var cc=String(v.compound_code||v["Compound Code"]||"00214").padStart(5,"0");
     for(var k=0;k<CATALOG.length;k++){
       var maint=CATALOG[k];
+      if(!maint.days)continue;
       var isDiesel=/TITANO|DAKOTA|TORO|RAMPAGE|2\.2|DIESEL/.test(md);
       if((maint.code==="MDI"||maint.code==="DSE"||maint.code==="UREA")&&!isDiesel)continue;
       if(maint.code==="BSE"&&isDiesel)continue;
-      var due=addDays(ad,maint.days);
+      // Use the most recent date: assignment_date vs last unblock from historial (any patio)
+      var histKey=vin+"__"+maint.code;
+      var lastUnblock=lastDone[histKey]||null;
+      var refDate=lastUnblock&&lastUnblock>ad?lastUnblock:ad;
+      var due=addDays(refDate,maint.days);
       var dtd=Math.round((due-today)/86400000);
       var urgency=urg(due);
+      // Show if vencido/urgente/soon, or if it's in the blocks field (already triggered)
       if(dtd>60&&ab.indexOf(maint.code)<0)continue;
       result.push({vin:vin,modelDescr:v.model_descr||v["Model Descr"]||"—",
         compoundCode:cc,compoundDescr:v.compound||v["Compound Descr"]||cc,
         boxatura:v.boxatura||v["Boxatura"]||"—",
-        refDate:ad,dueDate:due,daysToDue:dtd,urgency:urgency,maint:maint});
+        refDate:refDate,refSource:lastUnblock&&lastUnblock>ad?"historial":"stock",
+        dueDate:due,daysToDue:dtd,urgency:urgency,maint:maint});
     }
   }
   result.sort(function(a,b){return(URGORD[a.urgency]-URGORD[b.urgency])||a.dueDate-b.dueDate;});
@@ -983,7 +1007,7 @@ async function renderPreventivo(){
       +'<td style="max-width:150px;font-size:11px">'+esc(p.modelDescr)+'</td>'
       +'<td style="font-size:11px">'+esc(p.boxatura)+'</td>'
       +'<td><b style="color:var(--gold)">'+p.maint.code+'</b> <span style="color:var(--text3);font-size:11px">'+p.maint.service+'</span></td>'
-      +'<td>'+fmt(p.refDate)+'</td>'
+      +'<td>'+fmt(p.refDate)+(p.refSource==="historial"?'<br><span style="font-size:9px;color:#2E7D32;font-weight:700">✓ historial</span>':'<br><span style="font-size:9px;color:var(--text3)">stock</span>')+'</td>'
       +'<td style="font-weight:600">'+fmt(p.dueDate)+'</td>'
       +'<td style="font-weight:700;color:'+URGCOLOR[p.urgency]+'">'+days+'</td>'
       +'<td><span class="badge b-'+p.urgency+'">'+URGLBL[p.urgency]+'</span></td>'
@@ -1278,7 +1302,9 @@ async function renderKPIs(){
   }catch(e){}
   var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
   var completados=historial.filter(function(r){
-    return PREV_CODES.indexOf(r.block_code)>=0 && !r.is_active && r.unblock_date;
+    // Solo cuenta como "hecho" si el desbloqueo fue en Córdoba
+    var isCordoba=(r.compound_descr&&r.compound_descr.toLowerCase().indexOf("ordoba")>=0)||(r.compound_code==="00214")||(r.compound_code==="214");
+    return PREV_CODES.indexOf(r.block_code)>=0 && !r.is_active && r.unblock_date && isCordoba;
   });
   // Filter by date range if set
   var compEnRango=completados;
@@ -1593,14 +1619,18 @@ function blockIsActive(r){
   return true;
 }
 async function importBlockRows(rows,fileName){
+  // Guardamos TODOS los patios (no solo Córdoba) para poder calcular el último
+  // mantenimiento de unidades que vienen de otros patios.
+  // Solo filtramos por nuestros códigos de mantenimiento.
   var OUR_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA","C30","C37"];
-  var cordobaRows=rows.filter(isCordobaRow).filter(function(r){
+  var cordobaRows=rows.filter(function(r){
     var vin=normUpper(r["VIN"]||r["vin"]);
     var block=normUpper(r["Block"]||r["block"]||"");
     return vin && OUR_CODES.indexOf(block)>=0;
   });
-  if(!cordobaRows.length)throw new Error("No hay bloqueos de mantenimiento (M90/BSE/MDI/DSE/AN1/CAF/FLU/UREA/C30/C37) para Córdoba en este archivo.");
-  setImportProgress(40,"Bloqueos de mantenimiento Córdoba: "+cordobaRows.length+" filas (de "+rows.length+" totales)...");
+  if(!cordobaRows.length)throw new Error("No hay bloqueos de mantenimiento (M90/BSE/MDI/DSE/AN1/CAF/FLU/UREA/C30/C37) en este archivo.");
+  var cordobaOnly=cordobaRows.filter(isCordobaRow).length;
+  setImportProgress(40,"Bloqueos de mantenimiento: "+cordobaRows.length+" filas ("+cordobaOnly+" de Córdoba, resto de otros patios). Total archivo: "+rows.length+"...");
 
   var aggregated={};
   cordobaRows.forEach(function(r){
