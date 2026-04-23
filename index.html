@@ -158,8 +158,9 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}tbody
     <div class="nav-section supervisor-only">Reportes</div>
     <div class="nav-item supervisor-only" onclick="showPage('kpis')" id="nav-kpis"><span class="icon">&#128200;</span> KPIs y Programa</div>
     <div class="nav-item supervisor-only" onclick="showPage('resp')" id="nav-resp"><span class="icon">&#128101;</span> Responsabilidades</div>
+    <div class="nav-section">Archivos</div>
+    <div class="nav-item" onclick="showPage('stock')" id="nav-stock"><span class="icon">&#128230;</span> Importar archivos</div>
     <div class="nav-section supervisor-only">Config</div>
-    <div class="nav-item supervisor-only" onclick="showPage('stock')" id="nav-stock"><span class="icon">&#128230;</span> Importar archivos</div>
     <div class="nav-item supervisor-only" onclick="showPage('catalogo')" id="nav-catalogo"><span class="icon">&#128295;</span> Catalogo neumaticos</div>
     <div class="nav-item supervisor-only" onclick="showPage('usuarios')" id="nav-usuarios"><span class="icon">&#128101;</span> Usuarios</div>
     <div class="nav-item supervisor-only" onclick="showPage('config')" id="nav-config"><span class="icon">&#9881;</span> Configuracion</div>
@@ -409,11 +410,21 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}tbody
   <div class="modal">
     <div class="modal-head"><h3>Registrar Dano (C30)</h3><button class="modal-close" onclick="closeModal('modal-dano')">&#10005;</button></div>
     <div class="modal-body">
-      <div class="field-row">
-        <div class="field"><label>VIN *</label><input type="text" id="d-vin" placeholder="Ingresa el VIN" oninput="lookupVin('d-vin','d-modelo','d-box')"></div>
-        <div class="field"><label>Boxatura</label><input type="text" id="d-box" readonly style="opacity:.7"></div>
+      <!-- Solo el VIN: modelo/box/compound se autocompletan del stock -->
+      <div class="field">
+        <label>VIN *</label>
+        <input type="text" id="d-vin" placeholder="Ingresa el VIN del vehiculo" oninput="autofillDano()" style="font-family:monospace;letter-spacing:1px;font-size:14px;text-transform:uppercase">
       </div>
-      <div class="field"><label>Modelo vehiculo</label><input type="text" id="d-modelo" readonly style="opacity:.7"></div>
+      <div id="d-autoinfo" style="display:none;background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:14px;border:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Info del stock (autocompleto)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div><div style="font-size:10px;color:var(--text3)">Modelo</div><div id="d-info-modelo" style="font-size:13px;font-weight:700;color:var(--text)">---</div></div>
+          <div><div style="font-size:10px;color:var(--text3)">Boxatura</div><div id="d-info-box" style="font-size:13px;font-weight:700;color:var(--text)">---</div></div>
+          <div><div style="font-size:10px;color:var(--text3)">Compound</div><div id="d-info-compound" style="font-size:13px;font-weight:700;color:var(--text)">---</div></div>
+        </div>
+      </div>
+      <div id="d-nostock" style="display:none;background:#FFF8E1;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#F57F17;border:1px solid #FFE082;">VIN no encontrado en el stock de Cordoba. Se puede registrar igual.</div>
+      <!-- Lo que ingresa el operario -->
       <div class="field-row">
         <div class="field"><label>Tipo de dano *</label>
           <select id="d-tipo"><option value="">Seleccionar...</option>
@@ -437,30 +448,34 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}tbody
           </select>
         </div>
       </div>
-      <div class="field-row">
-        <div class="field"><label>Responsabilidad del dano *</label>
-          <select id="d-resp" onchange="onRespChange()"><option value="">Seleccionar...</option>
-            <option value="Planta">Planta (fabrica)</option>
-            <option value="Transporte">Transporte</option>
-            <option value="Encontrado en playa">Encontrado en playa</option>
-            <option value="Operario interno">Operario interno</option>
-            <option value="Cliente / Concesionario">Cliente / Concesionario</option>
-            <option value="Otro">Otro</option>
-          </select>
-        </div>
-        <div class="field" id="d-op-wrap" style="display:none"><label>Operario responsable</label>
-          <select id="d-op-resp"><option value="">Seleccionar operario...</option></select>
-        </div>
-      </div>
-      <div class="field"><label>Descripcion adicional</label><textarea id="d-desc" placeholder="Detalles opcionales del dano"></textarea></div>
-      <div class="field-row">
-        <div class="field"><label>Facturado?</label><select id="d-fact"><option value="false">No</option><option value="true">Si</option></select></div>
-        <div class="field"><label>Detectado por</label><input type="text" id="d-detectado" placeholder="Quien detecto el dano"></div>
-      </div>
+      <div class="field"><label>Observaciones</label><textarea id="d-desc" placeholder="Describe el dano con detalle..."></textarea></div>
       <div class="field"><label>Foto del dano</label>
         <div class="photo-placeholder" onclick="document.getElementById('d-foto-input').click()">Toca para agregar foto</div>
         <input type="file" id="d-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,'d-foto-preview')">
         <img id="d-foto-preview" class="photo-preview">
+      </div>
+      <!-- Solo supervisor -->
+      <div id="d-resp-section" class="supervisor-only" style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Datos adicionales (supervisor)</div>
+        <div class="field-row">
+          <div class="field"><label>Responsabilidad</label>
+            <select id="d-resp" onchange="onRespChange()"><option value="">Seleccionar...</option>
+              <option value="Planta">Planta (fabrica)</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Encontrado en playa">Encontrado en playa</option>
+              <option value="Operario interno">Operario interno</option>
+              <option value="Cliente / Concesionario">Cliente / Concesionario</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="field" id="d-op-wrap" style="display:none"><label>Operario responsable</label>
+            <select id="d-op-resp"><option value="">Seleccionar operario...</option></select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Facturado?</label><select id="d-fact"><option value="false">No</option><option value="true">Si</option></select></div>
+          <div class="field"><label>Detectado por</label><input type="text" id="d-detectado" placeholder="Nombre de quien detecto"></div>
+        </div>
       </div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('modal-dano')">Cancelar</button><button class="btn btn-danger" onclick="saveDano()">Registrar + Bloquear C30</button></div>
@@ -470,27 +485,37 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}tbody
   <div class="modal">
     <div class="modal-head"><h3>Registrar Bloqueo Neumatico (C37)</h3><button class="modal-close" onclick="closeModal('modal-neum')">&#10005;</button></div>
     <div class="modal-body">
-      <div class="field-row">
-        <div class="field"><label>VIN *</label><input type="text" id="n-vin" placeholder="Ingresa el VIN" oninput="lookupVin('n-vin','n-modelo','n-box')"></div>
-        <div class="field"><label>Boxatura</label><input type="text" id="n-box" readonly style="opacity:.7"></div>
+      <!-- Solo el VIN: modelo/box/compound se autocompletan del stock -->
+      <div class="field">
+        <label>VIN *</label>
+        <input type="text" id="n-vin" placeholder="Ingresa el VIN del vehiculo" oninput="autofillNeum()" style="font-family:monospace;letter-spacing:1px;font-size:14px;text-transform:uppercase">
       </div>
-      <div class="field"><label>Modelo vehiculo</label><input type="text" id="n-modelo" readonly style="opacity:.7"></div>
+      <div id="n-autoinfo" style="display:none;background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:14px;border:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Info del stock (autocompleto)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div><div style="font-size:10px;color:var(--text3)">Modelo</div><div id="n-info-modelo" style="font-size:13px;font-weight:700;color:var(--text)">---</div></div>
+          <div><div style="font-size:10px;color:var(--text3)">Boxatura</div><div id="n-info-box" style="font-size:13px;font-weight:700;color:var(--text)">---</div></div>
+          <div><div style="font-size:10px;color:var(--text3)">Compound</div><div id="n-info-compound" style="font-size:13px;font-weight:700;color:var(--text)">---</div></div>
+        </div>
+      </div>
+      <div id="n-nostock" style="display:none;background:#FFF8E1;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#F57F17;border:1px solid #FFE082;">VIN no encontrado en el stock de Cordoba. Se puede registrar igual.</div>
+      <!-- Lo que elige el operario -->
       <div class="field">
         <label>Neumatico a reemplazar *
-          <button type="button" onclick="openCatalogoModal()" style="background:none;border:none;color:var(--gold);font-size:11px;cursor:pointer;margin-left:8px;font-family:'Barlow',sans-serif;">+ Agregar nuevo modelo</button>
+          <button type="button" onclick="openCatalogoModal()" style="background:none;border:none;color:var(--gold);font-size:11px;cursor:pointer;margin-left:8px;font-family:'Barlow',sans-serif;">+ Agregar modelo nuevo</button>
         </label>
         <select id="n-neumatico" onchange="onNeumSelect()"><option value="">Seleccionar neumatico...</option></select>
       </div>
-      <div class="field" id="n-parte-wrap" style="display:none">
-        <label>Codigo de parte</label>
-        <input type="text" id="n-parte" readonly style="opacity:.7;background:var(--bg2);font-family:monospace;color:var(--gold)">
+      <div id="n-parte-wrap" style="display:none;background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:14px;border:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Codigo de parte</div>
+        <div id="n-parte" style="font-family:monospace;font-size:14px;font-weight:700;color:var(--gold)">---</div>
       </div>
       <div class="field"><label>Posicion</label>
         <select id="n-posicion"><option value="">Seleccionar...</option><option value="delantera_izq">Delantera izquierda</option><option value="delantera_der">Delantera derecha</option><option value="trasera_izq">Trasera izquierda</option><option value="trasera_der">Trasera derecha</option><option value="auxilio">Auxilio</option></select>
       </div>
-      <div class="field"><label>Observaciones</label><textarea id="n-obs" placeholder="Detalles adicionales..."></textarea></div>
+      <div class="field"><label>Observaciones</label><textarea id="n-obs" placeholder="Describe el estado del neumatico..."></textarea></div>
       <div class="field"><label>Foto</label>
-        <div class="photo-placeholder" onclick="document.getElementById('n-foto-input').click()">Agregar foto</div>
+        <div class="photo-placeholder" onclick="document.getElementById('n-foto-input').click()">Toca para agregar foto</div>
         <input type="file" id="n-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,'n-foto-preview')">
         <img id="n-foto-preview" class="photo-preview">
       </div>
@@ -672,7 +697,7 @@ async function loadOperarios(){
 }
 async function loadCatalogo(){try{var data=await sbGet("neumaticos_catalogo","activo=eq.true&select=*&order=vehiculo,modelo");catalogoCache=Array.isArray(data)?data:[];}catch(e){catalogoCache=[];}buildNeumSelect();}
 function buildNeumSelect(){var html='<option value="">Seleccionar neumatico...</option>';var byV={};catalogoCache.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});var vkeys=Object.keys(byV).sort();for(var i=0;i<vkeys.length;i++){var v=vkeys[i];html+='<optgroup label="'+esc(v)+'">';for(var j=0;j<byV[v].length;j++){var n=byV[v][j];var label=n.modelo+" - "+n.medida+(n.codigo_parte?" ["+n.codigo_parte+"]":"");html+='<option value="'+n.id+'" data-parte="'+esc(n.codigo_parte||"")+'">'+esc(label)+'</option>';}html+='</optgroup>';}var sel=document.getElementById("n-neumatico");if(sel)sel.innerHTML=html;}
-function onNeumSelect(){var sel=document.getElementById("n-neumatico");var opt=sel?sel.options[sel.selectedIndex]:null;var parte=opt?opt.getAttribute("data-parte"):"";var wrap=document.getElementById("n-parte-wrap");var inp=document.getElementById("n-parte");if(parte&&parte.length>0){if(wrap)wrap.style.display="block";if(inp)inp.value=parte;}else{if(wrap)wrap.style.display="none";if(inp)inp.value="";}}
+function onNeumSelect(){var sel=document.getElementById("n-neumatico");var opt=sel?sel.options[sel.selectedIndex]:null;var parte=opt?opt.getAttribute("data-parte"):"";var wrap=document.getElementById("n-parte-wrap");var div=document.getElementById("n-parte");if(parte&&parte.length>0){if(wrap)wrap.style.display="block";if(div)div.textContent=parte;}else{if(wrap)wrap.style.display="none";if(div)div.textContent="---";}}
 function onRespChange(){var v=document.getElementById("d-resp").value;var wrap=document.getElementById("d-op-wrap");if(wrap)wrap.style.display=v==="Operario interno"?"block":"none";}
 async function renderDashboard(){
   var now=new Date();document.getElementById("dash-date").textContent=now.toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
@@ -1073,43 +1098,122 @@ async function toggleCatalogo(id,activo){await sbPatch("neumaticos_catalogo",id,
 // MODALS
 function openModal(id){document.getElementById(id).classList.add("open");}
 function closeModal(id){document.getElementById(id).classList.remove("open");}
-function openDanoModal(){["d-vin","d-modelo","d-box","d-desc","d-detectado"].forEach(function(id){document.getElementById(id).value="";});document.getElementById("d-tipo").value="";document.getElementById("d-ubic").value="";document.getElementById("d-resp").value="";document.getElementById("d-fact").value="false";document.getElementById("d-op-wrap").style.display="none";document.getElementById("d-foto-preview").style.display="none";openModal("modal-dano");}
-function openNeumModal(){["n-vin","n-modelo","n-box","n-obs"].forEach(function(id){document.getElementById(id).value="";});document.getElementById("n-neumatico").value="";document.getElementById("n-posicion").value="";document.getElementById("n-parte-wrap").style.display="none";document.getElementById("n-foto-preview").style.display="none";buildNeumSelect();openModal("modal-neum");}
+// AUTOFILL - completa datos del stock al escribir el VIN
+function autofillDano(){
+  var vin=document.getElementById("d-vin").value.trim().toUpperCase();
+  var info=document.getElementById("d-autoinfo");
+  var nostock=document.getElementById("d-nostock");
+  if(!vin||vin.length<5){info.style.display="none";nostock.style.display="none";return;}
+  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin;});
+  if(v){
+    document.getElementById("d-info-modelo").textContent=v.model_descr||v["Model Descr"]||"---";
+    document.getElementById("d-info-box").textContent=v.boxatura||v["Boxatura"]||"---";
+    document.getElementById("d-info-compound").textContent=v.compound||v["Compound Descr"]||"---";
+    info.style.display="block";nostock.style.display="none";
+  } else {
+    info.style.display="none";
+    nostock.style.display=vin.length>=17?"block":"none";
+  }
+}
+function autofillNeum(){
+  var vin=document.getElementById("n-vin").value.trim().toUpperCase();
+  var info=document.getElementById("n-autoinfo");
+  var nostock=document.getElementById("n-nostock");
+  if(!vin||vin.length<5){info.style.display="none";nostock.style.display="none";return;}
+  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin;});
+  if(v){
+    document.getElementById("n-info-modelo").textContent=v.model_descr||v["Model Descr"]||"---";
+    document.getElementById("n-info-box").textContent=v.boxatura||v["Boxatura"]||"---";
+    document.getElementById("n-info-compound").textContent=v.compound||v["Compound Descr"]||"---";
+    info.style.display="block";nostock.style.display="none";
+  } else {
+    info.style.display="none";
+    nostock.style.display=vin.length>=17?"block":"none";
+  }
+}
+function openDanoModal(){
+  document.getElementById("d-vin").value="";
+  document.getElementById("d-tipo").value="";
+  document.getElementById("d-ubic").value="";
+  document.getElementById("d-desc").value="";
+  document.getElementById("d-resp").value="";
+  document.getElementById("d-fact").value="false";
+  var det=document.getElementById("d-detectado");if(det)det.value="";
+  document.getElementById("d-autoinfo").style.display="none";
+  document.getElementById("d-nostock").style.display="none";
+  document.getElementById("d-op-wrap").style.display="none";
+  document.getElementById("d-foto-preview").style.display="none";
+  openModal("modal-dano");
+}
+function openNeumModal(){
+  document.getElementById("n-vin").value="";
+  document.getElementById("n-obs").value="";
+  document.getElementById("n-neumatico").value="";
+  document.getElementById("n-posicion").value="";
+  document.getElementById("n-autoinfo").style.display="none";
+  document.getElementById("n-nostock").style.display="none";
+  document.getElementById("n-parte-wrap").style.display="none";
+  document.getElementById("n-foto-preview").style.display="none";
+  buildNeumSelect();openModal("modal-neum");
+}
 function openAsignModalFor(vin,code,service){document.getElementById("a-vin").value=vin;document.getElementById("a-serv").value=code+" - "+service;asignPending={vin:vin,code:code};openModal("modal-asign");}
 function previewPhoto(input,previewId){var file=input.files[0];if(!file)return;var reader=new FileReader();reader.onload=function(e){var img=document.getElementById(previewId);img.src=e.target.result;img.style.display="block";};reader.readAsDataURL(file);}
 async function saveDano(){
-  var vin=document.getElementById("d-vin").value.trim();
+  var vin=document.getElementById("d-vin").value.trim().toUpperCase();
   var tipo=document.getElementById("d-tipo").value;
   var ubic=document.getElementById("d-ubic").value;
-  var resp=document.getElementById("d-resp").value;
-  if(!vin||!tipo||!ubic||!resp){showToast("VIN, tipo de dano, ubicacion y responsabilidad son obligatorios","error");return;}
-  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin.toUpperCase();});
+  if(!vin||!tipo||!ubic){showToast("VIN, tipo de dano y ubicacion son obligatorios","error");return;}
+  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin;});
   var cc=v?String(v.compound_code||"00214").padStart(5,"0"):"00214";
-  var opResp="";
-  if(resp==="Operario interno"){var opSel=document.getElementById("d-op-resp");opResp=opSel?opSel.options[opSel.selectedIndex].text:"";}
+  var resp=document.getElementById("d-resp").value||null;
+  var opResp=null;
+  if(resp==="Operario interno"){var opSel=document.getElementById("d-op-resp");if(opSel&&opSel.value)opResp=opSel.options[opSel.selectedIndex].text;}
   var fotoFile=document.getElementById("d-foto-input").files[0];
   var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","danos/"+uuid()+"-"+fotoFile.name);
-  // Solo bloqueo al registrar
   showToast("Enviando bloqueo C30 a OBT...","info");
   var wsOk=false;try{var r=await callWS(vin,cc,"C30","B");wsOk=r.success;}catch(e){}
-  await sbPost("danos",{vin:vin.toUpperCase(),model_descr:document.getElementById("d-modelo").value||null,compound:v?v.compound:"Cordoba",compound_code:cc,boxatura:document.getElementById("d-box").value||null,tipo_dano:tipo,ubicacion:ubic,descripcion:document.getElementById("d-desc").value||null,responsabilidad:resp,operario_responsable:opResp||null,facturado:document.getElementById("d-fact").value==="true",foto_url:fotoUrl,estado:"pendiente",registrado_por:currentUser.id,ws_bloqueo_ok:wsOk});
+  var detEl=document.getElementById("d-detectado");var factEl=document.getElementById("d-fact");
+  await sbPost("danos",{
+    vin:vin,
+    model_descr:v?(v.model_descr||v["Model Descr"]||null):null,
+    compound:v?(v.compound||v["Compound Descr"]||"Cordoba"):"Cordoba",
+    compound_code:cc,
+    boxatura:v?(v.boxatura||v["Boxatura"]||null):null,
+    tipo_dano:tipo,ubicacion:ubic,
+    descripcion:document.getElementById("d-desc").value||null,
+    responsabilidad:resp,
+    operario_responsable:opResp,
+    facturado:factEl?factEl.value==="true":false,
+    foto_url:fotoUrl,estado:"pendiente",
+    registrado_por:currentUser.id,ws_bloqueo_ok:wsOk
+  });
   closeModal("modal-dano");renderDanos();
   showToast(wsOk?"Dano registrado y C30 bloqueado en OBT":"Dano registrado (WS fallo, verificar C30)","success");
 }
 async function saveNeumatico(){
-  var vin=document.getElementById("n-vin").value.trim();
+  var vin=document.getElementById("n-vin").value.trim().toUpperCase();
   var catId=document.getElementById("n-neumatico").value;
   if(!vin||!catId){showToast("VIN y neumatico son obligatorios","error");return;}
   var cat=catalogoCache.find(function(c){return c.id===catId;});
   var neumLabel=cat?(cat.vehiculo+" - "+cat.modelo+" - "+cat.medida):"";
-  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin.toUpperCase();});
+  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin;});
   var cc=v?String(v.compound_code||"00214").padStart(5,"0"):"00214";
   var fotoFile=document.getElementById("n-foto-input").files[0];
   var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","neumaticos/"+uuid()+"-"+fotoFile.name);
-  // Solo bloqueo al registrar
   showToast("Enviando bloqueo C37 a OBT...","info");
   var wsOk=false;try{var r=await callWS(vin,cc,"C37","B");wsOk=r.success;}catch(e){}
-  await sbPost("gomas",{vin:vin.toUpperCase(),model_descr:document.getElementById("n-modelo").value||null,compound:v?v.compound:"Cordoba",compound_code:cc,boxatura:document.getElementById("n-box").value||null,catalogo_id:catId,modelo_neumatico:neumLabel,posicion:document.getElementById("n-posicion").value||null,observaciones:document.getElementById("n-obs").value||null,estado_stock:"ko",foto_url:fotoUrl,registrado_por:currentUser.id,ws_bloqueo_ok:wsOk});
+  await sbPost("gomas",{
+    vin:vin,
+    model_descr:v?(v.model_descr||v["Model Descr"]||null):null,
+    compound:v?(v.compound||v["Compound Descr"]||"Cordoba"):"Cordoba",
+    compound_code:cc,
+    boxatura:v?(v.boxatura||v["Boxatura"]||null):null,
+    catalogo_id:catId,modelo_neumatico:neumLabel,
+    posicion:document.getElementById("n-posicion").value||null,
+    observaciones:document.getElementById("n-obs").value||null,
+    estado_stock:"ko",foto_url:fotoUrl,
+    registrado_por:currentUser.id,ws_bloqueo_ok:wsOk
+  });
   closeModal("modal-neum");renderNeumaticos();
   showToast(wsOk?"Neumatico registrado y C37 bloqueado en OBT":"Neumatico registrado (WS fallo, verificar C37)","success");
 }
