@@ -190,7 +190,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v3.0.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v3.1.0</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -242,7 +242,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v3.0.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v3.1.0</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <button class="topbar-quick-btn supervisor-only" id="top-import-btn" onclick="showPage('stock')">📦 Importar archivos</button>
     <button class="theme-btn" onclick="toggleTheme()" id="theme-btn" title="Cambiar tema">🌙</button>
@@ -265,6 +265,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="nav-item supervisor-only" onclick="showPage('historial')" id="nav-historial"><span class="icon">🗂️</span> Historial bloqueos</div>
     <div class="nav-item supervisor-only" onclick="showPage('wslog')" id="nav-wslog"><span class="icon">🔌</span> Log WebService</div>
     <div class="nav-section supervisor-only">Config</div>
+    <div class="nav-item" onclick="showPage('deposito')" id="nav-deposito"><span class="icon">🏭</span> Stock Depósito</div>
     <div class="nav-item supervisor-only" onclick="showPage('stock')" id="nav-stock"><span class="icon">📦</span> Importar Stock</div>
     <div class="nav-item supervisor-only" onclick="showPage('usuarios')" id="nav-usuarios"><span class="icon">👥</span> Usuarios</div>
   </div>
@@ -461,6 +462,92 @@ tbody td{padding:9px 12px;color:var(--text);}
       </div>
     </div>
 
+    <!-- DEPÓSITO -->
+    <div class="page" id="page-deposito">
+      <div class="page-title">🏭 Stock Depósito</div>
+      <div class="page-sub">Materiales y neumáticos en el depósito de Córdoba</div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid var(--border);">
+        <button onclick="depTab('neumaticos')" id="dep-tab-neum" style="padding:10px 20px;border:none;background:none;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid var(--gold);color:var(--gold);margin-bottom:-2px;">🟡 Neumáticos</button>
+        <button onclick="depTab('materiales')" id="dep-tab-mat" style="padding:10px 20px;border:none;background:none;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);margin-bottom:-2px;">🔧 Materiales</button>
+      </div>
+
+      <!-- TAB NEUMÁTICOS -->
+      <div id="dep-neum">
+        <div class="stats-row" id="dep-neum-stats"></div>
+        <div class="filters">
+          <select id="dep-neum-filtro" onchange="renderDepNeumaticos()">
+            <option value="ALL">Todos los diseños</option>
+            <option value="ok">Con stock OK</option>
+            <option value="ko">Con KO pendientes</option>
+            <option value="sin_stock">Sin stock</option>
+          </select>
+          <div class="supervisor-only" style="display:flex;gap:8px;margin-left:auto;">
+            <button class="btn btn-success btn-sm" onclick="openAjusteNeumModal('ok')">+ Agregar OK</button>
+            <button class="btn btn-danger btn-sm" onclick="openAjusteNeumModal('ko')">+ Agregar KO</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Vehículo</th><th>Diseño</th><th>Medida</th><th>Código parte</th><th>Stock OK</th><th>Stock KO</th><th>Solicitados</th><th class="supervisor-only">Acciones</th></tr></thead>
+              <tbody id="dep-neum-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- KO Detail section -->
+        <div id="dep-ko-detail" style="display:none;margin-top:16px;">
+          <div class="card-head" style="background:var(--card);border-radius:12px 12px 0 0;padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+            <span class="card-title" id="dep-ko-title">Detalle KO</span>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('dep-ko-detail').style.display='none'">✕ Cerrar</button>
+          </div>
+          <div class="card" style="margin-top:0;border-radius:0 0 12px 12px;">
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>VIN</th><th>Posición</th><th>Fecha registro</th><th>Estado</th><th>Nro. solicitud</th><th>Fecha solicitud</th><th>Fecha recepción</th><th class="supervisor-only">Acciones</th></tr></thead>
+                <tbody id="dep-ko-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB MATERIALES -->
+      <div id="dep-mat" style="display:none;">
+        <div class="stats-row" id="dep-mat-stats"></div>
+        <div class="filters">
+          <select id="dep-mat-filtro" onchange="renderDepMateriales()">
+            <option value="ALL">Todos</option>
+            <option value="critico">Críticos (bajo mínimo)</option>
+            <option value="ok">Stock OK</option>
+          </select>
+          <div class="supervisor-only" style="display:flex;gap:8px;margin-left:auto;">
+            <button class="btn btn-primary btn-sm" onclick="openMatModal()">+ Agregar material</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Material</th><th>Categoría</th><th>Unidad</th><th>Stock OK</th><th>Mínimo</th><th>Estado</th><th>Código parte</th><th class="supervisor-only">Ajustar</th></tr></thead>
+              <tbody id="dep-mat-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Últimos movimientos -->
+        <div style="margin-top:16px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">Últimos movimientos</div>
+          <div class="card">
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>Fecha</th><th>Material</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>VIN</th><th>Operario</th></tr></thead>
+                <tbody id="dep-mov-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- STOCK -->
     <div class="page" id="page-stock">
       <div class="page-title">Importar archivos</div>
@@ -584,28 +671,13 @@ tbody td{padding:9px 12px;color:var(--text);}
       </div>
       <div class="field"><label>Modelo</label><input type="text" id="g-modelo" readonly style="opacity:.7"></div>
       <div class="field-row">
-        <div class="field"><label>Modelo de neumático</label>
-          <select id="g-neumático">
-            <option value="">Seleccionar...</option>
-            <optgroup label="TITANO">
-              <option>Titano — 265/65 R17 Steel (17x7.5J)</option>
-              <option>Titano — 265/65 R17 Aluminum (17x7.5J)</option>
-              <option>Titano — 265/60 R18 Aluminum TPMS (18x7.5J)</option>
-              <option>Titano — 265/60 R18 Aluminum (18x7.5J)</option>
-            </optgroup>
-            <optgroup label="RAM">
-              <option>RAM — 265/65 R17 Alloy TPMS sensor (17x7.5J)</option>
-              <option>RAM — 265/65 R17 Alloy (17x7.5J)</option>
-              <option>RAM — 265/60 R18 Aluminum TPMS (18x7.5J)</option>
-              <option>RAM — 265/60 R18 Aluminum (18x7.5J)</option>
-            </optgroup>
-            <optgroup label="CRONOS">
-              <option>Cronos — 185/65 R15 Steel (15x6J)</option>
-              <option>Cronos — 185/65 R15 Alloy (15x6J)</option>
-              <option>Cronos — 185/60 R15 Alloy (15x6J)</option>
-              <option>Cronos — 155/55 R16 Alloy (16x6J)</option>
-            </optgroup>
+        <div class="field">
+          <label>Modelo de neumático</label>
+          <input type="hidden" id="g-catalogo-id">
+          <select id="g-neumático" onchange="onGomaNeumSelect()">
+            <option value="">Cargando catálogo...</option>
           </select>
+          <div id="g-stock-info" style="margin-top:6px;font-size:11px;font-weight:700;display:none;padding:6px 10px;border-radius:6px;"></div>
         </div>
         <div class="field"><label>Posición</label>
           <select id="g-posicion">
@@ -713,6 +785,144 @@ tbody td{padding:9px 12px;color:var(--text);}
   </div>
 </div>
 
+<!-- MODAL: Ajuste stock neumáticos -->
+<div class="modal-overlay" id="modal-ajuste-neum">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head"><h3 id="ajuste-neum-title">Ajustar stock neumáticos</h3><button class="modal-close" onclick="closeModal('modal-ajuste-neum')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="an-tipo">
+      <div class="field"><label>Diseño de neumático *</label>
+        <select id="an-catalogo"><option value="">Seleccionar...</option></select>
+      </div>
+      <div class="field"><label>Cantidad *</label>
+        <input type="number" id="an-cantidad" min="1" value="1" style="width:100px">
+      </div>
+      <div class="field" id="an-vin-wrap" style="display:none">
+        <label>VIN asociado (últimos 5 dígitos para buscar)</label>
+        <input type="text" id="an-vin-search" placeholder="Ej: 42987" oninput="buscarVinDeposito()" style="width:100%;margin-bottom:6px">
+        <select id="an-vin" style="width:100%"><option value="">Seleccionar VIN...</option></select>
+      </div>
+      <div class="field"><label>Observaciones</label>
+        <input type="text" id="an-obs" placeholder="Opcional">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-ajuste-neum')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAjusteNeum()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Solicitar cambio neumático KO -->
+<div class="modal-overlay" id="modal-solicitar-ko">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head"><h3>Solicitar cambio al proveedor</h3><button class="modal-close" onclick="closeModal('modal-solicitar-ko')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="sk-id">
+      <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;" id="sk-info"></div>
+      <div class="field"><label>Número de solicitud / pedido</label>
+        <input type="text" id="sk-nro" placeholder="Ej: PED-2024-0042">
+      </div>
+      <div class="field"><label>Fecha de solicitud *</label>
+        <input type="date" id="sk-fecha" style="width:100%">
+      </div>
+      <div class="field"><label>Observaciones</label>
+        <input type="text" id="sk-obs" placeholder="Notas para el proveedor">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-solicitar-ko')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSolicitudKo()">Marcar como solicitado</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Recibir reemplazo -->
+<div class="modal-overlay" id="modal-recibir-neum">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-head"><h3>✅ Registrar recepción de reemplazo</h3><button class="modal-close" onclick="closeModal('modal-recibir-neum')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="rn-id">
+      <input type="hidden" id="rn-catalogo-id">
+      <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;" id="rn-info"></div>
+      <div class="field"><label>Fecha de recepción *</label>
+        <input type="date" id="rn-fecha" style="width:100%">
+      </div>
+      <div class="field"><label>Observaciones</label>
+        <input type="text" id="rn-obs" placeholder="Ej: Recibido del proveedor XYZ">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-recibir-neum')">Cancelar</button>
+      <button class="btn btn-success" onclick="saveRecibirNeum()">✅ Confirmar recepción (+1 OK en stock)</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Material nuevo/editar -->
+<div class="modal-overlay" id="modal-material">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head"><h3 id="mat-modal-title">Agregar material</h3><button class="modal-close" onclick="closeModal('modal-material')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mat-id">
+      <div class="field"><label>Nombre *</label><input type="text" id="mat-nombre" placeholder="Ej: Aceite 10W40, Filtro aceite Cronos"></div>
+      <div class="field-row">
+        <div class="field"><label>Categoría *</label>
+          <select id="mat-cat">
+            <option value="aceite">Aceite</option>
+            <option value="filtro">Filtro</option>
+            <option value="liquido">Líquido</option>
+            <option value="bateria">Batería</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        <div class="field"><label>Unidad *</label>
+          <select id="mat-unidad">
+            <option value="unidades">Unidades</option>
+            <option value="litros">Litros</option>
+            <option value="kg">Kg</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Stock OK actual</label><input type="number" id="mat-cantidad" min="0" value="0" step="0.5"></div>
+        <div class="field"><label>Cantidad mínima (alerta)</label><input type="number" id="mat-minimo" min="0" value="0" step="0.5"></div>
+      </div>
+      <div class="field"><label>Código de parte</label><input type="text" id="mat-codigo" placeholder="Opcional"></div>
+      <div class="field"><label>Observaciones</label><input type="text" id="mat-obs2" placeholder="Notas"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-material')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMaterial()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Ajuste manual material -->
+<div class="modal-overlay" id="modal-ajuste-mat">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head"><h3 id="ajmat-title">Ajustar stock</h3><button class="modal-close" onclick="closeModal('modal-ajuste-mat')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="ajmat-id">
+      <input type="hidden" id="ajmat-nombre">
+      <div class="field-row">
+        <div class="field"><label>Tipo</label>
+          <select id="ajmat-tipo">
+            <option value="ingreso">+ Ingreso</option>
+            <option value="egreso">- Egreso</option>
+          </select>
+        </div>
+        <div class="field"><label>Cantidad *</label><input type="number" id="ajmat-cantidad" min="0.5" step="0.5" value="1"></div>
+      </div>
+      <div class="field"><label>Motivo</label><input type="text" id="ajmat-motivo" placeholder="Ej: Compra, Ajuste inventario, Uso en mantenimiento"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-ajuste-mat')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAjusteMat()">Confirmar ajuste</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════
 // CONFIG
@@ -738,7 +948,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v3.0.0";
+var APP_VERSION="v3.1.0";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 
 // ══════════════════════════════════════════════════════
@@ -1600,10 +1810,42 @@ function openDañoModal(){
 
 function openGomaModal(){
   ["g-vin","g-modelo","g-box","g-obs"].forEach(function(id){document.getElementById(id).value="";});
-  document.getElementById("g-neumático").value="";
   document.getElementById("g-posicion").value="";
+  document.getElementById("g-catalogo-id").value="";
+  var si=document.getElementById("g-stock-info");if(si)si.style.display="none";
   document.getElementById("g-foto-preview").style.display="none";
+  // Populate neumático select from catalogo
+  var sel=document.getElementById("g-neumático");
+  var html='<option value="">Seleccionar diseño...</option>';
+  var byV={};
+  catalogoCache.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
+  Object.keys(byV).sort().forEach(function(v){
+    html+='<optgroup label="'+esc(v)+'">';
+    byV[v].forEach(function(n){
+      var label=n.modelo+" — "+n.medida+(n.codigo_parte?" ["+n.codigo_parte+"]":"");
+      html+='<option value="'+esc(n.id)+'">'+esc(label)+'</option>';
+    });
+    html+='</optgroup>';
+  });
+  sel.innerHTML=html;
   openModal("modal-goma");
+}
+async function onGomaNeumSelect(){
+  var sel=document.getElementById("g-neumático");
+  var catId=sel.value;
+  document.getElementById("g-catalogo-id").value=catId||"";
+  var si=document.getElementById("g-stock-info");
+  if(!catId||!si){return;}
+  si.style.display="block";
+  si.innerHTML='<span style="color:var(--text3)">Verificando stock...</span>';
+  var stock=await verificarStockNeumatico(catId);
+  if(stock>0){
+    si.style.background="#E8F5E9";si.style.color="#2E7D32";
+    si.innerHTML="✅ Hay "+stock+" en stock — Reemplazo automático disponible";
+  } else {
+    si.style.background="#FFF3E0";si.style.color="#E65100";
+    si.innerHTML="⚠️ Sin stock disponible — Se solicitará al proveedor";
+  }
 }
 
 function openAsignModalFor(vin,code,service){
@@ -1641,19 +1883,43 @@ async function saveDaño(){
 async function saveGoma(){
   var vin=document.getElementById("g-vin").value.trim();
   var neuma=document.getElementById("g-neumático").value;
+  var catId=document.getElementById("g-catalogo-id")?document.getElementById("g-catalogo-id").value:"";
   if(!vin||!neuma){showToast("VIN y neumático son obligatorios","error");return;}
   var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin.toUpperCase();});
-  var cc=v?String(v.compound_code||"00214").padStart(5,"0"):"00214";
+  var cc=v?String(v.compound_code||"34"):"34";
+  // Check stock before registering
+  var stockDisponible=catId?await verificarStockNeumatico(catId):0;
   var fotoFile=document.getElementById("g-foto-input").files[0];
   var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","gomas/"+uuid()+"-"+fotoFile.name);
   var wsOk=false;try{var r=await callWS(vin,cc,"C37","B");wsOk=r.success;}catch(e){}
-  await sbPost("gomas",{vin:vin.toUpperCase(),model_descr:document.getElementById("g-modelo").value||null,
-    compound:v?v.compound:"Cordoba",compound_code:cc,boxatura:document.getElementById("g-box").value||null,
-    modelo_neumático:neuma,posicion:document.getElementById("g-posicion").value||null,
-    observaciones:document.getElementById("g-obs").value||null,estado_stock:"ko",foto_url:fotoUrl,
+  var gomaRec=await sbPost("gomas",{vin:vin.toUpperCase(),
+    model_descr:document.getElementById("g-modelo").value||null,
+    compound:v?v.compound:"Cordoba",compound_code:cc,
+    boxatura:document.getElementById("g-box").value||null,
+    modelo_neumático:neuma,
+    catalogo_id:catId||null,
+    posicion:document.getElementById("g-posicion").value||null,
+    observaciones:document.getElementById("g-obs").value||null,
+    estado_stock:"ko",foto_url:fotoUrl,
     registrado_por:currentUser.id,ws_bloqueo_ok:wsOk});
-  closeModal("modal-goma");renderGomas();
-  showToast(wsOk?"Goma registrada y C37 bloqueado":"Goma registrada (verificar WS C37)","success");
+  // Handle stock
+  if(catId&&stockDisponible>0){
+    // Use one from stock: -1 OK, add KO record
+    await usarNeumaticoDeStock(catId,vin.toUpperCase());
+    closeModal("modal-goma");renderGomas();
+    showToast("✅ Reemplazo automático en Mantenimiento — hay "+stockDisponible+" en stock. C37 bloqueado.","success");
+  } else {
+    // No stock: just register KO
+    if(catId){
+      await sbPost("neumaticos_ko",{catalogo_id:catId,vin:vin.toUpperCase(),estado:"ko",registrado_por:currentUser.nombre,observaciones:"Sin stock disponible al momento del registro"});
+    }
+    closeModal("modal-goma");renderGomas();
+    if(wsOk){
+      showToast("⚠️ No contamos con stock — será solicitado al proveedor. C37 bloqueado.","info");
+    } else {
+      showToast("⚠️ Sin stock disponible. C37 registrado (verificar WS).","info");
+    }
+  }
 }
 
 async function saveAsignacion(){
@@ -2043,6 +2309,365 @@ async function saveMant(){
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+// DEPÓSITO — NEUMÁTICOS Y MATERIALES
+// ══════════════════════════════════════════════════════
+var depNeumCache=[]; // stock_neumaticos joined with catalogo
+var depKoCurrent=null; // current catalogo_id for KO detail
+
+function depTab(tab){
+  document.getElementById("dep-neum").style.display=tab==="neumaticos"?"block":"none";
+  document.getElementById("dep-mat").style.display=tab==="materiales"?"block":"none";
+  var nt=document.getElementById("dep-tab-neum");
+  var mt=document.getElementById("dep-tab-mat");
+  if(nt){nt.style.borderBottomColor=tab==="neumaticos"?"var(--gold)":"transparent";nt.style.color=tab==="neumaticos"?"var(--gold)":"var(--text3)";}
+  if(mt){mt.style.borderBottomColor=tab==="materiales"?"var(--gold)":"transparent";mt.style.color=tab==="materiales"?"var(--gold)":"var(--text3)";}
+  if(tab==="neumaticos")renderDepNeumaticos();
+  if(tab==="materiales")renderDepMateriales();
+}
+
+// ── NEUMÁTICOS ──────────────────────────────────────
+async function renderDepNeumaticos(){
+  var filtro=document.getElementById("dep-neum-filtro")?document.getElementById("dep-neum-filtro").value:"ALL";
+  // Load stock per catalogo
+  var stockRows=[];
+  try{stockRows=await sbGet("stock_neumaticos","select=*,catalogo:catalogo_id(id,vehiculo,modelo,medida,llanta,codigo_parte)");}catch(e){}
+  if(!Array.isArray(stockRows))stockRows=[];
+  // Load KO counts from neumaticos_ko
+  var koRows=[];
+  try{koRows=await sbGet("neumaticos_ko","select=catalogo_id,estado");}catch(e){}
+  if(!Array.isArray(koRows))koRows=[];
+  var koMap={};
+  koRows.forEach(function(r){
+    if(!koMap[r.catalogo_id])koMap[r.catalogo_id]={ko:0,solicitado:0,recibido:0};
+    if(r.estado==="ko")koMap[r.catalogo_id].ko++;
+    else if(r.estado==="solicitado")koMap[r.catalogo_id].solicitado++;
+    else if(r.estado==="recibido")koMap[r.catalogo_id].recibido++;
+  });
+  // Also load all catalogo entries to show designs with no stock yet
+  var allCatalogo=catalogoCache.length?catalogoCache:[];
+  // Build merged rows
+  var merged=allCatalogo.map(function(cat){
+    var s=stockRows.find(function(r){return r.catalogo_id===cat.id;})||{cantidad_ok:0,cantidad_ko:0,id:null};
+    var km=koMap[cat.id]||{ko:0,solicitado:0,recibido:0};
+    return{cat:cat,stock_id:s.id,ok:s.cantidad_ok||0,ko:km.ko,solicitado:km.solicitado,recibido:km.recibido};
+  });
+  // Apply filter
+  var filtered=merged.filter(function(r){
+    if(filtro==="ok")return r.ok>0;
+    if(filtro==="ko")return r.ko>0||r.solicitado>0;
+    if(filtro==="sin_stock")return r.ok===0&&r.ko===0&&r.solicitado===0;
+    return true;
+  });
+  depNeumCache=filtered;
+  // Stats
+  var totalOk=merged.reduce(function(a,r){return a+r.ok;},0);
+  var totalKo=merged.reduce(function(a,r){return a+r.ko;},0);
+  var totalSol=merged.reduce(function(a,r){return a+r.solicitado;},0);
+  document.getElementById("dep-neum-stats").innerHTML=[
+    {lbl:"Diseños en catálogo",val:allCatalogo.length,c:"var(--blue)"},
+    {lbl:"Total OK en depósito",val:totalOk,c:"#2E7D32"},
+    {lbl:"Total KO sin tramitar",val:totalKo,c:"#C62828"},
+    {lbl:"KO solicitados al prov.",val:totalSol,c:"#E65100"},
+  ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
+
+  var isSup=currentUser&&currentUser.rol==="supervisor";
+  document.getElementById("dep-neum-tbody").innerHTML=filtered.map(function(r){
+    var okBg=r.ok>0?"#E8F5E9":"var(--bg2)";var okC=r.ok>0?"#2E7D32":"var(--text3)";
+    var koBg=r.ko>0?"#FFEBEE":"var(--bg2)";var koC=r.ko>0?"#C62828":"var(--text3)";
+    var solBg=r.solicitado>0?"#FFF3E0":"var(--bg2)";var solC=r.solicitado>0?"#E65100":"var(--text3)";
+    var detailBtn=(r.ko>0||r.solicitado>0)?'<button class="btn btn-ghost btn-sm" onclick="showKoDetail(\''+r.cat.id+'\',\''+esc(r.cat.vehiculo+" "+r.cat.modelo)+'\')">Ver KO</button>':'';
+    var supBtns=isSup?detailBtn:'';
+    return'<tr>'
+      +'<td><b style="color:var(--gold)">'+esc(r.cat.vehiculo)+'</b></td>'
+      +'<td style="font-size:11px">'+esc(r.cat.modelo)+'</td>'
+      +'<td style="font-size:11px">'+esc(r.cat.medida)+'</td>'
+      +'<td style="font-family:monospace;font-size:11px">'+esc(r.cat.codigo_parte||"—")+'</td>'
+      +'<td><span style="background:'+okBg+';color:'+okC+';font-weight:700;padding:3px 10px;border-radius:8px;font-size:12px">'+r.ok+'</span></td>'
+      +'<td><span style="background:'+koBg+';color:'+koC+';font-weight:700;padding:3px 10px;border-radius:8px;font-size:12px">'+r.ko+'</span></td>'
+      +'<td><span style="background:'+solBg+';color:'+solC+';font-weight:700;padding:3px 10px;border-radius:8px;font-size:12px">'+r.solicitado+'</span></td>'
+      +'<td>'+supBtns+'</td>'
+      +'</tr>';
+  }).join("")||'<tr><td colspan="8"><div class="empty"><div class="empty-icon">📦</div>Sin datos de stock</div></td></tr>';
+}
+
+async function showKoDetail(catalogoId, titulo){
+  depKoCurrent=catalogoId;
+  document.getElementById("dep-ko-title").textContent="Detalle KO — "+titulo;
+  document.getElementById("dep-ko-detail").style.display="block";
+  document.getElementById("dep-ko-detail").scrollIntoView({behavior:"smooth",block:"start"});
+  var rows=[];
+  try{rows=await sbGet("neumaticos_ko","catalogo_id=eq."+catalogoId+"&select=*&order=created_at.desc");}catch(e){}
+  if(!Array.isArray(rows))rows=[];
+  var isSup=currentUser&&currentUser.rol==="supervisor";
+  document.getElementById("dep-ko-tbody").innerHTML=rows.map(function(r){
+    var estadoBadge=r.estado==="ko"
+      ?'<span class="badge b-ko">KO — Sin tramitar</span>'
+      :r.estado==="solicitado"
+      ?'<span class="badge b-pending">Solicitado al prov.</span>'
+      :'<span class="badge b-done">Recibido ✅</span>';
+    var acciones="";
+    if(isSup){
+      if(r.estado==="ko"){
+        acciones='<button class="btn btn-primary btn-sm" onclick="openSolicitarKo(\''+r.id+'\',\''+esc(r.vin||"")+'\')">Solicitar cambio</button>';
+      } else if(r.estado==="solicitado"){
+        acciones='<button class="btn btn-success btn-sm" onclick="openRecibirNeum(\''+r.id+'\',\''+catalogoId+'\')">Recibir reemplazo</button>';
+      } else {
+        acciones='<span style="font-size:11px;color:var(--text3)">Completado</span>';
+      }
+    }
+    return'<tr>'
+      +'<td style="font-family:monospace;font-size:11px;color:var(--gold)">'+esc(r.vin||"—")+'</td>'
+      +'<td style="font-size:11px">—</td>'
+      +'<td style="font-size:11px">'+esc(r.created_at?new Date(r.created_at).toLocaleDateString("es-AR"):"—")+'</td>'
+      +'<td>'+estadoBadge+'</td>'
+      +'<td style="font-size:11px">'+esc(r.nro_solicitud||"—")+'</td>'
+      +'<td style="font-size:11px">'+esc(r.fecha_solicitud||"—")+'</td>'
+      +'<td style="font-size:11px">'+esc(r.fecha_recepcion||"—")+'</td>'
+      +'<td>'+acciones+'</td>'
+      +'</tr>';
+  }).join("")||'<tr><td colspan="8"><div class="empty" style="padding:16px">Sin registros KO para este diseño</div></td></tr>';
+}
+
+// Ajuste manual stock neumáticos (supervisor)
+function openAjusteNeumModal(tipo){
+  document.getElementById("an-tipo").value=tipo;
+  document.getElementById("ajuste-neum-title").textContent=tipo==="ok"?"Agregar neumáticos OK al depósito":"Registrar neumáticos KO";
+  document.getElementById("an-cantidad").value=1;
+  document.getElementById("an-obs").value="";
+  document.getElementById("an-vin-wrap").style.display=tipo==="ko"?"block":"none";
+  document.getElementById("an-vin-search").value="";
+  document.getElementById("an-vin").innerHTML='<option value="">Seleccionar VIN...</option>';
+  // Build catalogo select
+  var html='<option value="">Seleccionar diseño...</option>';
+  var byV={};
+  catalogoCache.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
+  Object.keys(byV).sort().forEach(function(v){
+    html+='<optgroup label="'+esc(v)+'">';
+    byV[v].forEach(function(n){html+='<option value="'+n.id+'">'+esc(n.modelo+" — "+n.medida+(n.codigo_parte?" ["+n.codigo_parte+"]":""))+'</option>';});
+    html+='</optgroup>';
+  });
+  document.getElementById("an-catalogo").innerHTML=html;
+  openModal("modal-ajuste-neum");
+}
+
+function buscarVinDeposito(){
+  var q=document.getElementById("an-vin-search").value.trim();
+  var sel=document.getElementById("an-vin");
+  if(!q||q.length<3){sel.innerHTML='<option value="">Ingresá al menos 3 caracteres...</option>';return;}
+  var matches=stockCache.filter(function(v){return(v.vin||v.VIN||"").toUpperCase().indexOf(q.toUpperCase())>=0;}).slice(0,10);
+  sel.innerHTML='<option value="">Seleccionar VIN...</option>';
+  matches.forEach(function(v){
+    var vin=v.vin||v.VIN||"";
+    var label=vin+" — "+(v.model_descr||v["Model Descr"]||"")+" Box:"+(v.boxatura||v["Boxatura"]||"—");
+    sel.innerHTML+='<option value="'+esc(vin)+'">'+esc(label)+'</option>';
+  });
+  if(!matches.length)sel.innerHTML='<option value="">Sin coincidencias</option>';
+}
+
+async function saveAjusteNeum(){
+  var tipo=document.getElementById("an-tipo").value;
+  var catId=document.getElementById("an-catalogo").value;
+  var cant=parseInt(document.getElementById("an-cantidad").value)||1;
+  var obs=document.getElementById("an-obs").value;
+  var vin=tipo==="ko"?document.getElementById("an-vin").value:"";
+  if(!catId){showToast("Seleccioná un diseño","error");return;}
+  if(tipo==="ko"&&!vin){showToast("Seleccioná el VIN para el KO","error");return;}
+  try{
+    if(tipo==="ok"){
+      // Upsert stock_neumaticos: increment ok
+      var existing=await sbGet("stock_neumaticos","catalogo_id=eq."+catId+"&select=*").catch(function(){return[];});
+      if(Array.isArray(existing)&&existing.length){
+        await sbPatch("stock_neumaticos",existing[0].id,{cantidad_ok:(existing[0].cantidad_ok||0)+cant,updated_at:new Date().toISOString()});
+      } else {
+        await sbPost("stock_neumaticos",{catalogo_id:catId,cantidad_ok:cant,cantidad_ko:0});
+      }
+      showToast(cant+" neumático(s) OK agregado(s) al depósito","success");
+    } else {
+      // Add neumaticos_ko records
+      var cat=catalogoCache.find(function(c){return c.id===catId;});
+      for(var i=0;i<cant;i++){
+        await sbPost("neumaticos_ko",{catalogo_id:catId,vin:vin||null,estado:"ko",observaciones:obs||null,registrado_por:currentUser.nombre});
+      }
+      showToast(cant+" neumático(s) KO registrado(s)","success");
+    }
+    closeModal("modal-ajuste-neum");
+    renderDepNeumaticos();
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+
+function openSolicitarKo(koId,vin){
+  document.getElementById("sk-id").value=koId;
+  document.getElementById("sk-nro").value="";
+  document.getElementById("sk-obs").value="";
+  document.getElementById("sk-fecha").value=new Date().toISOString().slice(0,10);
+  document.getElementById("sk-info").innerHTML='VIN: <b style="color:var(--gold)">'+esc(vin||"—")+'</b>';
+  openModal("modal-solicitar-ko");
+}
+async function saveSolicitudKo(){
+  var id=document.getElementById("sk-id").value;
+  var nro=document.getElementById("sk-nro").value;
+  var fecha=document.getElementById("sk-fecha").value;
+  var obs=document.getElementById("sk-obs").value;
+  if(!fecha){showToast("La fecha es obligatoria","error");return;}
+  try{
+    await sbPatch("neumaticos_ko",id,{estado:"solicitado",nro_solicitud:nro||null,fecha_solicitud:fecha,observaciones:obs||null,updated_at:new Date().toISOString()});
+    closeModal("modal-solicitar-ko");
+    showToast("Solicitud registrada","success");
+    if(depKoCurrent)showKoDetail(depKoCurrent,"");
+    renderDepNeumaticos();
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+
+function openRecibirNeum(koId,catalogoId){
+  document.getElementById("rn-id").value=koId;
+  document.getElementById("rn-catalogo-id").value=catalogoId;
+  document.getElementById("rn-fecha").value=new Date().toISOString().slice(0,10);
+  document.getElementById("rn-obs").value="";
+  var cat=catalogoCache.find(function(c){return c.id===catalogoId;});
+  document.getElementById("rn-info").innerHTML='Diseño: <b>'+(cat?esc(cat.vehiculo+" "+cat.modelo+" "+cat.medida):"—")+'</b>';
+  openModal("modal-recibir-neum");
+}
+async function saveRecibirNeum(){
+  var koId=document.getElementById("rn-id").value;
+  var catId=document.getElementById("rn-catalogo-id").value;
+  var fecha=document.getElementById("rn-fecha").value;
+  var obs=document.getElementById("rn-obs").value;
+  if(!fecha){showToast("La fecha es obligatoria","error");return;}
+  try{
+    // Mark KO as received
+    await sbPatch("neumaticos_ko",koId,{estado:"recibido",fecha_recepcion:fecha,observaciones:obs||null,updated_at:new Date().toISOString()});
+    // Add +1 OK to stock
+    var existing=await sbGet("stock_neumaticos","catalogo_id=eq."+catId+"&select=*").catch(function(){return[];});
+    if(Array.isArray(existing)&&existing.length){
+      await sbPatch("stock_neumaticos",existing[0].id,{cantidad_ok:(existing[0].cantidad_ok||0)+1,updated_at:new Date().toISOString()});
+    } else {
+      await sbPost("stock_neumaticos",{catalogo_id:catId,cantidad_ok:1,cantidad_ko:0});
+    }
+    closeModal("modal-recibir-neum");
+    showToast("✅ Reemplazo recibido — +1 OK en stock","success");
+    if(depKoCurrent)showKoDetail(depKoCurrent,"");
+    renderDepNeumaticos();
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+
+// ── MATERIALES ──────────────────────────────────────
+async function renderDepMateriales(){
+  var filtro=document.getElementById("dep-mat-filtro")?document.getElementById("dep-mat-filtro").value:"ALL";
+  var data=[];
+  try{data=await sbGet("stock_materiales","select=*&order=categoria,nombre");}catch(e){}
+  if(!Array.isArray(data))data=[];
+  var filtered=data.filter(function(m){
+    if(filtro==="critico")return m.cantidad_ok<=m.cantidad_minima;
+    if(filtro==="ok")return m.cantidad_ok>m.cantidad_minima;
+    return true;
+  });
+  var totalItems=data.length;
+  var criticos=data.filter(function(m){return m.cantidad_ok<=m.cantidad_minima;}).length;
+  document.getElementById("dep-mat-stats").innerHTML=[
+    {lbl:"Materiales registrados",val:totalItems,c:"var(--blue)"},
+    {lbl:"Críticos (bajo mínimo)",val:criticos,c:"#C62828"},
+    {lbl:"Con stock OK",val:totalItems-criticos,c:"#2E7D32"},
+  ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
+  var catLabels={aceite:"🛢 Aceite",filtro:"🔩 Filtro",liquido:"💧 Líquido",bateria:"🔋 Batería",otro:"📦 Otro"};
+  var isSup=currentUser&&currentUser.rol==="supervisor";
+  document.getElementById("dep-mat-tbody").innerHTML=filtered.map(function(m){
+    var pct=m.cantidad_minima>0?Math.min(100,Math.round(m.cantidad_ok/m.cantidad_minima*100)):100;
+    var isCrit=m.cantidad_ok<=m.cantidad_minima;
+    var barC=isCrit?"#C62828":pct<150?"#E65100":"#2E7D32";
+    var estadoBadge=isCrit?'<span class="badge b-ko">CRÍTICO</span>':'<span class="badge b-done">OK</span>';
+    var barW=Math.min(100,pct)+"%";
+    var supBtns=isSup?'<button class="btn btn-ghost btn-sm" onclick="openAjusteMat(\''+m.id+'\',\''+esc(m.nombre)+'\',\''+m.cantidad_ok+'\',\''+m.unidad+'\')">Ajustar</button>':'';
+    return'<tr>'
+      +'<td style="font-weight:600">'+esc(m.nombre)+'</td>'
+      +'<td style="font-size:11px">'+esc(catLabels[m.categoria]||m.categoria)+'</td>'
+      +'<td style="font-size:11px">'+esc(m.unidad)+'</td>'
+      +'<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;background:var(--border);border-radius:3px;height:8px;overflow:hidden"><div style="width:'+barW+';background:'+barC+';height:100%;border-radius:3px;"></div></div><span style="font-weight:700;color:'+barC+'">'+m.cantidad_ok+'</span></div></td>'
+      +'<td style="font-size:11px;color:var(--text3)">'+m.cantidad_minima+'</td>'
+      +'<td>'+estadoBadge+'</td>'
+      +'<td style="font-family:monospace;font-size:11px">'+esc(m.codigo_parte||"—")+'</td>'
+      +'<td>'+supBtns+'</td>'
+      +'</tr>';
+  }).join("")||'<tr><td colspan="8"><div class="empty"><div class="empty-icon">📦</div>Sin materiales. Agregá el primero.</div></td></tr>';
+  // Movimientos
+  var movs=[];
+  try{movs=await sbGet("stock_movimientos","select=*&order=created_at.desc&limit=20");}catch(e){}
+  if(!Array.isArray(movs))movs=[];
+  document.getElementById("dep-mov-tbody").innerHTML=movs.map(function(m){
+    var fecha=m.created_at?new Date(m.created_at).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—";
+    var tipoBadge=m.tipo==="ingreso"?'<span class="badge b-done">+ Ingreso</span>':'<span class="badge b-ko">- Egreso</span>';
+    return'<tr><td style="font-size:11px">'+fecha+'</td><td style="font-size:11px">'+esc(m.material_nombre||"—")+'</td><td>'+tipoBadge+'</td><td style="font-weight:700">'+m.cantidad+'</td><td style="font-size:11px">'+esc(m.motivo||"—")+'</td><td style="font-family:monospace;font-size:11px">'+esc(m.vin||"—")+'</td><td style="font-size:11px">'+esc(m.operario_nombre||"—")+'</td></tr>';
+  }).join("")||'<tr><td colspan="7"><div class="empty" style="padding:16px">Sin movimientos</div></td></tr>';
+}
+
+function openMatModal(id){
+  document.getElementById("mat-modal-title").textContent=id?"Editar material":"Agregar material";
+  document.getElementById("mat-id").value=id||"";
+  if(!id){["mat-nombre","mat-codigo","mat-obs2"].forEach(function(i){document.getElementById(i).value="";});document.getElementById("mat-cantidad").value=0;document.getElementById("mat-minimo").value=0;document.getElementById("mat-cat").value="aceite";document.getElementById("mat-unidad").value="unidades";}
+  openModal("modal-material");
+}
+async function saveMaterial(){
+  var id=document.getElementById("mat-id").value;
+  var nombre=document.getElementById("mat-nombre").value.trim();
+  if(!nombre){showToast("El nombre es obligatorio","error");return;}
+  var rec={nombre:nombre,categoria:document.getElementById("mat-cat").value,unidad:document.getElementById("mat-unidad").value,cantidad_ok:parseFloat(document.getElementById("mat-cantidad").value)||0,cantidad_minima:parseFloat(document.getElementById("mat-minimo").value)||0,codigo_parte:document.getElementById("mat-codigo").value||null,observaciones:document.getElementById("mat-obs2").value||null,updated_at:new Date().toISOString(),updated_by:currentUser.nombre};
+  try{
+    if(id)await sbPatch("stock_materiales",id,rec);
+    else await sbPost("stock_materiales",rec);
+    closeModal("modal-material");renderDepMateriales();showToast("Material guardado","success");
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+function openAjusteMat(id,nombre,cantActual,unidad){
+  document.getElementById("ajmat-id").value=id;
+  document.getElementById("ajmat-nombre").value=nombre;
+  document.getElementById("ajmat-title").textContent="Ajustar — "+nombre+" (actual: "+cantActual+" "+unidad+")";
+  document.getElementById("ajmat-cantidad").value=1;
+  document.getElementById("ajmat-tipo").value="ingreso";
+  document.getElementById("ajmat-motivo").value="";
+  openModal("modal-ajuste-mat");
+}
+async function saveAjusteMat(){
+  var id=document.getElementById("ajmat-id").value;
+  var nombre=document.getElementById("ajmat-nombre").value;
+  var tipo=document.getElementById("ajmat-tipo").value;
+  var cant=parseFloat(document.getElementById("ajmat-cantidad").value)||0;
+  var motivo=document.getElementById("ajmat-motivo").value||"Ajuste manual";
+  if(!cant){showToast("Cantidad inválida","error");return;}
+  try{
+    var existing=await sbGet("stock_materiales","id=eq."+id+"&select=cantidad_ok");
+    if(!Array.isArray(existing)||!existing.length)throw new Error("Material no encontrado");
+    var actual=existing[0].cantidad_ok||0;
+    var nueva=tipo==="ingreso"?actual+cant:Math.max(0,actual-cant);
+    await sbPatch("stock_materiales",id,{cantidad_ok:nueva,updated_at:new Date().toISOString(),updated_by:currentUser.nombre});
+    // Log movement
+    await sbPost("stock_movimientos",{material_id:id,material_nombre:nombre,tipo:tipo,cantidad:cant,motivo:motivo,operario_nombre:currentUser.nombre,created_at:new Date().toISOString()});
+    closeModal("modal-ajuste-mat");renderDepMateriales();
+    showToast((tipo==="ingreso"?"+":"-")+cant+" registrado en stock","success");
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+
+// ── LÓGICA C37: verificar stock al registrar ──────────
+async function verificarStockNeumatico(catId){
+  if(!catId)return null;
+  try{
+    var s=await sbGet("stock_neumaticos","catalogo_id=eq."+catId+"&select=cantidad_ok");
+    if(Array.isArray(s)&&s.length&&s[0].cantidad_ok>0)return s[0].cantidad_ok;
+  }catch(e){}
+  return 0;
+}
+
+async function usarNeumaticoDeStock(catId,vin){
+  // Decrement OK, add KO record
+  try{
+    var existing=await sbGet("stock_neumaticos","catalogo_id=eq."+catId+"&select=*").catch(function(){return[];});
+    if(Array.isArray(existing)&&existing.length&&existing[0].cantidad_ok>0){
+      await sbPatch("stock_neumaticos",existing[0].id,{cantidad_ok:Math.max(0,(existing[0].cantidad_ok||0)-1),updated_at:new Date().toISOString()});
+    }
+    // Register KO unit with VIN
+    await sbPost("neumaticos_ko",{catalogo_id:catId,vin:vin||null,estado:"ko",registrado_por:currentUser.nombre,observaciones:"Reemplazado automáticamente desde stock"});
+  }catch(e){}
+}
+
 function showOpView(){
   // Show operario view overlay for supervisor too
   document.getElementById("app-operario").style.display="block";
@@ -2211,6 +2836,7 @@ function showPage(name){
     if(el&&!el.value)el.value=new Date().toISOString().slice(0,10);
     renderWsLog();
   }
+  if(name==="deposito"){depTab("neumaticos");}
 }
 
 // ══════════════════════════════════════════════════════
