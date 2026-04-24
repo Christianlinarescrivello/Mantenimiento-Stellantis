@@ -3392,34 +3392,149 @@ function opRenderTareas(){
 function opOpenChecklist(vin,code,service,cc,modelo,boxatura){
   document.getElementById("cl-vin").value=vin;
   document.getElementById("cl-code").value=code;
-  document.getElementById("cl-cc").value=cc||"34";
+  document.getElementById("cl-cc").value=cc||"00034";
   document.getElementById("cl-title").textContent=code+" — "+service;
   document.getElementById("cl-subtitle").textContent=vin+" · "+modelo+" · Box: "+boxatura;
   document.getElementById("cl-modelo").textContent=modelo||"—";
   document.getElementById("cl-box").textContent=boxatura||"—";
   document.getElementById("cl-fecha").value=new Date().toISOString().slice(0,10);
-  // Reset fields
-  ["cl-bat-volt","cl-bat-cca","cl-bat-volt-final","cl-neum-obs","cl-obs"].forEach(function(id){document.getElementById(id).value="";});
-  document.getElementById("cl-bat-estado").value="";
-  document.getElementById("cl-neum-presion").value="";
-  ["cl-ac","cl-lavado","cl-liquidos","cl-protecciones"].forEach(function(id){document.getElementById(id).checked=false;});
-  ["cl-bat-foto-prev","cl-foto-prev"].forEach(function(id){var el=document.getElementById(id);el.style.display="none";el.src="";});
+  // Reset text/select fields (safe — always present)
+  ["cl-bat-volt","cl-bat-cca","cl-bat-volt-final","cl-neum-obs","cl-obs"].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.value="";
+  });
+  var batEl=document.getElementById("cl-bat-estado");if(batEl)batEl.value="";
+  var neumEl=document.getElementById("cl-neum-presion");if(neumEl)neumEl.value="";
+  var resEl=document.getElementById("cl-resultado");if(resEl)resEl.value="";
+  // Reset photos
+  ["cl-bat-foto-prev","cl-foto-prev"].forEach(function(id){
+    var el=document.getElementById(id);if(el){el.style.display="none";el.src="";}
+  });
   document.getElementById("cl-ws-status").innerHTML="";
   document.getElementById("btn-cl-save").disabled=false;
   document.getElementById("btn-cl-save").textContent="✅ Confirmar servicio";
-  // Show/hide battery section
-  var hasBat=CODES_CON_BATERIA.indexOf(code)>=0;
+
+  // ── Battery section ──────────────────────────────
+  var hasBat=["M90","BSE","DSE","AN1","CAF","FLU"].indexOf(code)>=0;
   document.getElementById("cl-bat-section").style.display=hasBat?"block":"none";
-  var hasNeum=CODES_CON_NEUMÁTICOS.indexOf(code)>=0;
-  document.getElementById("cl-neum-section").style.display=hasNeum?"block":"none";
   document.getElementById("cl-bat-carga-wrap").style.display="none";
   document.getElementById("cl-bat-ticket-wrap").style.display="none";
-  // Battery estado change handler
-  document.getElementById("cl-bat-estado").onchange=function(){
-    var v=this.value;
-    document.getElementById("cl-bat-carga-wrap").style.display=(v==="ko_carga")?"block":"none";
-    document.getElementById("cl-bat-ticket-wrap").style.display=(v==="ko_carga"||v==="ko_reemplazo")?"block":"none";
+  if(hasBat){
+    document.getElementById("cl-bat-estado").onchange=function(){
+      var v=this.value;
+      document.getElementById("cl-bat-carga-wrap").style.display=(v==="ko_carga")?"block":"none";
+      document.getElementById("cl-bat-ticket-wrap").style.display=(v==="ko_carga"||v==="ko_reemplazo")?"block":"none";
+    };
+  }
+
+  // ── Neumáticos section ───────────────────────────
+  var hasNeum=["M90","AN1","CAF","FLU","BSE","DSE"].indexOf(code)>=0;
+  document.getElementById("cl-neum-section").style.display=hasNeum?"block":"none";
+
+  // ── Dynamic steps per service ────────────────────
+  var STEPS={
+    M90:[
+      {label:"Verificar presencia de combustible",type:"check",id:"cl-s-combustible"},
+      {label:"Activar AC (recirculación, puertas cerradas, mín. 5 min)",type:"check",id:"cl-s-ac"},
+      {label:"Lavado con agua a vapor y limpieza interior",type:"check",id:"cl-s-lavado"},
+      {label:"Verificar pérdidas de líquidos",type:"check",id:"cl-s-liquidos"},
+      {label:"Controlar estado de burletes de puertas y baúl",type:"check",id:"cl-s-burletes"},
+      {label:"Verificar y colocar protecciones (asiento, alfombra, tope puerta)",type:"check",id:"cl-s-protecciones"},
+    ],
+    BSE:[
+      {label:"Nivel mínimo de combustible OK",type:"check",id:"cl-s-combustible"},
+      {label:"Arranque del vehículo (máx. 3 intentos, sin ruidos anómalos)",type:"check",id:"cl-s-arranque"},
+      {label:"Motor en ralentí mínimo 10 minutos — sin vibraciones anormales",type:"check",id:"cl-s-ralenti"},
+      {label:"Activación AC (recirculación, puertas cerradas, mín. 5 min)",type:"check",id:"cl-s-ac"},
+      {label:"Sin alertas activas en tablero",type:"check",id:"cl-s-testigos"},
+    ],
+    MDI:[
+      {label:"Extracción de combustible viejo (exaurir)",type:"check",id:"cl-s-exaurir"},
+      {label:"Carga 10 L de gasoil nuevo",type:"check",id:"cl-s-gasoil"},
+      {label:"Agregar 30 ml PETRONAS TUTELA DIESEL TMF Plus",type:"check",id:"cl-s-aditivo"},
+      {label:"Etiquetado / registro de fecha e intervención",type:"check",id:"cl-s-etiqueta"},
+      {label:"Arranque breve (verificar correcta alimentación)",type:"check",id:"cl-s-arranque"},
+    ],
+    DSE:[
+      {label:"Verificación visual: sin pérdidas, mangueras íntegras",type:"check",id:"cl-s-visual"},
+      {label:"Arranque del vehículo (máx. 3 intentos, sin tironeos)",type:"check",id:"cl-s-arranque"},
+      {label:"Motor en ralentí mín. 10 minutos — sin humo anormal",type:"check",id:"cl-s-ralenti"},
+      {label:"Activación AC (recirculación, mín. 5 min)",type:"check",id:"cl-s-ac"},
+      {label:"Sin alertas activas en tablero",type:"check",id:"cl-s-testigos"},
+    ],
+    AN1:[
+      {label:"Movimiento del vehículo (avance mínimo, giro ~45°)",type:"check",id:"cl-s-movimiento"},
+      {label:"Inspección general: pintura, vidrios, óxidos, excrementos",type:"check",id:"cl-s-inspeccion"},
+      {label:"Lavado exterior si hay contaminantes",type:"check",id:"cl-s-lavado"},
+      {label:"Verificación sellos y burletes: puertas / baúl",type:"check",id:"cl-s-burletes"},
+    ],
+    CAF:[
+      {label:"Drenaje completo del aceite motor",type:"check",id:"cl-s-drenaje"},
+      {label:"Reemplazo del filtro de aceite (filtro nuevo homologado)",type:"check",id:"cl-s-filtro"},
+      {label:"Tipo de aceite utilizado",type:"text",id:"cl-s-aceite-tipo",placeholder:"Ej: 5W30 sintético"},
+      {label:"Cantidad de aceite (litros)",type:"number",id:"cl-s-aceite-cant",placeholder:"Ej: 3.5"},
+      {label:"Arranque y control de presión — sin pérdidas",type:"check",id:"cl-s-presion"},
+    ],
+    FLU:[
+      {label:"Refrigerante: reemplazo total con mezcla correcta",type:"check",id:"cl-s-refrigerante"},
+      {label:"Líquido de frenos: reemplazo / purga",type:"check",id:"cl-s-frenos"},
+      {label:"Limpiaparabrisas: reposición",type:"check",id:"cl-s-limpiaparabrisas"},
+      {label:"Control visual de fugas posterior",type:"check",id:"cl-s-fugas"},
+    ],
+    UREA:[
+      {label:"Drenaje completo de urea existente",type:"check",id:"cl-s-drenaje"},
+      {label:"Reposición con urea nueva conforme a especificación",type:"check",id:"cl-s-urea"},
+      {label:"Control sistema SCR — sin mensajes de falla",type:"check",id:"cl-s-scr"},
+    ]
   };
+  var steps=STEPS[code]||[];
+  var stepsSection=document.getElementById("cl-steps-section");
+  var stepsBody=document.getElementById("cl-steps-body");
+  if(steps.length>0){
+    stepsSection.style.display="block";
+    document.getElementById("cl-steps-title").textContent="📋 Pasos del servicio — "+service;
+    stepsBody.innerHTML=steps.map(function(s,i){
+      var num='<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:10px;font-weight:700;flex-shrink:0;">'+(i+1)+'</span>';
+      if(s.type==="check"){
+        return'<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--bg2);margin-bottom:6px;cursor:pointer;font-size:13px;color:var(--text2);">'
+          +num
+          +'<input type="checkbox" id="'+s.id+'" style="width:18px;height:18px;accent-color:var(--blue);flex-shrink:0;">'
+          +'<span>'+s.label+'</span></label>';
+      } else {
+        return'<div style="padding:8px 10px;border-radius:8px;background:var(--bg2);margin-bottom:6px;">'
+          +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'+num
+          +'<span style="font-size:13px;color:var(--text2);">'+s.label+'</span></div>'
+          +'<input type="'+(s.type||"text")+'" id="'+s.id+'" placeholder="'+(s.placeholder||"")+'" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-color);font-size:12px;font-family:\'Barlow\',sans-serif;outline:none;">'
+          +'</div>';
+      }
+    }).join("");
+  } else {
+    stepsSection.style.display="none";
+  }
+
+  // ── General checks (always shown) ────────────────
+  var generalSection=document.getElementById("cl-general-section");
+  var generalChecks=document.getElementById("cl-general-checks");
+  var GENERAL_CHECKS={
+    M90: [{id:"cl-ac",label:"AC activado"},{id:"cl-lavado",label:"Lavado"},{id:"cl-liquidos",label:"Líquidos OK"},{id:"cl-protecciones",label:"Protecciones OK"}],
+    BSE: [{id:"cl-ac",label:"AC activado"}],
+    MDI: [{id:"cl-lavado",label:"Lavado"}],
+    DSE: [{id:"cl-ac",label:"AC activado"}],
+    AN1: [{id:"cl-lavado",label:"Lavado"},{id:"cl-burletes",label:"Burletes OK"},{id:"cl-liquidos",label:"Sin pérdidas"}],
+    CAF: [{id:"cl-lavado",label:"Lavado"},{id:"cl-liquidos",label:"Sin pérdidas"}],
+    FLU: [{id:"cl-lavado",label:"Lavado"},{id:"cl-liquidos",label:"Sin pérdidas"}],
+    UREA:[{id:"cl-lavado",label:"Lavado"}]
+  };
+  var gChecks=GENERAL_CHECKS[code]||[{id:"cl-lavado",label:"Lavado"},{id:"cl-liquidos",label:"OK General"}];
+  if(gChecks.length){
+    generalSection.style.display="block";
+    generalChecks.innerHTML=gChecks.map(function(g){
+      return'<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text2);">'
+        +'<input type="checkbox" id="'+g.id+'" style="width:16px;height:16px;accent-color:var(--blue);">'
+        +g.label+'</label>';
+    }).join("");
+  } else {
+    generalSection.style.display="none";
+  }
   openModal("modal-checklist");
 }
 
@@ -3439,20 +3554,22 @@ async function saveChecklist(){
   if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","checklist/"+uuid()+"-"+fotoFile.name).catch(function(){return null;});
   if(batFotoFile)batFotoUrl=await uploadPhoto(batFotoFile,"fotos-mantenimiento","baterias/"+uuid()+"-"+batFotoFile.name).catch(function(){return null;});
   // Save checklist record — sbPost expects object or array, send object directly
+  function getCheck(id){var el=document.getElementById(id);return el?el.checked:false;}
+  function getVal(id){var el=document.getElementById(id);return el?el.value:"";}
   var record={
     vin:vin,maint_code:code,operario_id:currentUser.id,fecha:fecha,
-    bat_volt_inicial:parseFloat(document.getElementById("cl-bat-volt").value)||null,
-    bat_cca:parseFloat(document.getElementById("cl-bat-cca").value)||null,
-    bat_estado:document.getElementById("cl-bat-estado").value||null,
-    bat_volt_final:parseFloat(document.getElementById("cl-bat-volt-final").value)||null,
-    bat_carga_ok:document.getElementById("cl-bat-estado").value==="ko_carga",
-    neum_presion_ok:document.getElementById("cl-neum-presion").value==="ok"||document.getElementById("cl-neum-presion").value==="ajustado",
-    neum_obs:document.getElementById("cl-neum-obs").value||null,
-    ac_ok:document.getElementById("cl-ac").checked,
-    lavado_ok:document.getElementById("cl-lavado").checked,
-    liquidos_ok:document.getElementById("cl-liquidos").checked,
-    protecciones_ok:document.getElementById("cl-protecciones").checked,
-    observaciones:document.getElementById("cl-obs").value||null,
+    bat_volt_inicial:parseFloat(getVal("cl-bat-volt"))||null,
+    bat_cca:parseFloat(getVal("cl-bat-cca"))||null,
+    bat_estado:getVal("cl-bat-estado")||null,
+    bat_volt_final:parseFloat(getVal("cl-bat-volt-final"))||null,
+    bat_carga_ok:getVal("cl-bat-estado")==="ko_carga",
+    neum_presion_ok:getVal("cl-neum-presion")==="ok"||getVal("cl-neum-presion")==="ajustado",
+    neum_obs:getVal("cl-neum-obs")||null,
+    ac_ok:getCheck("cl-ac"),
+    lavado_ok:getCheck("cl-lavado"),
+    liquidos_ok:getCheck("cl-liquidos")||getCheck("cl-s-presion")||getCheck("cl-s-fugas"),
+    protecciones_ok:getCheck("cl-protecciones"),
+    observaciones:(getVal("cl-obs")||"")+(getVal("cl-s-aceite-tipo")?"| Aceite: "+getVal("cl-s-aceite-tipo")+" "+getVal("cl-s-aceite-cant")+"L":""),
     foto_url:fotoUrl,bat_foto_url:batFotoUrl
   };
   var saved=false;
