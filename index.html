@@ -851,17 +851,22 @@ async function doLogin(){
     localStorage.removeItem("saved_pass");
   }
   document.getElementById("login-screen").style.display="none";
-  document.getElementById("app").style.display="block";
-  document.getElementById("top-user").textContent=currentUser.nombre+" ("+currentUser.rol+")";
   if(currentUser.rol==="operario"){
-    document.querySelectorAll(".supervisor-only").forEach(function(el){el.style.display="none";});
+    // Operario gets dedicated view
+    document.getElementById("app-operario").style.display="block";
+    document.getElementById("op-user").textContent=currentUser.nombre;
+    initAppOperario();
+  } else {
+    document.getElementById("app").style.display="block";
+    document.getElementById("top-user").textContent=currentUser.nombre+" ("+currentUser.rol+")";
+    initApp();
   }
-  initApp();
 }
 
 function doLogout(){
   currentUser=null;
   document.getElementById("app").style.display="none";
+  document.getElementById("app-operario").style.display="none";
   document.getElementById("login-screen").style.display="flex";
   document.getElementById("l-pass").value="";
   document.getElementById("login-err").style.display="none";
@@ -1976,6 +1981,534 @@ function showPage(name){
     document.getElementById("l-remember").checked=true;
   }
 })();
+<!-- ══════════════════════════════════════════════════════
+     VISTA OPERARIO — app separada, sin KPIs ni config
+══════════════════════════════════════════════════════ -->
+<div id="app-operario" style="display:none;min-height:100vh;">
+  <!-- Topbar operario -->
+  <div style="background:#0D1F3C;height:56px;display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,0.4);">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:#C8A44A;letter-spacing:3px;">STELLANTIS</div>
+    <div style="width:1px;height:24px;background:rgba(255,255,255,0.15)"></div>
+    <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">OPERARIO</span>
+    <span style="font-size:12px;color:white;font-weight:600;margin-left:auto" id="op-user">—</span>
+    <button onclick="toggleTheme()" id="op-theme-btn" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;padding:5px 10px;border-radius:6px;font-size:14px;cursor:pointer;">🌙</button>
+    <button onclick="doLogout()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;">Salir</button>
+  </div>
+  <!-- Bottom nav móvil -->
+  <div style="position:fixed;bottom:0;left:0;right:0;background:#0D1F3C;border-top:1px solid rgba(255,255,255,0.1);display:flex;z-index:100;" id="op-bottom-nav">
+    <button onclick="opShowTab('tareas')" id="op-nav-tareas" style="flex:1;padding:12px 4px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:10px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:3px;border-top:2px solid transparent;transition:all .15s;">
+      <span style="font-size:20px">🔧</span>TAREAS
+    </button>
+    <button onclick="opShowTab('intervenciones')" id="op-nav-intervenciones" style="flex:1;padding:12px 4px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:10px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:3px;border-top:2px solid transparent;transition:all .15s;">
+      <span style="font-size:20px">📋</span>INTERVENCIONES
+    </button>
+    <button onclick="opShowTab('mihoy')" id="op-nav-mihoy" style="flex:1;padding:12px 4px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:10px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:3px;border-top:2px solid transparent;transition:all .15s;">
+      <span style="font-size:20px">📊</span>MI DÍA
+    </button>
+  </div>
+  <!-- Main operario -->
+  <div style="padding:16px 16px 80px 16px;">
+    <!-- TAB: TAREAS -->
+    <div id="op-tab-tareas" class="op-tab">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px;">Tareas Pendientes</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Todas las unidades de Córdoba que necesitan mantenimiento</div>
+      <!-- Filtros -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <input type="text" id="op-search" placeholder="🔍 VIN o modelo..." oninput="opRenderTareas()" style="flex:1;min-width:150px;padding:8px 12px;border-radius:8px;border:1.5px solid var(--input-border);background:var(--input-bg);color:var(--input-color);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
+        <select id="op-filter-code" onchange="opRenderTareas()" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--input-border);background:var(--input-bg);color:var(--input-color);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
+          <option value="ALL">Todos los servicios</option>
+        </select>
+        <select id="op-filter-urg" onchange="opRenderTareas()" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--input-border);background:var(--input-bg);color:var(--input-color);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
+          <option value="ALL">Toda urgencia</option>
+          <option value="overdue">Vencidos</option>
+          <option value="urgent">Urgentes ≤15d</option>
+          <option value="soon">Próximos ≤30d</option>
+        </select>
+      </div>
+      <div id="op-tareas-count" style="font-size:12px;color:var(--text3);margin-bottom:10px;"></div>
+      <div id="op-tareas-list"></div>
+    </div>
+    <!-- TAB: INTERVENCIONES -->
+    <div id="op-tab-intervenciones" class="op-tab" style="display:none">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px;">Intervenciones</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px;">Registrá daños, gomas o lavados adicionales</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px;">
+        <button onclick="opOpenDano()" style="background:var(--card);border:none;border-radius:12px;padding:20px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:var(--shadow);border-top:4px solid #C62828;">
+          <span style="font-size:28px;">🔴</span>
+          <span style="font-size:12px;font-weight:700;color:var(--text);">Daño C30</span>
+        </button>
+        <button onclick="opOpenGoma()" style="background:var(--card);border:none;border-radius:12px;padding:20px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:var(--shadow);border-top:4px solid #E65100;">
+          <span style="font-size:28px;">🟡</span>
+          <span style="font-size:12px;font-weight:700;color:var(--text);">Goma C37</span>
+        </button>
+        <button onclick="opOpenLavado()" style="background:var(--card);border:none;border-radius:12px;padding:20px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:var(--shadow);border-top:4px solid #1565C0;">
+          <span style="font-size:28px;">🚿</span>
+          <span style="font-size:12px;font-weight:700;color:var(--text);">Lavado</span>
+        </button>
+      </div>
+      <!-- Listado reciente de mis intervenciones hoy -->
+      <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">Mis intervenciones de hoy</div>
+      <div id="op-interv-hoy"></div>
+    </div>
+    <!-- TAB: MI DÍA -->
+    <div id="op-tab-mihoy" class="op-tab" style="display:none">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px;">Mi Día</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px;" id="op-fecha-hoy"></div>
+      <div class="stats-row" id="op-stats"></div>
+      <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">Lo que hice hoy</div>
+      <div id="op-hoy-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CHECKLIST MANTENIMIENTO (operario) -->
+<div class="modal-overlay" id="modal-checklist">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <div>
+        <div id="cl-title" style="font-weight:700;font-size:16px;color:var(--text)"></div>
+        <div id="cl-subtitle" style="font-size:11px;color:var(--text3);margin-top:2px"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-checklist')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cl-vin">
+      <input type="hidden" id="cl-code">
+      <input type="hidden" id="cl-cc">
+      <!-- Info unidad -->
+      <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:16px;border:1px solid var(--border);">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+          <div><div style="font-size:10px;color:var(--text3)">Modelo</div><div id="cl-modelo" style="font-size:12px;font-weight:700;color:var(--text)">—</div></div>
+          <div><div style="font-size:10px;color:var(--text3)">Boxatura</div><div id="cl-box" style="font-size:12px;font-weight:700;color:var(--text)">—</div></div>
+          <div><div style="font-size:10px;color:var(--text3)">Fecha</div><input type="date" id="cl-fecha" style="width:100%;font-size:11px;padding:4px 6px;border-radius:6px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-color);"></div>
+        </div>
+      </div>
+      <!-- SECCIÓN BATERÍA (aparece para M90, BSE, DSE, AN1, CAF, FLU) -->
+      <div id="cl-bat-section">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">🔋 Medición de Batería</div>
+        <div class="field-row" style="margin-bottom:10px;">
+          <div class="field">
+            <label>Volt medidos</label>
+            <input type="number" id="cl-bat-volt" placeholder="Ej: 12.6" step="0.1" min="0" max="16">
+          </div>
+          <div class="field">
+            <label>CCA medidos</label>
+            <input type="number" id="cl-bat-cca" placeholder="Ej: 450" step="1" min="0">
+          </div>
+        </div>
+        <div class="field-row" style="margin-bottom:10px;">
+          <div class="field">
+            <label>Estado batería</label>
+            <select id="cl-bat-estado">
+              <option value="">Seleccionar...</option>
+              <option value="ok">✅ OK — Continúa</option>
+              <option value="ko_carga">⚡ KO — Necesita carga</option>
+              <option value="ko_reemplazo">🔴 KO — Reemplazar</option>
+            </select>
+          </div>
+          <div class="field" id="cl-bat-carga-wrap" style="display:none;">
+            <label>Volt post-carga</label>
+            <input type="number" id="cl-bat-volt-final" placeholder="Ej: 12.8" step="0.1" min="0" max="16">
+          </div>
+        </div>
+        <div class="field" id="cl-bat-ticket-wrap" style="display:none;">
+          <label>Foto ticket MIDTRONICS</label>
+          <div class="photo-placeholder" onclick="document.getElementById('cl-bat-foto').click()">📷 Adjuntar ticket Midtronics</div>
+          <input type="file" id="cl-bat-foto" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,'cl-bat-foto-prev')">
+          <img id="cl-bat-foto-prev" class="photo-preview">
+        </div>
+      </div>
+      <!-- SECCIÓN NEUMÁTICOS -->
+      <div id="cl-neum-section" style="margin-top:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">🔵 Neumáticos</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Presión OK (43.5 PSI)</label>
+            <select id="cl-neum-presion"><option value="">Seleccionar...</option><option value="ok">✅ OK</option><option value="ajustado">⚙️ Ajustado</option><option value="ko">❌ KO</option></select>
+          </div>
+          <div class="field">
+            <label>Observaciones</label>
+            <input type="text" id="cl-neum-obs" placeholder="Ej: Trasero der bajo">
+          </div>
+        </div>
+      </div>
+      <!-- SECCIÓN GENERAL -->
+      <div style="margin-top:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">📋 Control General</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text2);">
+            <input type="checkbox" id="cl-ac" style="width:16px;height:16px;accent-color:var(--blue);"> AC activado ✅
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text2);">
+            <input type="checkbox" id="cl-lavado" style="width:16px;height:16px;accent-color:var(--blue);"> Lavado ✅
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text2);">
+            <input type="checkbox" id="cl-liquidos" style="width:16px;height:16px;accent-color:var(--blue);"> Líquidos OK ✅
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text2);">
+            <input type="checkbox" id="cl-protecciones" style="width:16px;height:16px;accent-color:var(--blue);"> Protecciones OK ✅
+          </label>
+        </div>
+        <div class="field">
+          <label>Observaciones generales</label>
+          <textarea id="cl-obs" placeholder="Notas adicionales del servicio..." style="min-height:60px;"></textarea>
+        </div>
+        <div class="field">
+          <label>Foto del vehículo</label>
+          <div class="photo-placeholder" onclick="document.getElementById('cl-foto').click()">📷 Agregar foto</div>
+          <input type="file" id="cl-foto" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,'cl-foto-prev')">
+          <img id="cl-foto-prev" class="photo-preview">
+        </div>
+      </div>
+      <!-- WS Status -->
+      <div id="cl-ws-status" style="margin-top:8px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-checklist')">Cancelar</button>
+      <button class="btn btn-success" id="btn-cl-save" onclick="saveChecklist()">✅ Confirmar servicio</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LAVADO (operario) -->
+<div class="modal-overlay" id="modal-lavado">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-head"><h3>🚿 Registrar Lavado</h3><button class="modal-close" onclick="closeModal('modal-lavado')">×</button></div>
+    <div class="modal-body">
+      <div class="field">
+        <label>VIN *</label>
+        <input type="text" id="lav-vin" placeholder="Ingresá el VIN" oninput="opAutofillVin('lav-vin','lav-info')" style="font-family:monospace;font-size:14px;text-transform:uppercase;">
+      </div>
+      <div id="lav-info" style="display:none;background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:12px;border:1px solid var(--border);font-size:12px;"></div>
+      <div class="field">
+        <label>Tipo de lavado</label>
+        <select id="lav-tipo">
+          <option value="programado">Programado (dentro del mantenimiento)</option>
+          <option value="preventivo">Preventivo (unidad sucia fuera de programa)</option>
+          <option value="especial">Especial (por evento / entrega)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Observaciones</label>
+        <textarea id="lav-obs" placeholder="Estado de la unidad, nivel de suciedad..." style="min-height:60px;"></textarea>
+      </div>
+      <div class="field">
+        <label>Foto</label>
+        <div class="photo-placeholder" onclick="document.getElementById('lav-foto-input').click()">📷 Foto antes/después</div>
+        <input type="file" id="lav-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,'lav-foto-prev')">
+        <img id="lav-foto-prev" class="photo-preview">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-lavado')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveLavado()">🚿 Registrar lavado</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// CÓDIGOS CON BATERÍA
+// ══════════════════════════════════════════════════════
+var CODES_CON_BATERIA=["M90","BSE","DSE","AN1","CAF","FLU"];
+var CODES_CON_NEUMATICOS=["M90","AN1","CAF","FLU"];
+
+// ══════════════════════════════════════════════════════
+// INIT OPERARIO
+// ══════════════════════════════════════════════════════
+async function initAppOperario(){
+  initTheme();
+  // sync theme btn
+  var ob=document.getElementById("op-theme-btn");
+  if(ob)ob.textContent=document.documentElement.getAttribute("data-theme")==="dark"?"🌙":"☀️";
+  document.getElementById("op-fecha-hoy").textContent=new Date().toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
+  // Build service filter
+  var html='<option value="ALL">Todos los servicios</option>';
+  CATALOG.forEach(function(m){if(m.days)html+='<option value="'+m.code+'">'+m.code+' — '+m.service+'</option>';});
+  document.getElementById("op-filter-code").innerHTML=html;
+  await loadStock();
+  opShowTab("tareas");
+}
+
+function opShowTab(tab){
+  ["tareas","intervenciones","mihoy"].forEach(function(t){
+    document.getElementById("op-tab-"+t).style.display=t===tab?"block":"none";
+    var btn=document.getElementById("op-nav-"+t);
+    if(btn){
+      btn.style.color=t===tab?"#C8A44A":"rgba(255,255,255,0.5)";
+      btn.style.borderTopColor=t===tab?"#C8A44A":"transparent";
+    }
+  });
+  if(tab==="tareas")opRenderTareas();
+  if(tab==="intervenciones")opRenderIntervHoy();
+  if(tab==="mihoy")opRenderMiDia();
+}
+
+// ══════════════════════════════════════════════════════
+// OPERARIO: TAREAS
+// ══════════════════════════════════════════════════════
+function opRenderTareas(){
+  var search=(document.getElementById("op-search").value||"").toLowerCase();
+  var codeF=document.getElementById("op-filter-code").value;
+  var urgF=document.getElementById("op-filter-urg").value;
+  var filtered=pendingCache.filter(function(p){
+    if(codeF!=="ALL"&&p.maint.code!==codeF)return false;
+    if(urgF!=="ALL"&&p.urgency!==urgF)return false;
+    if(search&&p.vin.toLowerCase().indexOf(search)<0&&p.modelDescr.toLowerCase().indexOf(search)<0)return false;
+    return true;
+  });
+  document.getElementById("op-tareas-count").textContent=filtered.length+" tareas · "+pendingCache.filter(function(p){return p.urgency==="overdue";}).length+" vencidas · "+pendingCache.filter(function(p){return p.urgency==="urgent";}).length+" urgentes";
+  var urgColors={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
+  var urgBg={overdue:"rgba(198,40,40,0.08)",urgent:"rgba(230,81,0,0.06)",soon:"rgba(21,101,192,0.06)",ok:"rgba(46,125,50,0.04)"};
+  var html=filtered.slice(0,100).map(function(p){
+    var days=p.daysToDue<0?"VENCIDO "+Math.abs(p.daysToDue)+"d":p.daysToDue===0?"HOY":p.daysToDue+"d";
+    return'<div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;border-left:4px solid '+urgColors[p.urgency]+';box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;">'
+      +'<div style="flex:1;min-width:0;">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+      +'<span style="font-family:monospace;font-size:11px;color:var(--gold);font-weight:700">'+esc(p.vin)+'</span>'
+      +'<span style="background:'+urgBg[p.urgency]+';color:'+urgColors[p.urgency]+';font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;border:1px solid '+urgColors[p.urgency]+'40">'+days+'</span>'
+      +'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+p.maint.code+' <span style="font-weight:400;color:var(--text2)">'+p.maint.service+'</span></div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+esc(p.modelDescr)+' · Box: '+esc(p.boxatura)+'</div>'
+      +'</div>'
+      +'<button onclick="opOpenChecklist(\''+esc(p.vin)+'\',\''+p.maint.code+'\',\''+esc(p.maint.service)+'\',\''+esc(p.compoundCode)+'\',\''+esc(p.modelDescr)+'\',\''+esc(p.boxatura)+'\')" '
+      +'style="background:#2E7D32;border:none;border-radius:10px;padding:10px 14px;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:\'Barlow\',sans-serif;white-space:nowrap;flex-shrink:0;">'
+      +'✓ Hacer</button>'
+      +'</div>';
+  }).join("");
+  document.getElementById("op-tareas-list").innerHTML=html||'<div class="empty"><div class="empty-icon">✅</div>No hay tareas para ese filtro</div>';
+}
+
+// ══════════════════════════════════════════════════════
+// OPERARIO: CHECKLIST
+// ══════════════════════════════════════════════════════
+function opOpenChecklist(vin,code,service,cc,modelo,boxatura){
+  document.getElementById("cl-vin").value=vin;
+  document.getElementById("cl-code").value=code;
+  document.getElementById("cl-cc").value=cc||"34";
+  document.getElementById("cl-title").textContent=code+" — "+service;
+  document.getElementById("cl-subtitle").textContent=vin+" · "+modelo+" · Box: "+boxatura;
+  document.getElementById("cl-modelo").textContent=modelo||"—";
+  document.getElementById("cl-box").textContent=boxatura||"—";
+  document.getElementById("cl-fecha").value=new Date().toISOString().slice(0,10);
+  // Reset fields
+  ["cl-bat-volt","cl-bat-cca","cl-bat-volt-final","cl-neum-obs","cl-obs"].forEach(function(id){document.getElementById(id).value="";});
+  document.getElementById("cl-bat-estado").value="";
+  document.getElementById("cl-neum-presion").value="";
+  ["cl-ac","cl-lavado","cl-liquidos","cl-protecciones"].forEach(function(id){document.getElementById(id).checked=false;});
+  ["cl-bat-foto-prev","cl-foto-prev"].forEach(function(id){var el=document.getElementById(id);el.style.display="none";el.src="";});
+  document.getElementById("cl-ws-status").innerHTML="";
+  document.getElementById("btn-cl-save").disabled=false;
+  document.getElementById("btn-cl-save").textContent="✅ Confirmar servicio";
+  // Show/hide battery section
+  var hasBat=CODES_CON_BATERIA.indexOf(code)>=0;
+  document.getElementById("cl-bat-section").style.display=hasBat?"block":"none";
+  var hasNeum=CODES_CON_NEUMATICOS.indexOf(code)>=0;
+  document.getElementById("cl-neum-section").style.display=hasNeum?"block":"none";
+  document.getElementById("cl-bat-carga-wrap").style.display="none";
+  document.getElementById("cl-bat-ticket-wrap").style.display="none";
+  // Battery estado change handler
+  document.getElementById("cl-bat-estado").onchange=function(){
+    var v=this.value;
+    document.getElementById("cl-bat-carga-wrap").style.display=(v==="ko_carga")?"block":"none";
+    document.getElementById("cl-bat-ticket-wrap").style.display=(v==="ko_carga"||v==="ko_reemplazo")?"block":"none";
+  };
+  openModal("modal-checklist");
+}
+
+async function saveChecklist(){
+  var vin=document.getElementById("cl-vin").value;
+  var code=document.getElementById("cl-code").value;
+  var cc=document.getElementById("cl-cc").value||"34";
+  var fecha=document.getElementById("cl-fecha").value;
+  if(!vin||!code||!fecha){showToast("Faltan datos","error");return;}
+  var btn=document.getElementById("btn-cl-save");
+  btn.disabled=true;btn.textContent="⏳ Guardando...";
+  var wsDiv=document.getElementById("cl-ws-status");
+  // Upload photos
+  var fotoUrl=null,batFotoUrl=null;
+  var fotoFile=document.getElementById("cl-foto").files[0];
+  var batFotoFile=document.getElementById("cl-bat-foto").files[0];
+  if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","checklist/"+uuid()+"-"+fotoFile.name).catch(function(){return null;});
+  if(batFotoFile)batFotoUrl=await uploadPhoto(batFotoFile,"fotos-mantenimiento","baterias/"+uuid()+"-"+batFotoFile.name).catch(function(){return null;});
+  // Save checklist record
+  var record={
+    vin:vin,maint_code:code,operario_id:currentUser.id,fecha:fecha,
+    bat_volt_inicial:parseFloat(document.getElementById("cl-bat-volt").value)||null,
+    bat_cca:parseFloat(document.getElementById("cl-bat-cca").value)||null,
+    bat_estado:document.getElementById("cl-bat-estado").value||null,
+    bat_volt_final:parseFloat(document.getElementById("cl-bat-volt-final").value)||null,
+    bat_carga_ok:document.getElementById("cl-bat-estado").value==="ko_carga",
+    neum_presion_ok:document.getElementById("cl-neum-presion").value==="ok"||document.getElementById("cl-neum-presion").value==="ajustado",
+    neum_obs:document.getElementById("cl-neum-obs").value||null,
+    ac_ok:document.getElementById("cl-ac").checked,
+    lavado_ok:document.getElementById("cl-lavado").checked,
+    liquidos_ok:document.getElementById("cl-liquidos").checked,
+    protecciones_ok:document.getElementById("cl-protecciones").checked,
+    observaciones:document.getElementById("cl-obs").value||null,
+    foto_url:fotoUrl,bat_foto_url:batFotoUrl
+  };
+  var saved=false;
+  try{
+    await sbPost("checklist_registros",[record]);
+    saved=true;
+  }catch(e){
+    wsDiv.innerHTML='<div style="padding:8px;background:#FFEBEE;border-radius:6px;font-size:12px;color:#C62828;">⚠️ Error guardando checklist: '+esc(e.message)+'</div>';
+  }
+  // WS: bloqueo + desbloqueo
+  wsDiv.innerHTML='<div style="padding:8px 12px;background:var(--bg2);border-radius:6px;font-size:12px;margin-bottom:4px;">⏳ Enviando bloqueo a OBT...</div>';
+  var blockOk=false;
+  try{var r=await callWS(vin,cc,code,"B");blockOk=r.success;}catch(e){}
+  var unblockOk=false;
+  if(blockOk){
+    await new Promise(function(res){setTimeout(res,600);});
+    try{var r2=await callWS(vin,cc,code,"U");unblockOk=r2.success;}catch(e){}
+  }
+  // Update checklist record with WS results
+  if(saved){
+    try{
+      var allRec=await sbGet("checklist_registros","vin=eq."+encodeURIComponent(vin)+"&maint_code=eq."+code+"&operario_id=eq."+currentUser.id+"&fecha=eq."+fecha+"&select=id&order=created_at.desc&limit=1");
+      if(Array.isArray(allRec)&&allRec.length){
+        await sbPatch("checklist_registros",allRec[0].id,{ws_block_ok:blockOk,ws_unblock_ok:unblockOk});
+      }
+    }catch(e){}
+  }
+  // Save to historial
+  try{
+    await sbUpsert("bloqueos_historial",{vin:vin,block_code:code,block_date:fecha,unblock_date:fecha,is_active:false,compound_code:"34",compound_descr:"Cordoba",source_file:"checklist_"+currentUser.nombre,imported_at:new Date().toISOString()},"vin,block_code");
+  }catch(e){}
+  wsDiv.innerHTML=
+    '<div style="padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:4px;background:'+(blockOk?"#E8F5E9":"#FFEBEE")+';color:'+(blockOk?"#2E7D32":"#C62828")+'">'+(blockOk?"✅ Bloqueo OBT OK":"⚠️ Bloqueo OBT falló")+'</div>'
+    +'<div style="padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;background:'+(unblockOk?"#E8F5E9":"#FFEBEE")+';color:'+(unblockOk?"#2E7D32":"#C62828")+'">'+(unblockOk?"✅ Desbloqueo OBT OK":"⚠️ Desbloqueo OBT falló")+'</div>';
+  setTimeout(function(){
+    closeModal("modal-checklist");
+    showToast(saved?"✅ Servicio "+code+" registrado"+(blockOk&&unblockOk?" y procesado en OBT":""):"Error guardando — revisar conexión","success");
+    loadStock();
+    opRenderTareas();
+  },1800);
+}
+
+// ══════════════════════════════════════════════════════
+// OPERARIO: INTERVENCIONES
+// ══════════════════════════════════════════════════════
+function opAutofillVin(inputId,infoId){
+  var vin=document.getElementById(inputId).value.trim().toUpperCase();
+  var info=document.getElementById(infoId);
+  if(!vin||vin.length<5){info.style.display="none";return;}
+  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin;});
+  if(v){
+    info.style.display="block";
+    info.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'
+      +'<div><div style="font-size:9px;color:var(--text3)">Modelo</div><div style="font-size:12px;font-weight:700;color:var(--text)">'+esc(v.model_descr||v["Model Descr"]||"—")+'</div></div>'
+      +'<div><div style="font-size:9px;color:var(--text3)">Boxatura</div><div style="font-size:12px;font-weight:700;color:var(--text)">'+esc(v.boxatura||v["Boxatura"]||"—")+'</div></div>'
+      +'<div><div style="font-size:9px;color:var(--text3)">Compound</div><div style="font-size:12px;font-weight:700;color:var(--text)">'+esc(v.compound||v["Compound Descr"]||"—")+'</div></div>'
+      +'</div>';
+  } else if(vin.length>=17){
+    info.style.display="block";
+    info.innerHTML='<span style="color:#F57F17;font-size:12px;">VIN no encontrado en stock — se puede registrar igual</span>';
+  }
+}
+function opOpenDano(){
+  openDanoModal();
+  // point to supervisor modal but accessible from operario view
+}
+function opOpenGoma(){openGomaModal();}
+function opOpenLavado(){
+  document.getElementById("lav-vin").value="";
+  document.getElementById("lav-info").style.display="none";
+  document.getElementById("lav-obs").value="";
+  document.getElementById("lav-tipo").value="programado";
+  var p=document.getElementById("lav-foto-prev");if(p){p.style.display="none";p.src="";}
+  openModal("modal-lavado");
+}
+async function saveLavado(){
+  var vin=document.getElementById("lav-vin").value.trim().toUpperCase();
+  if(!vin){showToast("El VIN es obligatorio","error");return;}
+  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin;});
+  var cc=v?String(v.compound_code||v["Compound Code"]||"34").replace(/^0+/,""):"34";
+  var fotoFile=document.getElementById("lav-foto-input").files[0];
+  var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","lavados/"+uuid()+"-"+fotoFile.name).catch(function(){return null;});
+  try{
+    await sbPost("lavados",[{
+      vin:vin,
+      model_descr:v?(v.model_descr||v["Model Descr"]||null):null,
+      compound_code:cc,
+      boxatura:v?(v.boxatura||v["Boxatura"]||null):null,
+      tipo:document.getElementById("lav-tipo").value,
+      observaciones:document.getElementById("lav-obs").value||null,
+      foto_url:fotoUrl,
+      operario_id:currentUser.id
+    }]);
+    closeModal("modal-lavado");
+    showToast("🚿 Lavado registrado","success");
+    opRenderIntervHoy();
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+async function opRenderIntervHoy(){
+  var hoy=new Date().toISOString().slice(0,10);
+  var checklists=[],danos=[],lavados=[];
+  try{checklists=await sbGet("checklist_registros","operario_id=eq."+currentUser.id+"&fecha=eq."+hoy+"&select=*&order=created_at.desc");}catch(e){}
+  try{danos=await sbGet("danos","registrado_por=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*&order=created_at.desc");}catch(e){}
+  try{lavados=await sbGet("lavados","operario_id=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*&order=created_at.desc");}catch(e){}
+  if(!Array.isArray(checklists))checklists=[];if(!Array.isArray(danos))danos=[];if(!Array.isArray(lavados))lavados=[];
+  var html="";
+  checklists.forEach(function(r){
+    html+='<div style="background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:4px solid #2E7D32;box-shadow:var(--shadow);">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;">'
+      +'<div><span style="font-size:11px;color:var(--gold);font-family:monospace;font-weight:700">'+esc(r.vin)+'</span> · <b style="color:var(--text)">'+esc(r.maint_code)+'</b></div>'
+      +'<span style="font-size:10px;font-weight:700;background:#E8F5E9;color:#2E7D32;padding:2px 7px;border-radius:8px;">✅ HECHO</span>'
+      +'</div>'
+      +(r.bat_volt_inicial?'<div style="font-size:11px;color:var(--text3);margin-top:4px;">🔋 '+r.bat_volt_inicial+'V · CCA: '+(r.bat_cca||"—")+' · '+( r.bat_estado||"—")+'</div>':'')
+      +'</div>';
+  });
+  danos.forEach(function(d){
+    html+='<div style="background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:4px solid #C62828;box-shadow:var(--shadow);">'
+      +'<span style="font-size:11px;color:var(--gold);font-family:monospace;font-weight:700">'+esc(d.vin)+'</span> · <b style="color:var(--text)">Daño C30</b>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+esc(d.tipo_dano||"—")+' · '+esc(d.ubicacion||"—")+'</div>'
+      +'</div>';
+  });
+  lavados.forEach(function(l){
+    html+='<div style="background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:4px solid #1565C0;box-shadow:var(--shadow);">'
+      +'<span style="font-size:11px;color:var(--gold);font-family:monospace;font-weight:700">'+esc(l.vin)+'</span> · <b style="color:var(--text)">Lavado '+esc(l.tipo)+'</b>'
+      +'</div>';
+  });
+  document.getElementById("op-interv-hoy").innerHTML=html||'<div class="empty" style="padding:20px"><div class="empty-icon">📋</div>Sin intervenciones hoy</div>';
+}
+
+// ══════════════════════════════════════════════════════
+// OPERARIO: MI DÍA
+// ══════════════════════════════════════════════════════
+async function opRenderMiDia(){
+  var hoy=new Date().toISOString().slice(0,10);
+  var checklists=[],lavados=[],danoshoy=[];
+  try{checklists=await sbGet("checklist_registros","operario_id=eq."+currentUser.id+"&fecha=eq."+hoy+"&select=*");}catch(e){}
+  try{lavados=await sbGet("lavados","operario_id=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*");}catch(e){}
+  try{danoshoy=await sbGet("danos","registrado_por=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*");}catch(e){}
+  if(!Array.isArray(checklists))checklists=[];if(!Array.isArray(lavados))lavados=[];if(!Array.isArray(danoshoy))danoshoy=[];
+  var pendTotal=pendingCache.length;
+  var overdueTotal=pendingCache.filter(function(p){return p.urgency==="overdue";}).length;
+  document.getElementById("op-stats").innerHTML=[
+    {lbl:"Mantenimientos hoy",val:checklists.length,c:"#2E7D32"},
+    {lbl:"Lavados hoy",val:lavados.length,c:"#1565C0"},
+    {lbl:"Daños registrados hoy",val:danoshoy.length,c:"#C62828"},
+    {lbl:"Total pendiente Córdoba",val:pendTotal,c:"var(--blue)"},
+    {lbl:"Vencidos",val:overdueTotal,c:"#E65100"},
+  ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
+  // List of today's work
+  var html="";
+  if(checklists.length){
+    html+='<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Mantenimientos</div>';
+    checklists.forEach(function(r){
+      html+='<div style="background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:4px solid #2E7D32;box-shadow:var(--shadow);">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;">'
+        +'<div><span style="font-family:monospace;font-size:11px;color:var(--gold);">'+esc(r.vin)+'</span> · <b>'+esc(r.maint_code)+'</b></div>'
+        +'<span style="font-size:10px;font-weight:700;background:#E8F5E9;color:#2E7D32;padding:2px 7px;border-radius:8px;">✅</span></div>'
+        +(r.bat_volt_inicial?'<div style="font-size:11px;color:var(--text3);margin-top:3px;">🔋 '+r.bat_volt_inicial+'V · '+( r.bat_estado==="ok"?"OK":r.bat_estado==="ko_carga"?"KO-Carga":"KO-Reemplazo")+'</div>':'')
+        +'</div>';
+    });
+  }
+  document.getElementById("op-hoy-list").innerHTML=html||'<div class="empty" style="padding:24px"><div class="empty-icon">🌅</div>Todavía no hay registros hoy</div>';
+}
 </script>
 </body>
 </html>
