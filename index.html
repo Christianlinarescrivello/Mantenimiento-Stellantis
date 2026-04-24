@@ -263,6 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="nav-section">Reportes</div>
     <div class="nav-item supervisor-only" onclick="showPage('kpis')" id="nav-kpis"><span class="icon">📈</span> KPIs y Exportar</div>
     <div class="nav-item supervisor-only" onclick="showPage('historial')" id="nav-historial"><span class="icon">🗂️</span> Historial bloqueos</div>
+    <div class="nav-item supervisor-only" onclick="showPage('wslog')" id="nav-wslog"><span class="icon">🔌</span> Log WebService</div>
     <div class="nav-section supervisor-only">Config</div>
     <div class="nav-item supervisor-only" onclick="showPage('stock')" id="nav-stock"><span class="icon">📦</span> Importar Stock</div>
     <div class="nav-item supervisor-only" onclick="showPage('usuarios')" id="nav-usuarios"><span class="icon">👥</span> Usuarios</div>
@@ -479,6 +480,40 @@ tbody td{padding:9px 12px;color:var(--text);}
         <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Activo</th><th>Acciones</th></tr></thead>
         <tbody id="usr-tbody"></tbody>
       </table></div></div>
+    </div>
+
+    <!-- WS LOG PAGE -->
+    <div class="page" id="page-wslog">
+      <div class="page-title">🔌 Log WebService OBT</div>
+      <div class="page-sub">Historial de todas las llamadas al webservice — XML enviado y respuesta recibida</div>
+      <!-- Stats -->
+      <div class="stats-row" id="wslog-stats"></div>
+      <!-- Filters -->
+      <div class="filters">
+        <select id="wslog-result" onchange="renderWsLog()">
+          <option value="ALL">Todos los resultados</option>
+          <option value="false">❌ Solo fallidos</option>
+          <option value="true">✅ Solo exitosos</option>
+        </select>
+        <select id="wslog-op" onchange="renderWsLog()">
+          <option value="ALL">Todas las operaciones</option>
+          <option value="B">Bloqueo (B)</option>
+          <option value="U">Desbloqueo (U)</option>
+        </select>
+        <input type="text" id="wslog-search" placeholder="🔍 VIN o código..." oninput="renderWsLog()" style="width:180px">
+        <input type="date" id="wslog-desde" onchange="renderWsLog()">
+        <button class="btn btn-ghost btn-sm" onclick="renderWsLog()">Actualizar</button>
+        <span id="wslog-count" style="margin-left:auto;font-size:12px;color:var(--text3)"></span>
+        <button class="btn btn-gold btn-sm" onclick="exportWsLog()">⬇ Excel</button>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha/Hora</th><th>VIN</th><th>Código</th><th>Operación</th><th>Compound</th><th>Resultado</th><th>Error</th><th>Usuario</th><th>Detalle</th></tr></thead>
+            <tbody id="wslog-tbody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -786,7 +821,7 @@ async function uploadPhoto(file,bucket,path){
 // ══════════════════════════════════════════════════════
 // WEBSERVICE
 // ══════════════════════════════════════════════════════
-function callWS(vin,cc,code,op){
+async function callWS(vin,cc,code,op){
   var now=new Date();
   var xml='<?xml version="1.0" encoding="UTF-8"?>'
     +'<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">'
@@ -798,10 +833,36 @@ function callWS(vin,cc,code,op){
     +'<operationCode>'+op+'</operationCode><blockCode>'+code+'</blockCode>'
     +'</WS3BInput></vet></input>'
     +'</executeBSR003WSB></soapenv:Body></soapenv:Envelope>';
-  return fetch(WS_URL,{method:"POST",headers:{"Content-Type":"text/xml; charset=UTF-8","SOAPAction":""},body:xml})
-    .then(function(r){return r.text();})
-    .then(function(t){var m=t.match(/<successFlag>(\d+)<\/successFlag>/);return{success:m&&m[1]==="0"};})
-    .catch(function(){return{success:false};});
+  var result={success:false};
+  var respRaw="";
+  var errorMsg="";
+  try{
+    var r=await fetch(WS_URL,{method:"POST",headers:{"Content-Type":"text/xml; charset=UTF-8","SOAPAction":""},body:xml});
+    respRaw=await r.text();
+    var m=respRaw.match(/<successFlag>(\d+)<\/successFlag>/);
+    result={success:m&&m[1]==="0", raw:respRaw};
+    if(!result.success){
+      var em=respRaw.match(/<errorMessage>(.*?)<\/errorMessage>/);
+      errorMsg=em?em[1]:"successFlag != 0";
+    }
+  }catch(e){
+    errorMsg=e.message||"fetch failed";
+    result={success:false};
+  }
+  // Save log to Supabase (async, don't await — don't block the flow)
+  try{
+    sbPost("ws_log",[{
+      vin:vin, block_code:code, operation:op,
+      compound_code:String(cc),
+      xml_enviado:xml,
+      respuesta_raw:respRaw||null,
+      success:result.success,
+      error_msg:errorMsg||null,
+      usuario:currentUser?currentUser.nombre:"sistema",
+      created_at:now.toISOString()
+    }]).catch(function(){});
+  }catch(e){}
+  return result;
 }
 
 // ══════════════════════════════════════════════════════
@@ -1976,6 +2037,133 @@ function showOpView(){
   initAppOperario();
 }
 
+// ══════════════════════════════════════════════════════
+// WS LOG
+// ══════════════════════════════════════════════════════
+async function renderWsLog(){
+  var resultF=document.getElementById("wslog-result").value;
+  var opF=document.getElementById("wslog-op").value;
+  var search=(document.getElementById("wslog-search").value||"").toLowerCase();
+  var desde=document.getElementById("wslog-desde").value;
+  var params="select=*&order=created_at.desc&limit=500";
+  if(resultF!=="ALL")params+="&success=eq."+resultF;
+  if(opF!=="ALL")params+="&operation=eq."+opF;
+  if(desde)params+="&created_at=gte."+desde+"T00:00:00";
+  var data=[];
+  try{data=await sbGet("ws_log",params);}catch(e){
+    document.getElementById("wslog-tbody").innerHTML='<tr><td colspan="9"><div class="empty"><div class="empty-icon">⚠️</div>Tabla ws_log no encontrada — ejecutá el SQL en Supabase primero</div></td></tr>';
+    return;
+  }
+  if(!Array.isArray(data))data=[];
+  if(search)data=data.filter(function(r){return(r.vin||"").toLowerCase().indexOf(search)>=0||(r.block_code||"").toLowerCase().indexOf(search)>=0;});
+  var total=data.length;
+  var ok=data.filter(function(r){return r.success;}).length;
+  var fail=data.filter(function(r){return!r.success;}).length;
+  document.getElementById("wslog-count").textContent=total+" registros";
+  document.getElementById("wslog-stats").innerHTML=[
+    {lbl:"Total llamadas",val:total,c:"var(--blue)"},
+    {lbl:"✅ Exitosas",val:ok,c:"#2E7D32"},
+    {lbl:"❌ Fallidas",val:fail,c:"#C62828"},
+    {lbl:"Tasa de éxito",val:total?Math.round(ok/total*100)+"%":"—",c:ok===total?"#2E7D32":"#E65100"},
+  ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
+  document.getElementById("wslog-tbody").innerHTML=data.map(function(r){
+    var dt=r.created_at?new Date(r.created_at).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"—";
+    var opLabel=r.operation==="B"?'<span style="background:#FFEBEE;color:#C62828;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;">BLOQUEO</span>':'<span style="background:#E8F5E9;color:#2E7D32;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;">DESBLOQUEO</span>';
+    var resLabel=r.success?'<span class="badge b-done">✅ OK</span>':'<span class="badge b-ko">❌ FALLÓ</span>';
+    var errTxt=r.error_msg?'<span style="font-size:10px;color:#C62828;max-width:120px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.error_msg)+'">'+esc(r.error_msg)+'</span>':"—";
+    var btnDetail='<button class="btn btn-ghost btn-sm" onclick="showWsDetail(\''+r.id+'\')">Ver XML</button>';
+    return'<tr style="'+(r.success?"":'background:rgba(198,40,40,0.05);')+'">'
+      +'<td style="font-size:11px;white-space:nowrap">'+dt+'</td>'
+      +'<td style="font-family:monospace;font-size:11px;color:var(--gold)">'+esc(r.vin||"—")+'</td>'
+      +'<td><b style="color:var(--gold)">'+esc(r.block_code||"—")+'</b></td>'
+      +'<td>'+opLabel+'</td>'
+      +'<td style="font-size:11px">'+esc(r.compound_code||"—")+'</td>'
+      +'<td>'+resLabel+'</td>'
+      +'<td>'+errTxt+'</td>'
+      +'<td style="font-size:11px">'+esc(r.usuario||"—")+'</td>'
+      +'<td>'+btnDetail+'</td>'
+      +'</tr>';
+  }).join("")||'<tr><td colspan="9"><div class="empty"><div class="empty-icon">📋</div>Sin llamadas registradas</div></td></tr>';
+}
+
+var wsLogCache=[];
+async function showWsDetail(id){
+  // Load from DB if not in cache
+  var rec=null;
+  try{
+    var data=await sbGet("ws_log","id=eq."+id+"&select=*");
+    if(Array.isArray(data)&&data.length)rec=data[0];
+  }catch(e){}
+  if(!rec){showToast("No se encontró el registro","error");return;}
+  // Format XML nicely
+  function fmtXml(xml){
+    if(!xml)return"(vacío)";
+    // simple indent
+    var indent=0;
+    return xml.replace(/></g,">\n<").split("\n").map(function(line){
+      if(line.match(/^<\//))indent--;
+      var pad=new Array(indent*2+1).join(" ");
+      if(!line.match(/\/>/g)&&line.match(/^<[^\/!?]/))indent++;
+      return pad+line;
+    }).join("\n");
+  }
+  var modal=document.getElementById("modal-wsdetail");
+  if(!modal){
+    // Create modal on demand
+    var div=document.createElement("div");
+    div.className="modal-overlay";
+    div.id="modal-wsdetail";
+    div.innerHTML='<div class="modal" style="max-width:700px">'
+      +'<div class="modal-head"><h3 id="wsdetail-title">Log WebService</h3><button class="modal-close" onclick="closeModal(\'modal-wsdetail\')">×</button></div>'
+      +'<div class="modal-body" style="padding:16px">'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px" id="wsdetail-meta"></div>'
+      +'<div style="margin-bottom:10px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:6px;">XML Enviado</div>'
+      +'<pre id="wsdetail-xml" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:10px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;color:var(--text);font-family:monospace;"></pre>'
+      +'</div>'
+      +'<div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:6px;">Respuesta OBT</div>'
+      +'<pre id="wsdetail-resp" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:10px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;color:var(--text);font-family:monospace;"></pre>'
+      +'</div>'
+      +'</div>'
+      +'<div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal(\'modal-wsdetail\')">Cerrar</button>'
+      +'<button class="btn btn-primary btn-sm" onclick="copyWsXml()">📋 Copiar XML</button></div>'
+      +'</div>';
+    document.body.appendChild(div);
+  }
+  var dt=rec.created_at?new Date(rec.created_at).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"—";
+  document.getElementById("wsdetail-title").textContent="Log WS — "+esc(rec.vin||"")+" / "+esc(rec.block_code||"")+" / "+(rec.operation==="B"?"BLOQUEO":"DESBLOQUEO");
+  document.getElementById("wsdetail-meta").innerHTML=[
+    {l:"VIN",v:rec.vin||"—",gold:true},
+    {l:"Código",v:rec.block_code||"—",gold:true},
+    {l:"Operación",v:rec.operation==="B"?"🔴 BLOQUEO":"🟢 DESBLOQUEO"},
+    {l:"Compound",v:rec.compound_code||"—"},
+    {l:"Resultado",v:rec.success?"✅ EXITOSO":"❌ FALLÓ"},
+    {l:"Fecha/Hora",v:dt},
+    {l:"Usuario",v:rec.usuario||"—"},
+    {l:"Error",v:rec.error_msg||"—"},
+  ].map(function(item){
+    return'<div style="background:var(--bg2);border-radius:6px;padding:8px 10px;">'
+      +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">'+item.l+'</div>'
+      +'<div style="font-size:12px;font-weight:700;color:'+(item.gold?"var(--gold)":rec.success&&item.l==="Resultado"?"#2E7D32":!rec.success&&item.l==="Resultado"?"#C62828":"var(--text)")+'">'+esc(item.v)+'</div>'
+      +'</div>';
+  }).join("");
+  document.getElementById("wsdetail-xml").textContent=fmtXml(rec.xml_enviado||"(no disponible)");
+  document.getElementById("wsdetail-resp").textContent=fmtXml(rec.respuesta_raw||"(sin respuesta — timeout o error de red)");
+  openModal("modal-wsdetail");
+}
+function copyWsXml(){
+  var xml=document.getElementById("wsdetail-xml").textContent;
+  navigator.clipboard.writeText(xml).then(function(){showToast("XML copiado al portapapeles","success");}).catch(function(){showToast("No se pudo copiar","error");});
+}
+async function exportWsLog(){
+  var data=[];try{data=await sbGet("ws_log","select=*&order=created_at.desc&limit=2000");}catch(e){}
+  if(!Array.isArray(data))data=[];
+  var ws=XLSX.utils.json_to_sheet(data.map(function(r){return{"Fecha":r.created_at?new Date(r.created_at).toLocaleString("es-AR"):"","VIN":r.vin,"Código":r.block_code,"Operación":r.operation==="B"?"Bloqueo":"Desbloqueo","Compound":r.compound_code,"Resultado":r.success?"OK":"FALLÓ","Error":r.error_msg||"","Usuario":r.usuario,"XML Enviado":r.xml_enviado||"","Respuesta":r.respuesta_raw||""};}));
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"WS Log");
+  XLSX.writeFile(wb,"WS_Log_"+new Date().toISOString().slice(0,10)+".xlsx");
+}
+
 function showPage(name){
   document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
   document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active");});
@@ -1989,6 +2177,12 @@ function showPage(name){
   if(name==="kpis")renderKPIs();
   if(name==="historial")renderHistorial();
   if(name==="usuarios")renderUsuarios();
+  if(name==="wslog"){
+    // Set default date to today if empty
+    var el=document.getElementById("wslog-desde");
+    if(el&&!el.value)el.value=new Date().toISOString().slice(0,10);
+    renderWsLog();
+  }
 }
 
 // ══════════════════════════════════════════════════════
