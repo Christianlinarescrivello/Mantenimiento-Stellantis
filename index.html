@@ -252,12 +252,14 @@ tbody td{padding:9px 12px;color:var(--text);}
   <div class="sidenav">
     <div class="nav-section">Dashboard</div>
     <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard"><span class="icon">📊</span> Resumen del día</div>
-    <div class="nav-section">Mantenimiento</div>
+    <div class="nav-section">Mi Trabajo</div>
+    <div class="nav-item" onclick="showOpView()" id="nav-opview"><span class="icon">✅</span> Tareas / Checklist</div>
+    <div class="nav-section">Gestión</div>
     <div class="nav-item" onclick="showPage('preventivo')" id="nav-preventivo"><span class="icon">🔧</span> Preventivo</div>
     <div class="nav-item supervisor-only" onclick="showPage('planificador')" id="nav-planificador"><span class="icon">📅</span> Planificador</div>
     <div class="nav-section">Intervenciones</div>
-    <div class="nav-item" onclick="showPage('danos')" id="nav-danos"><span class="icon">🔴</span> Daños (C30)</div>
-    <div class="nav-item" onclick="showPage('gomas')" id="nav-gomas"><span class="icon">🟡</span> Gomas (C37)</div>
+    <div class="nav-item" onclick="showPage('daños')" id="nav-daños"><span class="icon">🔴</span> Daños (C30)</div>
+    <div class="nav-item" onclick="showPage('gomas')" id="nav-gomas"><span class="icon">🟡</span> Neumáticos (C37)</div>
     <div class="nav-section">Reportes</div>
     <div class="nav-item supervisor-only" onclick="showPage('kpis')" id="nav-kpis"><span class="icon">📈</span> KPIs y Exportar</div>
     <div class="nav-item supervisor-only" onclick="showPage('historial')" id="nav-historial"><span class="icon">🗂️</span> Historial bloqueos</div>
@@ -285,7 +287,7 @@ tbody td{padding:9px 12px;color:var(--text);}
           <div class="card-head"><span class="card-title">🔴 Daños activos</span></div>
           <div class="tbl-wrap"><table>
             <thead><tr><th>VIN</th><th>Daño</th><th>Estado</th></tr></thead>
-            <tbody id="dash-danos"></tbody>
+            <tbody id="dash-daños"></tbody>
           </table></div>
         </div>
       </div>
@@ -350,29 +352,29 @@ tbody td{padding:9px 12px;color:var(--text);}
     </div>
 
     <!-- DAÑOS C30 -->
-    <div class="page" id="page-danos">
+    <div class="page" id="page-daños">
       <div class="page-title">Daños — Bloqueo C30</div>
       <div class="page-sub">Registro de unidades dañadas · gestión con Asistencia Técnica</div>
       <div class="filters">
-        <input type="text" id="dano-search" placeholder="🔍 VIN..." oninput="renderDanos()" style="width:160px">
-        <select id="dano-estado" onchange="renderDanos()">
+        <input type="text" id="daño-search" placeholder="🔍 VIN..." oninput="renderDaños()" style="width:160px">
+        <select id="daño-estado" onchange="renderDaños()">
           <option value="ALL">Todos los estados</option>
           <option value="sin_datos">⚠ Sin datos (solo stock)</option>
           <option value="pendiente">Pendiente</option>
           <option value="en_reparacion">En reparación</option>
           <option value="resuelto">Resuelto</option>
         </select>
-        <select id="dano-facturado" onchange="renderDanos()">
+        <select id="daño-facturado" onchange="renderDaños()">
           <option value="ALL">Facturación</option>
           <option value="false">Sin facturar</option>
           <option value="true">Facturado</option>
         </select>
-        <button class="btn btn-danger btn-sm" onclick="openDanoModal()">+ Registrar daño</button>
-        <button class="btn btn-gold btn-sm" onclick="exportDanos()">⬇ Excel AT</button>
+        <button class="btn btn-danger btn-sm" onclick="openDañoModal()">+ Registrar daño</button>
+        <button class="btn btn-gold btn-sm" onclick="exportDaños()">⬇ Excel AT</button>
       </div>
       <div class="card"><div class="tbl-wrap"><table>
         <thead><tr><th>VIN</th><th>Modelo</th><th>Box</th><th>Daño</th><th>Ubicación</th><th>Facturado</th><th>Estado</th><th>WS C30</th><th>Foto</th><th>Acciones</th></tr></thead>
-        <tbody id="dano-tbody"></tbody>
+        <tbody id="daño-tbody"></tbody>
       </table></div></div>
     </div>
 
@@ -485,9 +487,9 @@ tbody td{padding:9px 12px;color:var(--text);}
 <!-- ══════ MODALS ══════ -->
 
 <!-- Daño C30 -->
-<div class="modal-overlay" id="modal-dano">
+<div class="modal-overlay" id="modal-daño">
   <div class="modal">
-    <div class="modal-head"><h3>🔴 Registrar Daño (C30)</h3><button class="modal-close" onclick="closeModal('modal-dano')">×</button></div>
+    <div class="modal-head"><h3>🔴 Registrar Daño (C30)</h3><button class="modal-close" onclick="closeModal('modal-daño')">×</button></div>
     <div class="modal-body">
       <div class="field-row">
         <div class="field"><label>VIN *</label><input type="text" id="d-vin" placeholder="Ingresá el VIN" oninput="lookupVin('d-vin','d-modelo','d-box')"></div>
@@ -519,8 +521,8 @@ tbody td{padding:9px 12px;color:var(--text);}
       </div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('modal-dano')">Cancelar</button>
-      <button class="btn btn-danger" onclick="saveDano()">🔴 Registrar + Bloquear C30</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-daño')">Cancelar</button>
+      <button class="btn btn-danger" onclick="saveDaño()">🔴 Registrar + Bloquear C30</button>
     </div>
   </div>
 </div>
@@ -537,7 +539,7 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div class="field"><label>Modelo</label><input type="text" id="g-modelo" readonly style="opacity:.7"></div>
       <div class="field-row">
         <div class="field"><label>Modelo de neumático</label>
-          <select id="g-neumatico">
+          <select id="g-neumático">
             <option value="">Seleccionar...</option>
             <optgroup label="TITANO">
               <option>Titano — 265/65 R17 Steel (17x7.5J)</option>
@@ -992,15 +994,15 @@ async function renderDashboard(){
   var overdue=pendingCache.filter(function(p){return p.urgency==="overdue";}).length;
   var urgent=pendingCache.filter(function(p){return p.urgency==="urgent";}).length;
   var soon=pendingCache.filter(function(p){return p.urgency==="soon";}).length;
-  var danos=[],gomas=[];
-  try{danos=await sbGet("danos","estado=neq.resuelto&select=*");}catch(e){}
+  var daños=[],gomas=[];
+  try{daños=await sbGet("daños","estado=neq.resuelto&select=*");}catch(e){}
   try{gomas=await sbGet("gomas","estado_stock=eq.ko&select=*");}catch(e){}
   document.getElementById("dash-stats").innerHTML=[
     {lbl:"Total preventivo",val:pendingCache.length,c:"var(--blue)"},
     {lbl:"Vencidos",val:overdue,c:"#C62828"},
     {lbl:"Urgentes ≤15d",val:urgent,c:"#E65100"},
     {lbl:"Próximos ≤30d",val:soon,c:"#1565C0"},
-    {lbl:"Daños activos (C30)",val:danos.length,c:"#C62828"},
+    {lbl:"Daños activos (C30)",val:daños.length,c:"#C62828"},
     {lbl:"Gomas KO (C37)",val:gomas.length,c:"#E65100"},
   ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
   var top5=pendingCache.filter(function(p){return p.urgency==="overdue"||p.urgency==="urgent";}).slice(0,8);
@@ -1008,7 +1010,7 @@ async function renderDashboard(){
     var days=p.daysToDue<0?"-"+Math.abs(p.daysToDue)+"d":"+"+p.daysToDue+"d";
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc(p.vin.slice(-8))+'</td><td>'+p.maint.code+'</td><td style="font-weight:700;color:'+URGCOLOR[p.urgency]+'">'+days+'</td><td><span class="badge b-'+p.urgency+'">'+URGLBL[p.urgency]+'</span></td></tr>';
   }).join(""):'<tr><td colspan="4"><div class="empty" style="padding:20px">Sin urgentes ✅</div></td></tr>';
-  document.getElementById("dash-danos").innerHTML=danos.slice(0,6).map(function(d){
+  document.getElementById("dash-daños").innerHTML=daños.slice(0,6).map(function(d){
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc((d.vin||"").slice(-8))+'</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.descripcion||"")+'</td><td><span class="badge b-'+('pendiente'===d.estado?'pending':'inprog')+'">'+esc(d.estado)+'</span></td></tr>';
   }).join("")||'<tr><td colspan="3"><div class="empty" style="padding:20px">Sin daños activos ✅</div></td></tr>';
 }
@@ -1093,23 +1095,23 @@ async function deletePlan(id){await sbDelete("plan_diario",id);renderPlanificado
 // ══════════════════════════════════════════════════════
 // DAÑOS C30
 // ══════════════════════════════════════════════════════
-async function renderDanos(){
-  var search=(document.getElementById("dano-search").value||"").toLowerCase();
-  var estado=document.getElementById("dano-estado").value;
-  var fact=document.getElementById("dano-facturado").value;
+async function renderDaños(){
+  var search=(document.getElementById("daño-search").value||"").toLowerCase();
+  var estado=document.getElementById("daño-estado").value;
+  var fact=document.getElementById("daño-facturado").value;
   var params="select=*&order=created_at.desc";
   if(estado!=="ALL"&&estado!=="sin_datos")params+="&estado=eq."+estado;
   if(fact!=="ALL")params+="&facturado=eq."+fact;
-  var dbDanos=[];try{dbDanos=await sbGet("danos",params);}catch(e){}
-  if(!Array.isArray(dbDanos))dbDanos=[];
-  var danoByVin={};
-  dbDanos.forEach(function(d){danoByVin[(d.vin||"").toUpperCase()]=d;});
+  var dbDaños=[];try{dbDaños=await sbGet("daños",params);}catch(e){}
+  if(!Array.isArray(dbDaños))dbDaños=[];
+  var dañoByVin={};
+  dbDaños.forEach(function(d){dañoByVin[(d.vin||"").toUpperCase()]=d;});
   var stockC30=[];
   if(estado==="ALL"||estado==="sin_datos"){
     stockC30=stockCache.filter(function(v){
       var vin=(v.vin||v.VIN||"").toUpperCase();if(!vin)return false;
       var blocks=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
-      return blocks.indexOf("C30")>=0&&!danoByVin[vin];
+      return blocks.indexOf("C30")>=0&&!dañoByVin[vin];
     }).map(function(v){
       return{_fromStock:true,vin:(v.vin||v.VIN||"").toUpperCase(),
         model_descr:v.model_descr||v["Model Descr"]||"—",
@@ -1118,7 +1120,7 @@ async function renderDanos(){
         compound:v.compound||v["Compound Descr"]||"Córdoba"};
     });
   }
-  var allRows=[].concat(dbDanos).concat(stockC30);
+  var allRows=[].concat(dbDaños).concat(stockC30);
   if(search)allRows=allRows.filter(function(d){return(d.vin||"").toLowerCase().indexOf(search)>=0;});
   var html=allRows.map(function(d){
     if(d._fromStock){
@@ -1131,14 +1133,14 @@ async function renderDanos(){
         +'<td><span class="badge b-pending">SIN DATOS</span></td>'
         +'<td><span class="badge b-inprog">C30 Activo</span></td>'
         +'<td>—</td>'
-        +'<td><button class="btn btn-gold btn-sm" onclick="openDanoModalForVin(\''+esc(d.vin)+'\')" >+ Cargar daño</button></td>'
+        +'<td><button class="btn btn-gold btn-sm" onclick="openDañoModalForVin(\''+esc(d.vin)+'\')" >+ Cargar daño</button></td>'
         +'</tr>';
     }
     var wsH=d.ws_desbloqueo_ok?'<span class="badge b-done">Desbloqueado</span>':d.ws_bloqueo_ok?'<span class="badge b-inprog">C30 Activo</span>':'<span style="font-size:10px;color:var(--text3)">—</span>';
     var fotoH=d.foto_url?'<a href="'+d.foto_url+'" target="_blank" style="font-size:11px;color:var(--gold)">Ver 📷</a>':"—";
     var acc="";
-    if(d.estado==="pendiente")acc='<button class="btn btn-primary btn-sm" onclick="updateDano(\''+d.id+'\',\'en_reparacion\')">En reparación</button>';
-    else if(d.estado==="en_reparacion")acc='<button class="btn btn-success btn-sm" onclick="resolveDano(\''+d.id+'\',\''+esc(d.vin)+'\',\''+esc(d.compound_code||"00214")+'\')" >✅ Resolver</button>';
+    if(d.estado==="pendiente")acc='<button class="btn btn-primary btn-sm" onclick="updateDaño(\''+d.id+'\',\'en_reparacion\')">En reparación</button>';
+    else if(d.estado==="en_reparacion")acc='<button class="btn btn-success btn-sm" onclick="resolveDaño(\''+d.id+'\',\''+esc(d.vin)+'\',\''+esc(d.compound_code||"00034")+'\')" >✅ Resuelto + Desbloquear C30</button>';
     var factB=d.facturado?'<span class="badge b-done">Sí</span>':'<span class="badge b-ko">No</span>';
     var estadoClass="pendiente"===d.estado?"b-pending":"en_reparacion"===d.estado?"b-inprog":"b-done";
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc(d.vin)+'</td>'
@@ -1150,20 +1152,20 @@ async function renderDanos(){
       +'<td><span class="badge '+estadoClass+'">'+esc(d.estado)+'</span></td>'
       +'<td>'+wsH+'</td><td>'+fotoH+'</td><td>'+acc+'</td></tr>';
   }).join("");
-  document.getElementById("dano-tbody").innerHTML=html||'<tr><td colspan="10"><div class="empty"><div class="empty-icon">✅</div>Sin C30 en el stock ni daños registrados</div></td></tr>';
+  document.getElementById("daño-tbody").innerHTML=html||'<tr><td colspan="10"><div class="empty"><div class="empty-icon">✅</div>Sin C30 en el stock ni daños registrados</div></td></tr>';
 }
-function openDanoModalForVin(vin){
-  openDanoModal();
+function openDañoModalForVin(vin){
+  openDañoModal();
   setTimeout(function(){
     var el=document.getElementById("d-vin");
     if(el){el.value=vin;lookupVin("d-vin","d-modelo","d-box");}
   },50);
 }
-async function updateDano(id,estado){await sbPatch("danos",id,{estado:estado,updated_at:new Date().toISOString()});renderDanos();showToast("Estado actualizado","success");}
-async function resolveDano(id,vin,cc){
+async function updateDaño(id,estado){await sbPatch("daños",id,{estado:estado,updated_at:new Date().toISOString()});renderDaños();showToast("Estado actualizado","success");}
+async function resolveDaño(id,vin,cc){
   var wsOk=false;try{var r=await callWS(vin,cc,"C30","U");wsOk=r.success;}catch(e){}
-  await sbPatch("danos",id,{estado:"resuelto",ws_desbloqueo_ok:wsOk,updated_at:new Date().toISOString()});
-  renderDanos();showToast(wsOk?"Resuelto y desbloqueado en OBT":"Resuelto (verificar WS)","success");
+  await sbPatch("daños",id,{estado:"resuelto",ws_desbloqueo_ok:wsOk,updated_at:new Date().toISOString()});
+  renderDaños();showToast(wsOk?"Resuelto y desbloqueado en OBT":"Resuelto (verificar WS)","success");
 }
 
 // ══════════════════════════════════════════════════════
@@ -1190,12 +1192,12 @@ async function renderGomas(){
         model_descr:v.model_descr||v["Model Descr"]||"—",
         boxatura:v.boxatura||v["Boxatura"]||"—",
         compound_code:String(v.compound_code||v["Compound Code"]||"00214").padStart(5,"0"),
-        modelo_neumatico:"",posicion:"",observaciones:"",estado_stock:"ko"};
+        modelo_neumático:"",posicion:"",observaciones:"",estado_stock:"ko"};
     });
   }
   var allRows=[].concat(dbGomas).concat(stockC37);
   if(search)allRows=allRows.filter(function(g){return(g.vin||"").toLowerCase().indexOf(search)>=0;});
-  if(modelo!=="ALL")allRows=allRows.filter(function(g){return(g.modelo_neumatico||"").indexOf(modelo)>=0;});
+  if(modelo!=="ALL")allRows=allRows.filter(function(g){return(g.modelo_neumático||"").indexOf(modelo)>=0;});
   document.getElementById("goma-ok-count").textContent=allRows.filter(function(g){return g.estado_stock==="ok";}).length;
   document.getElementById("goma-ko-count").textContent=allRows.filter(function(g){return g.estado_stock==="ko";}).length;
   var POS={delantera_izq:"Del. Izq",delantera_der:"Del. Der",trasera_izq:"Tras. Izq",trasera_der:"Tras. Der",auxilio:"Auxilio"};
@@ -1217,7 +1219,7 @@ async function renderGomas(){
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc(g.vin)+'</td>'
       +'<td style="font-size:11px">'+esc(g.model_descr||"—")+'</td>'
       +'<td style="font-size:11px">'+esc(g.boxatura||"—")+'</td>'
-      +'<td style="font-size:11px">'+esc(g.modelo_neumatico||"—")+'</td>'
+      +'<td style="font-size:11px">'+esc(g.modelo_neumático||"—")+'</td>'
       +'<td style="font-size:11px">'+( POS[g.posicion]||g.posicion||"—")+'</td>'
       +'<td><span class="badge '+("ok"===g.estado_stock?"b-stok":"b-ko")+">"+(g.estado_stock==="ok"?"OK":"KO")+'</span></td>'
       +'<td>'+wsH+'</td>'
@@ -1331,10 +1333,10 @@ async function renderHistorial(){
 async function renderKPIs(){
   var desde=document.getElementById("kpi-desde").value;
   var hasta=document.getElementById("kpi-hasta").value;
-  var danos=[],gomas=[];
-  try{danos=await sbGet("danos","select=*");}catch(e){}
+  var daños=[],gomas=[];
+  try{daños=await sbGet("daños","select=*");}catch(e){}
   try{gomas=await sbGet("gomas","select=*");}catch(e){}
-  if(!Array.isArray(danos))danos=[];if(!Array.isArray(gomas))gomas=[];
+  if(!Array.isArray(daños))daños=[];if(!Array.isArray(gomas))gomas=[];
   // Completados = bloqueos de mantenimiento preventivo con unblock_date en el historial
   var historial=[];
   try{
@@ -1414,11 +1416,11 @@ async function renderKPIs(){
     ].map(function(s){var pct=Math.round(s.v/prevTotal*100)||0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>'
     +'<div class="kpi-card"><h4>Daños C30</h4>'
     +[{l:"En stock",v:stockC30count,c:"var(--gold)"},
-      {l:"Con datos",v:danos.length,c:"var(--blue)"},
-      {l:"Pendientes",v:danos.filter(function(d){return d.estado==="pendiente";}).length,c:"#E65100"},
-      {l:"En reparación",v:danos.filter(function(d){return d.estado==="en_reparacion";}).length,c:"#1565C0"},
-      {l:"Resueltos",v:danos.filter(function(d){return d.estado==="resuelto";}).length,c:"#2E7D32"},
-      {l:"Sin datos aún",v:stockC30count-danos.length>0?stockC30count-danos.length:0,c:"var(--text3)"},
+      {l:"Con datos",v:daños.length,c:"var(--blue)"},
+      {l:"Pendientes",v:daños.filter(function(d){return d.estado==="pendiente";}).length,c:"#E65100"},
+      {l:"En reparación",v:daños.filter(function(d){return d.estado==="en_reparacion";}).length,c:"#1565C0"},
+      {l:"Resueltos",v:daños.filter(function(d){return d.estado==="resuelto";}).length,c:"#2E7D32"},
+      {l:"Sin datos aún",v:stockC30count-daños.length>0?stockC30count-daños.length:0,c:"var(--text3)"},
     ].map(function(s){var pct=stockC30count?Math.round(s.v/stockC30count*100):0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>'
     +'<div class="kpi-card"><h4>Neumáticos C37</h4>'
     +[{l:"En stock",v:stockC37count,c:"var(--gold)"},
@@ -1499,17 +1501,17 @@ async function toggleUsuario(id,activo){
 function openModal(id){document.getElementById(id).classList.add("open");}
 function closeModal(id){document.getElementById(id).classList.remove("open");}
 
-function openDanoModal(){
+function openDañoModal(){
   ["d-vin","d-modelo","d-box","d-desc"].forEach(function(id){document.getElementById(id).value="";});
   document.getElementById("d-ubic").value="";
   document.getElementById("d-fact").value="false";
   document.getElementById("d-foto-preview").style.display="none";
-  openModal("modal-dano");
+  openModal("modal-daño");
 }
 
 function openGomaModal(){
   ["g-vin","g-modelo","g-box","g-obs"].forEach(function(id){document.getElementById(id).value="";});
-  document.getElementById("g-neumatico").value="";
+  document.getElementById("g-neumático").value="";
   document.getElementById("g-posicion").value="";
   document.getElementById("g-foto-preview").style.display="none";
   openModal("modal-goma");
@@ -1529,27 +1531,27 @@ function previewPhoto(input,previewId){
   reader.readAsDataURL(file);
 }
 
-async function saveDano(){
+async function saveDaño(){
   var vin=document.getElementById("d-vin").value.trim();
   var desc=document.getElementById("d-desc").value.trim();
   if(!vin||!desc){showToast("VIN y descripción son obligatorios","error");return;}
   var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin.toUpperCase();});
   var cc=v?String(v.compound_code||"00214").padStart(5,"0"):"00214";
   var fotoFile=document.getElementById("d-foto-input").files[0];
-  var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","danos/"+uuid()+"-"+fotoFile.name);
+  var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","daños/"+uuid()+"-"+fotoFile.name);
   var wsOk=false;try{var r=await callWS(vin,cc,"C30","B");wsOk=r.success;}catch(e){}
-  await sbPost("danos",{vin:vin.toUpperCase(),model_descr:document.getElementById("d-modelo").value||null,
+  await sbPost("daños",{vin:vin.toUpperCase(),model_descr:document.getElementById("d-modelo").value||null,
     compound:v?v.compound:"Cordoba",compound_code:cc,boxatura:document.getElementById("d-box").value||null,
     descripcion:desc,ubicacion:document.getElementById("d-ubic").value||null,
     facturado:document.getElementById("d-fact").value==="true",foto_url:fotoUrl,
     estado:"pendiente",registrado_por:currentUser.id,ws_bloqueo_ok:wsOk});
-  closeModal("modal-dano");renderDanos();
+  closeModal("modal-daño");renderDaños();
   showToast(wsOk?"Daño registrado y C30 bloqueado":"Daño registrado (verificar WS C30)","success");
 }
 
 async function saveGoma(){
   var vin=document.getElementById("g-vin").value.trim();
-  var neuma=document.getElementById("g-neumatico").value;
+  var neuma=document.getElementById("g-neumático").value;
   if(!vin||!neuma){showToast("VIN y neumático son obligatorios","error");return;}
   var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin.toUpperCase();});
   var cc=v?String(v.compound_code||"00214").padStart(5,"0"):"00214";
@@ -1558,7 +1560,7 @@ async function saveGoma(){
   var wsOk=false;try{var r=await callWS(vin,cc,"C37","B");wsOk=r.success;}catch(e){}
   await sbPost("gomas",{vin:vin.toUpperCase(),model_descr:document.getElementById("g-modelo").value||null,
     compound:v?v.compound:"Cordoba",compound_code:cc,boxatura:document.getElementById("g-box").value||null,
-    modelo_neumatico:neuma,posicion:document.getElementById("g-posicion").value||null,
+    modelo_neumático:neuma,posicion:document.getElementById("g-posicion").value||null,
     observaciones:document.getElementById("g-obs").value||null,estado_stock:"ko",foto_url:fotoUrl,
     registrado_por:currentUser.id,ws_bloqueo_ok:wsOk});
   closeModal("modal-goma");renderGomas();
@@ -1773,17 +1775,17 @@ function exportPreventivo(){
   var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Preventivo");
   XLSX.writeFile(wb,"Mantenimiento_Preventivo_"+new Date().toISOString().slice(0,10)+".xlsx");
 }
-async function exportDanos(){
-  var data=await sbGet("danos","select=*&order=created_at.desc");
+async function exportDaños(){
+  var data=await sbGet("daños","select=*&order=created_at.desc");
   if(!Array.isArray(data))data=[];
   var ws=XLSX.utils.json_to_sheet(data.map(function(d){return{"VIN":d.vin,"Modelo":d.model_descr,"Boxatura":d.boxatura,"Descripción":d.descripcion,"Ubicación":d.ubicacion,"Facturado":d.facturado?"Sí":"No","Estado":d.estado,"Bloqueo C30":d.ws_bloqueo_ok?"OK":"Pendiente","Fecha":d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):""};}));
   var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Daños C30");
-  XLSX.writeFile(wb,"Danos_C30_"+new Date().toISOString().slice(0,10)+".xlsx");
+  XLSX.writeFile(wb,"Daños_C30_"+new Date().toISOString().slice(0,10)+".xlsx");
 }
 async function exportGomas(){
   var data=await sbGet("gomas","select=*&order=created_at.desc");
   if(!Array.isArray(data))data=[];
-  var ws=XLSX.utils.json_to_sheet(data.map(function(g){return{"VIN":g.vin,"Modelo":g.model_descr,"Boxatura":g.boxatura,"Neumático":g.modelo_neumatico,"Posición":g.posicion,"Estado":g.estado_stock==="ok"?"OK":"KO","Observaciones":g.observaciones,"Bloqueo C37":g.ws_bloqueo_ok?"OK":"Pendiente","Fecha":g.created_at?new Date(g.created_at).toLocaleDateString("es-AR"):""};}));
+  var ws=XLSX.utils.json_to_sheet(data.map(function(g){return{"VIN":g.vin,"Modelo":g.model_descr,"Boxatura":g.boxatura,"Neumático":g.modelo_neumático,"Posición":g.posicion,"Estado":g.estado_stock==="ok"?"OK":"KO","Observaciones":g.observaciones,"Bloqueo C37":g.ws_bloqueo_ok?"OK":"Pendiente","Fecha":g.created_at?new Date(g.created_at).toLocaleDateString("es-AR"):""};}));
   var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Gomas C37");
   XLSX.writeFile(wb,"Gomas_C37_"+new Date().toISOString().slice(0,10)+".xlsx");
 }
@@ -1848,10 +1850,10 @@ async function exportHistorial(){
 async function exportKPIs(){
   var wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(pendingCache.map(function(p){return{VIN:p.vin,Modelo:p.modelDescr,Boxatura:p.boxatura,Código:p.maint.code,Servicio:p.maint.service,Vencimiento:fmt(p.dueDate),Días:p.daysToDue,Estado:URGLBL[p.urgency]};})),"Preventivo");
-  var danos=await sbGet("danos","select=*");
-  if(Array.isArray(danos))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(danos.map(function(d){return{VIN:d.vin,Descripcion:d.descripcion,Ubicacion:d.ubicacion,Estado:d.estado,Facturado:d.facturado?"Si":"No"};})),"Daños C30");
+  var daños=await sbGet("daños","select=*");
+  if(Array.isArray(daños))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(daños.map(function(d){return{VIN:d.vin,Descripcion:d.descripcion,Ubicacion:d.ubicacion,Estado:d.estado,Facturado:d.facturado?"Si":"No"};})),"Daños C30");
   var gomas=await sbGet("gomas","select=*");
-  if(Array.isArray(gomas))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(gomas.map(function(g){return{VIN:g.vin,Neumatico:g.modelo_neumatico,Posicion:g.posicion,Estado:g.estado_stock};})),"Gomas C37");
+  if(Array.isArray(gomas))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(gomas.map(function(g){return{VIN:g.vin,Neumático:g.modelo_neumático,Posicion:g.posicion,Estado:g.estado_stock};})),"Gomas C37");
   XLSX.writeFile(wb,"KPI_Mantenimiento_"+new Date().toISOString().slice(0,10)+".xlsx");
 }
 
@@ -1952,6 +1954,28 @@ async function saveMant(){
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
+function showOpView(){
+  // Show operario view overlay for supervisor too
+  document.getElementById("app-operario").style.display="block";
+  document.getElementById("app").style.display="none";
+  document.getElementById("op-user").textContent=currentUser.nombre+" (supervisor)";
+  // Add back button for supervisor
+  var existing=document.getElementById("op-back-btn");
+  if(!existing){
+    var btn=document.createElement("button");
+    btn.id="op-back-btn";
+    btn.textContent="← Volver al panel";
+    btn.style.cssText="position:fixed;top:14px;right:80px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:white;padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;z-index:200;";
+    btn.onclick=function(){
+      document.getElementById("app-operario").style.display="none";
+      document.getElementById("app").style.display="block";
+      document.getElementById("op-back-btn").remove();
+    };
+    document.body.appendChild(btn);
+  }
+  initAppOperario();
+}
+
 function showPage(name){
   document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
   document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active");});
@@ -1960,7 +1984,7 @@ function showPage(name){
   if(name==="dashboard")renderDashboard();
   if(name==="preventivo")renderPreventivo();
   if(name==="planificador")renderPlanificador();
-  if(name==="danos")renderDanos();
+  if(name==="daños")renderDaños();
   if(name==="gomas")renderGomas();
   if(name==="kpis")renderKPIs();
   if(name==="historial")renderHistorial();
@@ -2034,7 +2058,7 @@ function showPage(name){
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px;">Intervenciones</div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:20px;">Registrá daños, gomas o lavados adicionales</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px;">
-        <button onclick="opOpenDano()" style="background:var(--card);border:none;border-radius:12px;padding:20px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:var(--shadow);border-top:4px solid #C62828;">
+        <button onclick="opOpenDaño()" style="background:var(--card);border:none;border-radius:12px;padding:20px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:var(--shadow);border-top:4px solid #C62828;">
           <span style="font-size:28px;">🔴</span>
           <span style="font-size:12px;font-weight:700;color:var(--text);">Daño C30</span>
         </button>
@@ -2212,7 +2236,7 @@ function showPage(name){
 // CÓDIGOS CON BATERÍA
 // ══════════════════════════════════════════════════════
 var CODES_CON_BATERIA=["M90","BSE","DSE","AN1","CAF","FLU"];
-var CODES_CON_NEUMATICOS=["M90","AN1","CAF","FLU"];
+var CODES_CON_NEUMÁTICOS=["M90","AN1","CAF","FLU"];
 
 // ══════════════════════════════════════════════════════
 // INIT OPERARIO
@@ -2304,7 +2328,7 @@ function opOpenChecklist(vin,code,service,cc,modelo,boxatura){
   // Show/hide battery section
   var hasBat=CODES_CON_BATERIA.indexOf(code)>=0;
   document.getElementById("cl-bat-section").style.display=hasBat?"block":"none";
-  var hasNeum=CODES_CON_NEUMATICOS.indexOf(code)>=0;
+  var hasNeum=CODES_CON_NEUMÁTICOS.indexOf(code)>=0;
   document.getElementById("cl-neum-section").style.display=hasNeum?"block":"none";
   document.getElementById("cl-bat-carga-wrap").style.display="none";
   document.getElementById("cl-bat-ticket-wrap").style.display="none";
@@ -2409,8 +2433,8 @@ function opAutofillVin(inputId,infoId){
     info.innerHTML='<span style="color:#F57F17;font-size:12px;">VIN no encontrado en stock — se puede registrar igual</span>';
   }
 }
-function opOpenDano(){
-  openDanoModal();
+function opOpenDaño(){
+  openDañoModal();
   // point to supervisor modal but accessible from operario view
 }
 function opOpenGoma(){openGomaModal();}
@@ -2447,11 +2471,11 @@ async function saveLavado(){
 }
 async function opRenderIntervHoy(){
   var hoy=new Date().toISOString().slice(0,10);
-  var checklists=[],danos=[],lavados=[];
+  var checklists=[],daños=[],lavados=[];
   try{checklists=await sbGet("checklist_registros","operario_id=eq."+currentUser.id+"&fecha=eq."+hoy+"&select=*&order=created_at.desc");}catch(e){}
-  try{danos=await sbGet("danos","registrado_por=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*&order=created_at.desc");}catch(e){}
+  try{daños=await sbGet("daños","registrado_por=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*&order=created_at.desc");}catch(e){}
   try{lavados=await sbGet("lavados","operario_id=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*&order=created_at.desc");}catch(e){}
-  if(!Array.isArray(checklists))checklists=[];if(!Array.isArray(danos))danos=[];if(!Array.isArray(lavados))lavados=[];
+  if(!Array.isArray(checklists))checklists=[];if(!Array.isArray(daños))daños=[];if(!Array.isArray(lavados))lavados=[];
   var html="";
   checklists.forEach(function(r){
     html+='<div style="background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:4px solid #2E7D32;box-shadow:var(--shadow);">'
@@ -2462,10 +2486,10 @@ async function opRenderIntervHoy(){
       +(r.bat_volt_inicial?'<div style="font-size:11px;color:var(--text3);margin-top:4px;">🔋 '+r.bat_volt_inicial+'V · CCA: '+(r.bat_cca||"—")+' · '+( r.bat_estado||"—")+'</div>':'')
       +'</div>';
   });
-  danos.forEach(function(d){
+  daños.forEach(function(d){
     html+='<div style="background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:4px solid #C62828;box-shadow:var(--shadow);">'
       +'<span style="font-size:11px;color:var(--gold);font-family:monospace;font-weight:700">'+esc(d.vin)+'</span> · <b style="color:var(--text)">Daño C30</b>'
-      +'<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+esc(d.tipo_dano||"—")+' · '+esc(d.ubicacion||"—")+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+esc(d.tipo_daño||"—")+' · '+esc(d.ubicacion||"—")+'</div>'
       +'</div>';
   });
   lavados.forEach(function(l){
@@ -2481,17 +2505,17 @@ async function opRenderIntervHoy(){
 // ══════════════════════════════════════════════════════
 async function opRenderMiDia(){
   var hoy=new Date().toISOString().slice(0,10);
-  var checklists=[],lavados=[],danoshoy=[];
+  var checklists=[],lavados=[],dañoshoy=[];
   try{checklists=await sbGet("checklist_registros","operario_id=eq."+currentUser.id+"&fecha=eq."+hoy+"&select=*");}catch(e){}
   try{lavados=await sbGet("lavados","operario_id=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*");}catch(e){}
-  try{danoshoy=await sbGet("danos","registrado_por=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*");}catch(e){}
-  if(!Array.isArray(checklists))checklists=[];if(!Array.isArray(lavados))lavados=[];if(!Array.isArray(danoshoy))danoshoy=[];
+  try{dañoshoy=await sbGet("daños","registrado_por=eq."+currentUser.id+"&created_at=gte."+hoy+"T00:00:00&select=*");}catch(e){}
+  if(!Array.isArray(checklists))checklists=[];if(!Array.isArray(lavados))lavados=[];if(!Array.isArray(dañoshoy))dañoshoy=[];
   var pendTotal=pendingCache.length;
   var overdueTotal=pendingCache.filter(function(p){return p.urgency==="overdue";}).length;
   document.getElementById("op-stats").innerHTML=[
     {lbl:"Mantenimientos hoy",val:checklists.length,c:"#2E7D32"},
     {lbl:"Lavados hoy",val:lavados.length,c:"#1565C0"},
-    {lbl:"Daños registrados hoy",val:danoshoy.length,c:"#C62828"},
+    {lbl:"Daños registrados hoy",val:dañoshoy.length,c:"#C62828"},
     {lbl:"Total pendiente Córdoba",val:pendTotal,c:"var(--blue)"},
     {lbl:"Vencidos",val:overdueTotal,c:"#E65100"},
   ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
