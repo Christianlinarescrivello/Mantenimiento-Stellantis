@@ -77,7 +77,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);min-
 .theme-btn{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;padding:5px 10px;border-radius:6px;font-size:14px;cursor:pointer;transition:background .2s;}
 .theme-btn:hover{background:rgba(255,255,255,0.18);}
 .logout-btn{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;}
-.sidenav{width:220px;background:var(--sidenav);min-height:calc(100vh - 56px);position:fixed;top:56px;left:0;padding:16px 0;border-right:1px solid rgba(255,255,255,0.06);}
+.sidenav{width:220px;background:var(--sidenav);min-height:calc(100vh - 56px);height:calc(100vh - 56px);position:fixed;top:56px;left:0;padding:16px 0;border-right:1px solid rgba(255,255,255,0.06);overflow-y:auto;}
 .nav-section{font-size:10px;font-weight:700;color:rgba(255,255,255,0.3);letter-spacing:2px;text-transform:uppercase;padding:12px 20px 6px;}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;color:rgba(255,255,255,0.6);font-size:13px;font-weight:500;transition:all .15s;border-left:3px solid transparent;}
 .nav-item:hover{color:white;background:rgba(255,255,255,0.05);}
@@ -262,6 +262,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="nav-item" onclick="showPage('gomas')" id="nav-gomas"><span class="icon">🟡</span> Neumáticos (C37)</div>
     <div class="nav-section">Reportes</div>
     <div class="nav-item supervisor-only" onclick="showPage('kpis')" id="nav-kpis"><span class="icon">📈</span> KPIs y Exportar</div>
+    <div class="nav-item supervisor-only" onclick="showPage('resp')" id="nav-resp"><span class="icon">👥</span> Responsabilidades</div>
     <div class="nav-item supervisor-only" onclick="showPage('historial')" id="nav-historial"><span class="icon">🗂️</span> Historial bloqueos</div>
     <div class="nav-item supervisor-only" onclick="showPage('wslog')" id="nav-wslog"><span class="icon">🔌</span> Log WebService</div>
     <div class="nav-section supervisor-only">Config</div>
@@ -581,6 +582,38 @@ tbody td{padding:9px 12px;color:var(--text);}
     </div>
 
     <!-- WS LOG PAGE -->
+    <!-- RESPONSABILIDADES -->
+    <div class="page" id="page-resp">
+      <div class="page-title">👥 Responsabilidades</div>
+      <div class="page-sub">Análisis de daños C30 por origen y operarios involucrados</div>
+      <div class="filters no-print">
+        <input type="date" id="resp-desde">
+        <span style="color:var(--text3);font-size:13px;align-self:center">al</span>
+        <input type="date" id="resp-hasta">
+        <button class="btn btn-primary btn-sm" onclick="renderResp()">Actualizar</button>
+        <button class="btn btn-sm" style="background:linear-gradient(135deg,#6A1B9A,#9C27B0);color:white;margin-left:auto" onclick="generarPDFResp()">PDF Responsabilidades</button>
+      </div>
+      <div class="stats-row" id="resp-stats"></div>
+      <div class="charts-grid">
+        <div class="chart-card"><h4>Daños por tipo de responsabilidad</h4><div class="chart-wrap"><canvas id="chart-resp-tipos"></canvas></div></div>
+        <div class="chart-card"><h4>Ranking operarios con daños</h4><div class="chart-wrap"><canvas id="chart-resp-ops"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Detalle por operario responsable</span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Operario</th><th>Total daños</th><th>Pendientes</th><th>En reparación</th><th>Resueltos</th><th>Facturados</th></tr></thead>
+          <tbody id="resp-operarios-tbody"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Listado completo de daños con responsabilidad</span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>VIN</th><th>Modelo</th><th>Box</th><th>Tipo daño</th><th>Ubicación</th><th>Responsabilidad</th><th>Operario resp.</th><th>Facturado</th><th>Estado</th><th>Fecha</th></tr></thead>
+          <tbody id="resp-detalle-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
     <div class="page" id="page-wslog">
       <div class="page-title">🔌 Log WebService OBT</div>
       <div class="page-sub">Historial de todas las llamadas al webservice — XML enviado y respuesta recibida</div>
@@ -602,7 +635,8 @@ tbody td{padding:9px 12px;color:var(--text);}
         <input type="date" id="wslog-desde" onchange="renderWsLog()">
         <button class="btn btn-ghost btn-sm" onclick="renderWsLog()">Actualizar</button>
         <span id="wslog-count" style="margin-left:auto;font-size:12px;color:var(--text3)"></span>
-        <button class="btn btn-gold btn-sm" onclick="exportWsLog()">⬇ Excel</button>
+        <button class="btn btn-gold btn-sm" onclick="exportWsLog()">⬇ Excel log completo</button>
+        <button class="btn btn-danger btn-sm" onclick="exportWsPendiente()">⬇ Excel para OBT manual</button>
       </div>
       <div class="card">
         <div class="tbl-wrap">
@@ -2153,6 +2187,54 @@ async function exportPlan(){
   XLSX.writeFile(wb,"Plan_Diario_"+fecha+".xlsx");
 }
 
+async function exportWsPendiente(){
+  // Load checklist records where WS failed (ws_block_ok=false OR ws_unblock_ok=false)
+  var data=[];
+  try{
+    data=await sbGet("checklist_registros",
+      "select=*&order=created_at.desc&limit=500");
+  }catch(e){}
+  if(!Array.isArray(data))data=[];
+  // Filter only WS failures
+  var failed=data.filter(function(r){return !r.ws_block_ok||!r.ws_unblock_ok;});
+  if(!failed.length){showToast("No hay operaciones WS pendientes","info");return;}
+  // Build rows: one row per operation (block + unblock)
+  var rows=[];
+  failed.forEach(function(r){
+    var v=stockCache.find(function(s){return(s.vin||s.VIN||"").toUpperCase()===(r.vin||"").toUpperCase();});
+    var cc=v?String(v.compound_code||v["Compound Code"]||"34").replace(/^0+/,""):"34";
+    var fecha=r.fecha||new Date().toISOString().slice(0,10);
+    if(!r.ws_block_ok){
+      rows.push({
+        "VIN":r.vin,"Código":r.maint_code,"Operación":"BLOQUEO (B)",
+        "Compound":cc,"Fecha":fecha,
+        "XML_operationCode":"B","XML_blockCode":r.maint_code,
+        "Estado WS":"PENDIENTE — No se procesó",
+        "Operario":currentUser?currentUser.nombre:"—",
+        "Instrucción":"Aplicar bloqueo manualmente en OBT Gate In"
+      });
+    }
+    if(r.ws_block_ok&&!r.ws_unblock_ok){
+      rows.push({
+        "VIN":r.vin,"Código":r.maint_code,"Operación":"DESBLOQUEO (U)",
+        "Compound":cc,"Fecha":fecha,
+        "XML_operationCode":"U","XML_blockCode":r.maint_code,
+        "Estado WS":"PENDIENTE — Bloqueo OK pero desbloqueo falló",
+        "Operario":currentUser?currentUser.nombre:"—",
+        "Instrucción":"Aplicar desbloqueo manualmente en OBT Gate In"
+      });
+    }
+  });
+  var ws=XLSX.utils.json_to_sheet(rows);
+  // Style header row
+  ws["!cols"]=[{wch:20},{wch:8},{wch:18},{wch:10},{wch:12},{wch:15},{wch:12},{wch:35},{wch:15},{wch:40}];
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"WS Pendientes OBT");
+  var fileName="WS_Pendientes_OBT_"+new Date().toISOString().slice(0,10)+".xlsx";
+  XLSX.writeFile(wb,fileName);
+  showToast("Excel generado: "+rows.length+" operaciones pendientes para OBT","success");
+}
+
 async function exportHistorial(){
   var data=await loadBloqueosHistorial();
   var desdeVal=document.getElementById("hist-desde").value;
@@ -2668,6 +2750,94 @@ async function usarNeumaticoDeStock(catId,vin){
   }catch(e){}
 }
 
+// ══════════════════════════════════════════════════════
+// RESPONSABILIDADES
+// ══════════════════════════════════════════════════════
+var RESP_COLORS={"Planta":"#3949AB","Transporte":"#1565C0","Encontrado en playa":"#2E7D32","Operario interno":"#E65100","Cliente / Concesionario":"#C2185B","Otro":"#7B1FA2"};
+
+async function renderResp(){
+  var desde=document.getElementById("resp-desde").value;
+  var hasta=document.getElementById("resp-hasta").value;
+  var params="select=*&order=created_at.desc";
+  if(desde)params+="&created_at=gte."+desde;
+  if(hasta)params+="&created_at=lte."+hasta+"T23:59:59";
+  var data=[];try{data=await sbGet("daños",params);}catch(e){}
+  if(!Array.isArray(data))data=[];
+  var byResp={};data.forEach(function(d){var r=d.responsabilidad||"Sin definir";byResp[r]=(byResp[r]||0)+1;});
+  var byOp={};data.forEach(function(d){if(d.responsabilidad==="Operario interno"&&d.operario_responsable){byOp[d.operario_responsable]=(byOp[d.operario_responsable]||0)+1;}});
+  document.getElementById("resp-stats").innerHTML=[
+    {lbl:"Total daños",val:data.length,c:"var(--blue)"},
+    {lbl:"Planta",val:byResp["Planta"]||0,c:"#3949AB"},
+    {lbl:"Transporte",val:byResp["Transporte"]||0,c:"#1565C0"},
+    {lbl:"En playa",val:byResp["Encontrado en playa"]||0,c:"#2E7D32"},
+    {lbl:"Operario interno",val:byResp["Operario interno"]||0,c:"#E65100"},
+    {lbl:"Cliente",val:byResp["Cliente / Concesionario"]||0,c:"#C2185B"}
+  ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
+  // Charts
+  var isDark=document.documentElement.getAttribute("data-theme")==="dark";
+  var textC=isDark?"#94A3B8":"#4A5568";
+  if(chartInstances["chart-resp-tipos"]){chartInstances["chart-resp-tipos"].destroy();}
+  var rtLabels=Object.keys(byResp);
+  chartInstances["chart-resp-tipos"]=new Chart(document.getElementById("chart-resp-tipos"),{type:"doughnut",data:{labels:rtLabels,datasets:[{data:rtLabels.map(function(k){return byResp[k];}),backgroundColor:rtLabels.map(function(k){return RESP_COLORS[k]||"#9E9E9E";}),borderWidth:2,borderColor:isDark?"#1E293B":"#FFFFFF"}]},options:{responsive:true,maintainAspectRatio:false,cutout:"60%",plugins:{legend:{position:"right",labels:{color:textC,font:{size:11},padding:8}}}}});
+  if(chartInstances["chart-resp-ops"]){chartInstances["chart-resp-ops"].destroy();}
+  var opLabels=Object.keys(byOp).sort(function(a,b){return byOp[b]-byOp[a];}).slice(0,10);
+  chartInstances["chart-resp-ops"]=new Chart(document.getElementById("chart-resp-ops"),{type:"bar",data:{labels:opLabels,datasets:[{label:"Daños",data:opLabels.map(function(k){return byOp[k];}),backgroundColor:"rgba(230,81,0,0.85)",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:textC,font:{size:10}},grid:{color:isDark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"}},y:{ticks:{color:textC,font:{size:10}}}}}});
+  // Tabla operarios
+  var opEntries=Object.keys(byOp).sort(function(a,b){return byOp[b]-byOp[a];});
+  document.getElementById("resp-operarios-tbody").innerHTML=opEntries.length?opEntries.map(function(op){
+    var opData=data.filter(function(d){return d.operario_responsable===op;});
+    return'<tr><td style="font-weight:700">'+esc(op)+'</td><td style="font-weight:700;color:var(--orange)">'+opData.length+'</td><td>'+opData.filter(function(d){return d.estado==="pendiente";}).length+'</td><td>'+opData.filter(function(d){return d.estado==="en_reparacion";}).length+'</td><td>'+opData.filter(function(d){return d.estado==="resuelto";}).length+'</td><td>'+opData.filter(function(d){return d.facturado;}).length+'</td></tr>';
+  }).join(""):'<tr><td colspan="6"><div class="empty" style="padding:16px">Sin operarios con daños asignados</div></td></tr>';
+  // Tabla detalle
+  var RCLS={"Planta":"b-inprog","Transporte":"b-soon","Encontrado en playa":"b-ok","Operario interno":"b-urgent","Cliente / Concesionario":"b-ko","Otro":"b-pending"};
+  document.getElementById("resp-detalle-tbody").innerHTML=data.map(function(d){
+    var rc=RCLS[d.responsabilidad]||"b-pending";
+    var fecha=d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):"—";
+    var estadoC='pendiente'===d.estado?"b-pending":"en_reparacion"===d.estado?"b-inprog":"b-done";
+    return'<tr><td style="font-family:monospace;font-size:11px;color:var(--gold)">'+esc(d.vin)+'</td><td style="font-size:11px">'+esc(d.model_descr||"—")+'</td><td style="font-size:11px">'+esc(d.boxatura||"—")+'</td><td style="font-size:11px">'+esc(d.tipo_daño||"—")+'</td><td style="font-size:11px">'+esc(d.ubicacion||"—")+'</td><td><span class="badge '+rc+'">'+esc(d.responsabilidad||"—")+'</span></td><td style="font-size:11px">'+esc(d.operario_responsable||"—")+'</td><td>'+(d.facturado?'<span class="badge b-done">Sí</span>':'<span class="badge b-ko">No</span>')+'</td><td><span class="badge '+estadoC+'">'+esc(d.estado)+'</span></td><td style="font-size:11px">'+fecha+'</td></tr>';
+  }).join("")||'<tr><td colspan="10"><div class="empty">Sin datos en el período seleccionado</div></td></tr>';
+}
+
+async function generarPDFResp(){
+  var desde=document.getElementById("resp-desde").value;
+  var hasta=document.getElementById("resp-hasta").value;
+  var params="select=*&order=created_at.desc";
+  if(desde)params+="&created_at=gte."+desde;
+  if(hasta)params+="&created_at=lte."+hasta+"T23:59:59";
+  var data=[];try{data=await sbGet("daños",params);}catch(e){}
+  if(!Array.isArray(data))data=[];
+  var byResp={};data.forEach(function(d){var r=d.responsabilidad||"Sin definir";byResp[r]=(byResp[r]||0)+1;});
+  var byOp={};data.forEach(function(d){if(d.responsabilidad==="Operario interno"&&d.operario_responsable){byOp[d.operario_responsable]=(byOp[d.operario_responsable]||0)+1;}});
+  var fmtDate=function(s){if(!s)return"—";try{return new Date(s+'T12:00:00').toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"});}catch(e){return s;}};
+  var imgTipos="";var imgOps="";
+  try{var c1=document.getElementById("chart-resp-tipos");if(c1)imgTipos=c1.toDataURL("image/png");}catch(e){}
+  try{var c2=document.getElementById("chart-resp-ops");if(c2)imgOps=c2.toDataURL("image/png");}catch(e){}
+  var opEntries=Object.keys(byOp).sort(function(a,b){return byOp[b]-byOp[a];});
+  var tablaOpRows=opEntries.map(function(op){var opD=data.filter(function(d){return d.operario_responsable===op;});return'<tr style="background:#FAFAFA"><td style="padding:5px 8px;font-weight:700">'+esc(op)+'</td><td style="padding:5px 8px;text-align:center;font-weight:700;color:#E65100">'+opD.length+'</td><td style="padding:5px 8px;text-align:center">'+opD.filter(function(d){return d.estado==="pendiente";}).length+'</td><td style="padding:5px 8px;text-align:center">'+opD.filter(function(d){return d.estado==="resuelto";}).length+'</td><td style="padding:5px 8px;text-align:center">'+opD.filter(function(d){return d.facturado;}).length+'</td></tr>';}).join("");
+  var tablaDetalle=data.slice(0,50).map(function(d,i){var fecha=d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):"—";return'<tr style="background:'+(i%2===0?"#FAFAFA":"white")+'"><td style="padding:4px 7px;font-family:monospace;font-size:9px">'+esc(d.vin)+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.tipo_daño||"—")+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.ubicacion||"—")+'</td><td style="padding:4px 7px;font-size:10px;font-weight:700">'+esc(d.responsabilidad||"—")+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.operario_responsable||"—")+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.estado)+'</td><td style="padding:4px 7px;font-size:10px">'+(d.facturado?"Sí":"No")+'</td><td style="padding:4px 7px;font-size:10px">'+fecha+'</td></tr>';}).join("");
+  var cfgSup=cfgSupervisor||"Supervisor Córdoba";
+  var html='<div style="padding:20px 24px;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #6A1B9A;padding-bottom:16px;margin-bottom:20px;">'
+    +'<div><div style="font-family:Arial Black,Arial;font-size:28px;font-weight:900;color:#1A3C6E;letter-spacing:4px;">STELLANTIS</div>'
+    +'<div style="font-size:14px;font-weight:700;color:#333;margin-top:4px;">Reporte de Responsabilidades — Daños C30</div>'
+    +'<div style="font-size:11px;color:#666;margin-top:2px;">Córdoba · '+fmtDate(desde)+' al '+fmtDate(hasta)+'</div></div>'
+    +'<div style="text-align:right;"><div style="font-size:11px;color:#666;">Supervisor: <b>'+cfgSup+'</b></div>'
+    +'<div style="background:#6A1B9A;color:white;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:900;margin-top:6px;display:inline-block;">RESPONSABILIDADES</div></div></div>'
+    +'<div style="background:#F8FAFC;border-radius:8px;padding:16px;margin-bottom:20px;border-left:5px solid #6A1B9A;">'
+    +'<div style="font-size:12px;font-weight:700;color:#6A1B9A;margin-bottom:10px;text-transform:uppercase;">Resumen por Responsabilidad</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">'
+    +Object.keys(byResp).map(function(k){var color=RESP_COLORS[k]||"#9E9E9E";return'<div style="background:white;border-radius:6px;padding:10px;border-left:4px solid '+color+';"><div style="font-size:20px;font-weight:900;color:'+color+'">'+byResp[k]+'</div><div style="font-size:10px;color:#666;">'+k+'</div></div>';}).join("")+'</div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">'
+    +(imgTipos?'<div style="background:white;border-radius:8px;padding:14px;border:1px solid #E2E8F0;"><div style="font-size:11px;font-weight:700;color:#666;text-transform:uppercase;margin-bottom:8px;">Distribución por Responsabilidad</div><img src="'+imgTipos+'" style="width:100%;height:200px;object-fit:contain;"></div>':"")
+    +(imgOps?'<div style="background:white;border-radius:8px;padding:14px;border:1px solid #E2E8F0;"><div style="font-size:11px;font-weight:700;color:#666;text-transform:uppercase;margin-bottom:8px;">Ranking Operarios con Daños</div><img src="'+imgOps+'" style="width:100%;height:200px;object-fit:contain;"></div>':"")
+    +'</div>'
+    +(opEntries.length?'<div style="background:white;border-radius:8px;padding:16px;border:1px solid #E2E8F0;margin-bottom:20px;"><div style="font-size:12px;font-weight:700;color:#6A1B9A;text-transform:uppercase;margin-bottom:12px;">Detalle por Operario</div><table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:#6A1B9A;color:white;"><th style="padding:6px 8px;text-align:left;">Operario</th><th style="padding:6px 8px;text-align:center;">Total</th><th style="padding:6px 8px;text-align:center;">Pendientes</th><th style="padding:6px 8px;text-align:center;">Resueltos</th><th style="padding:6px 8px;text-align:center;">Facturados</th></tr></thead><tbody>'+tablaOpRows+'</tbody></table></div>':"")
+    +'<div style="background:white;border-radius:8px;padding:16px;border:1px solid #E2E8F0;margin-bottom:20px;"><div style="font-size:12px;font-weight:700;color:#6A1B9A;text-transform:uppercase;margin-bottom:12px;">Listado'+(data.length>50?' (primeros 50 de '+data.length+')':'')+'</div><table style="width:100%;border-collapse:collapse;font-size:10px;"><thead><tr style="background:#1A3C6E;color:white;"><th style="padding:5px 7px;">VIN</th><th style="padding:5px 7px;">Tipo</th><th style="padding:5px 7px;">Ubicación</th><th style="padding:5px 7px;">Responsabilidad</th><th style="padding:5px 7px;">Operario</th><th style="padding:5px 7px;">Estado</th><th style="padding:5px 7px;">Facturado</th><th style="padding:5px 7px;">Fecha</th></tr></thead><tbody>'+tablaDetalle+'</tbody></table></div>'
+    +'<div style="border-top:2px solid #6A1B9A;padding-top:10px;display:flex;justify-content:space-between;font-size:9px;color:#999;"><span>Stellantis Argentina · Responsabilidades · Córdoba</span><span>'+new Date().toLocaleDateString("es-AR")+' · '+cfgSup+'</span></div></div>';
+  document.getElementById("pdf-area").innerHTML=html;
+  setTimeout(function(){window.print();},300);
+}
+
 function showOpView(){
   // Show operario view overlay for supervisor too
   document.getElementById("app-operario").style.display="block";
@@ -2837,6 +3007,13 @@ function showPage(name){
     renderWsLog();
   }
   if(name==="deposito"){depTab("neumaticos");}
+  if(name==="resp"){
+    var now=new Date();
+    var rd=document.getElementById("resp-desde");var rh=document.getElementById("resp-hasta");
+    if(rd&&!rd.value){var f=new Date(now);f.setDate(f.getDate()-30);rd.value=f.toISOString().slice(0,10);}
+    if(rh&&!rh.value)rh.value=now.toISOString().slice(0,10);
+    renderResp();
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -3265,25 +3442,33 @@ async function saveChecklist(){
   if(savedId){
     try{await sbPatch("checklist_registros",savedId,{ws_block_ok:blockOk,ws_unblock_ok:unblockOk});}catch(e){}
   }
-  // Save to historial
+  // SIEMPRE guardar en historial como completado — el WS es independiente de si la tarea está hecha
+  // Si el WS falló, queda marcado como ws_pendiente para exportar manualmente a OBT
   try{
     await sbUpsert("bloqueos_historial",{
       vin:vin,block_code:code,block_date:fecha,
-      unblock_date:unblockOk?fecha:null,
-      is_active:!unblockOk,
+      unblock_date:fecha, // siempre marcamos como desbloqueado — la tarea está hecha
+      is_active:false,    // la tarea está completa independientemente del WS
       compound_code:"34",compound_descr:"Cordoba",
-      source_file:"checklist_"+currentUser.nombre,
+      source_file:"checklist_"+(blockOk&&unblockOk?"ws_ok":"ws_pendiente")+"_"+currentUser.nombre,
       imported_at:new Date().toISOString()
     },"vin,block_code");
   }catch(e){}
   btn.textContent="✅ Completado";
+  // Show Excel export button if WS failed
+  if(!blockOk||!unblockOk){
+    wsDiv.innerHTML+='<div style="margin-top:8px;padding:10px 12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">La tarea quedó registrada como completada. El WS falló — aplicar manualmente en OBT:</div>'
+      +'<button class="btn btn-gold btn-sm" onclick="exportWsPendiente()">⬇ Descargar Excel para OBT manual</button>'
+      +'</div>';
+  }
   setTimeout(function(){
     closeModal("modal-checklist");
-    var msg=saved?"✅ "+code+" registrado"+(blockOk&&unblockOk?" — OBT OK":blockOk?" — desbloqueo falló":" — WS falló, revisar Log"):"Error al guardar";
+    var msg=saved?"✅ "+code+" registrado como completado"+(blockOk&&unblockOk?" — OBT OK":" — aplicar en OBT manualmente"):"Error al guardar";
     showToast(msg,saved?"success":"error");
     loadStock();
     opRenderTareas();
-  },1500);
+  },blockOk&&unblockOk?1500:3000); // más tiempo si hay botón de Excel para verlo
 }
 
 // ══════════════════════════════════════════════════════
