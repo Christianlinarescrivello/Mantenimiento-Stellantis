@@ -629,6 +629,42 @@ tbody td{padding:9px 12px;color:var(--text);}
   </div>
 </div>
 
+<!-- MODAL: Registrar mantenimiento realizado -->
+<div class="modal-overlay" id="modal-mant">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head">
+      <h3>✅ Registrar Mantenimiento Realizado</h3>
+      <button class="modal-close" onclick="closeModal('modal-mant')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mant-vin">
+      <input type="hidden" id="mant-code">
+      <input type="hidden" id="mant-cc">
+      <div style="background:var(--bg2);border-radius:8px;padding:14px;margin-bottom:16px;border:1px solid var(--border)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><div style="font-size:10px;color:var(--text3)">VIN</div><div id="mant-vin-show" style="font-family:monospace;font-size:13px;font-weight:700;color:var(--gold)"></div></div>
+          <div><div style="font-size:10px;color:var(--text3)">Servicio</div><div id="mant-service-show" style="font-size:13px;font-weight:700"></div></div>
+          <div><div style="font-size:10px;color:var(--text3)">Modelo</div><div id="mant-modelo-show" style="font-size:12px"></div></div>
+          <div><div style="font-size:10px;color:var(--text3)">Boxatura</div><div id="mant-box-show" style="font-size:12px"></div></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Fecha en que se realizó *</label>
+        <input type="date" id="mant-fecha" style="width:100%">
+      </div>
+      <div class="field">
+        <label>Observaciones</label>
+        <textarea id="mant-obs" placeholder="Notas adicionales sobre el servicio realizado..." style="min-height:60px"></textarea>
+      </div>
+      <div id="mant-ws-status" style="margin-top:8px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-mant')">Cancelar</button>
+      <button class="btn btn-success" id="btn-mant-save" onclick="saveMant()">✅ Confirmar + WS Bloqueo/Desbloqueo</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════
 // CONFIG
@@ -1001,7 +1037,8 @@ async function renderPreventivo(){
     var days=p.daysToDue<0?"-"+Math.abs(p.daysToDue)+"d":"+"+p.daysToDue+"d";
     var assignedHtml=asign?(asign.operario?asign.operario.nombre:"—"):'<span style="color:var(--text3);font-size:11px">Sin asignar</span>';
     var actionHtml=(currentUser&&currentUser.rol==="supervisor")
-      ?'<button class="btn btn-ghost btn-sm" onclick="openAsignModalFor(\''+esc(p.vin)+'\',\''+p.maint.code+'\',\''+esc(p.maint.service)+'\')">Asignar</button>':'';
+      ?'<button class="btn btn-ghost btn-sm" onclick="openAsignModalFor(\''+esc(p.vin)+'\',\''+p.maint.code+'\',\''+esc(p.maint.service)+'\')">Asignar</button>':''
+      +'<button class="btn btn-success btn-sm" onclick="openMantModal(\''+esc(p.vin)+'\',\''+p.maint.code+'\',\''+esc(p.maint.service)+'\',\''+esc(p.compoundCode)+'\')">&#10003; Hecho</button>';
     return'<tr style="border-left:3px solid '+URGCOLOR[p.urgency]+'">'
       +'<td style="font-family:monospace;font-size:11px">'+esc(p.vin)+'</td>'
       +'<td style="max-width:150px;font-size:11px">'+esc(p.modelDescr)+'</td>'
@@ -1303,7 +1340,9 @@ async function renderKPIs(){
   var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
   var completados=historial.filter(function(r){
     // Solo cuenta como "hecho" si el desbloqueo fue en Córdoba
-    var isCordoba=(r.compound_descr&&r.compound_descr.toLowerCase().indexOf("ordoba")>=0)||(r.compound_code==="00214")||(r.compound_code==="214");
+    // compound_code puede venir como 34, "34", "00034", etc.
+    var cc=String(r.compound_code||"").replace(/^0+/,"");
+    var isCordoba=(r.compound_descr&&r.compound_descr.toLowerCase().indexOf("ordoba")>=0)||cc==="34";
     return PREV_CODES.indexOf(r.block_code)>=0 && !r.is_active && r.unblock_date && isCordoba;
   });
   // Filter by date range if set
@@ -1574,8 +1613,8 @@ function detectImportType(rows,fileName){
 }
 function isCordobaRow(r){
   var comp=String(r["Compound Descr"]||r["compound"]||r["Compound"]||"").toLowerCase();
-  var code=String(r["Compound Code"]||r["compound_code"]||"");
-  return comp.indexOf("ordoba")>=0 || code==="00214";
+  var code=String(r["Compound Code"]||r["compound_code"]||"").replace(/^0+/,"");
+  return comp.indexOf("ordoba")>=0 || code==="34" || code==="214";
 }
 function normalizeDateForDb(v){
   var d=pdate(v);
@@ -1809,6 +1848,100 @@ async function exportKPIs(){
   var gomas=await sbGet("gomas","select=*");
   if(Array.isArray(gomas))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(gomas.map(function(g){return{VIN:g.vin,Neumatico:g.modelo_neumatico,Posicion:g.posicion,Estado:g.estado_stock};})),"Gomas C37");
   XLSX.writeFile(wb,"KPI_Mantenimiento_"+new Date().toISOString().slice(0,10)+".xlsx");
+}
+
+// ══════════════════════════════════════════════════════
+// REGISTRAR MANTENIMIENTO REALIZADO
+// ══════════════════════════════════════════════════════
+function openMantModal(vin,code,service,cc){
+  document.getElementById("mant-vin").value=vin;
+  document.getElementById("mant-code").value=code;
+  document.getElementById("mant-cc").value=cc||"00034";
+  document.getElementById("mant-vin-show").textContent=vin;
+  document.getElementById("mant-service-show").textContent=code+" — "+service;
+  document.getElementById("mant-obs").value="";
+  document.getElementById("mant-ws-status").innerHTML="";
+  // Autofill modelo and boxatura from stock
+  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin.toUpperCase();});
+  document.getElementById("mant-modelo-show").textContent=v?(v.model_descr||v["Model Descr"]||"—"):"—";
+  document.getElementById("mant-box-show").textContent=v?(v.boxatura||v["Boxatura"]||"—"):"—";
+  // Default date = today
+  document.getElementById("mant-fecha").value=new Date().toISOString().slice(0,10);
+  var btn=document.getElementById("btn-mant-save");
+  btn.disabled=false;btn.textContent="✅ Confirmar + WS Bloqueo/Desbloqueo";
+  openModal("modal-mant");
+}
+
+async function saveMant(){
+  var vin=document.getElementById("mant-vin").value;
+  var code=document.getElementById("mant-code").value;
+  var cc=document.getElementById("mant-cc").value||"00034";
+  var fecha=document.getElementById("mant-fecha").value;
+  var obs=document.getElementById("mant-obs").value;
+  if(!vin||!code||!fecha){showToast("Faltan datos obligatorios","error");return;}
+  var btn=document.getElementById("btn-mant-save");
+  btn.disabled=true;
+  var wsDiv=document.getElementById("mant-ws-status");
+  // Step 1: Bloqueo
+  wsDiv.innerHTML='<div style="padding:8px 12px;border-radius:6px;background:var(--bg2);font-size:12px;margin-bottom:6px">⏳ Enviando bloqueo a OBT...</div>';
+  var blockOk=false;
+  try{var r=await callWS(vin,cc,code,"B");blockOk=r.success;}catch(e){}
+  wsDiv.innerHTML='<div style="padding:8px 12px;border-radius:6px;background:'+(blockOk?"#E8F5E9":"#FFEBEE")+';font-size:12px;margin-bottom:6px;font-weight:600">'
+    +(blockOk?"✅ Bloqueo OK":"⚠️ Bloqueo falló — verificar WS")+'</div>';
+  if(blockOk){
+    // Step 2: Desbloqueo inmediato (mantenimiento realizado)
+    wsDiv.innerHTML+='\n<div style="padding:8px 12px;border-radius:6px;background:var(--bg2);font-size:12px;margin-bottom:6px">⏳ Enviando desbloqueo a OBT...</div>';
+    await new Promise(function(res){setTimeout(res,800);}); // small delay between calls
+    var unblockOk=false;
+    try{var r2=await callWS(vin,cc,code,"U");unblockOk=r2.success;}catch(e){}
+    wsDiv.innerHTML='<div style="padding:8px 12px;border-radius:6px;background:'+(blockOk?"#E8F5E9":"#FFEBEE")+';font-size:12px;margin-bottom:6px;font-weight:600">'
+      +(blockOk?"✅ Bloqueo OK":"⚠️ Bloqueo falló")+'</div>'
+      +'<div style="padding:8px 12px;border-radius:6px;background:'+(unblockOk?"#E8F5E9":"#FFEBEE")+';font-size:12px;font-weight:600">'
+      +(unblockOk?"✅ Desbloqueo OK — mantenimiento registrado":"⚠️ Desbloqueo falló — verificar WS")+'</div>';
+    // Save to historial
+    var now=new Date();
+    var record={
+      vin:vin,block_code:code,
+      block_date:fecha,
+      unblock_date:fecha,
+      is_active:false,
+      compound_code:"34",
+      compound_descr:"Cordoba",
+      source_file:"manual_"+currentUser.nombre,
+      imported_at:now.toISOString()
+    };
+    try{
+      await sbUpsert("bloqueos_historial",record,"vin,block_code");
+    }catch(e){
+      wsDiv.innerHTML+='<div style="padding:8px;font-size:11px;color:#C62828;margin-top:4px">⚠️ Error al guardar en historial: '+esc(e.message)+'</div>';
+    }
+    if(unblockOk){
+      setTimeout(function(){
+        closeModal("modal-mant");
+        showToast("✅ Mantenimiento "+code+" registrado para "+vin,"success");
+        loadStock(); // recalculate pending
+      },1500);
+    } else {
+      btn.disabled=false;btn.textContent="Reintentar";
+    }
+  } else {
+    // Block failed — still save to historial as manual record
+    var record2={
+      vin:vin,block_code:code,
+      block_date:fecha,unblock_date:fecha,
+      is_active:false,
+      compound_code:"34",compound_descr:"Cordoba",
+      source_file:"manual_ws_fallido_"+currentUser.nombre,
+      imported_at:new Date().toISOString()
+    };
+    try{await sbUpsert("bloqueos_historial",record2,"vin,block_code");}catch(e){}
+    wsDiv.innerHTML+='<div style="padding:8px;font-size:12px;color:var(--text2);margin-top:4px">Mantenimiento guardado en historial aunque el WS falló.</div>';
+    setTimeout(function(){
+      closeModal("modal-mant");
+      showToast("Mantenimiento guardado (WS falló, revisar OBT)","info");
+      loadStock();
+    },2000);
+  }
 }
 
 // ══════════════════════════════════════════════════════
