@@ -435,7 +435,18 @@ tbody td{padding:9px 12px;color:var(--text);}
           <option value="active">Falta / activos</option>
           <option value="closed">Cerrados</option>
         </select>
-        <input type="text" id="hist-search" placeholder="🔍 VIN / código / archivo..." oninput="renderHistorial()" style="width:220px">
+        <select id="hist-patio" onchange="renderHistorial()">
+          <option value="ALL">Todos los patios</option>
+          <option value="cordoba">Solo Córdoba</option>
+          <option value="otros">Otros patios</option>
+        </select>
+        <select id="hist-actividad" onchange="renderHistorial()">
+          <option value="ALL">Toda actividad</option>
+          <option value="preventivo">Solo preventivo (M90/BSE/MDI/DSE/AN1/CAF/FLU/UREA)</option>
+          <option value="c30">Solo Daños C30</option>
+          <option value="c37">Solo Neumáticos C37</option>
+        </select>
+        <input type="text" id="hist-search" placeholder="🔍 VIN / código / archivo..." oninput="renderHistorial()" style="width:180px">
         <button class="btn btn-primary btn-sm" onclick="renderHistorial()">Actualizar</button>
         <button class="btn btn-gold btn-sm" onclick="exportHistorial()">⬇ Exportar Excel</button>
         <span id="hist-count" style="margin-left:auto;font-size:12px;color:var(--text3)"></span>
@@ -444,7 +455,7 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div class="card">
         <div class="card-head"><span class="card-title">Detalle del historial</span></div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>VIN</th><th>Código</th><th>Fecha bloqueo</th><th>Fecha desbloqueo</th><th>Estado</th><th>Días abierto</th><th>Compound</th><th>Archivo</th><th>Importado</th></tr></thead>
+          <thead><tr><th>VIN</th><th>Código</th><th>Fecha bloqueo</th><th>Fecha desbloqueo</th><th>Estado</th><th>Días abierto</th><th>Compound / Patio</th><th>Archivo</th><th>Importado</th></tr></thead>
           <tbody id="hist-tbody"></tbody>
         </table></div>
       </div>
@@ -1323,11 +1334,14 @@ async function renderHistorial(){
   var desdeVal=document.getElementById("hist-desde").value;
   var hastaVal=document.getElementById("hist-hasta").value;
   var tipo=document.getElementById("hist-tipo").value;
+  var patioF=document.getElementById("hist-patio")?document.getElementById("hist-patio").value:"ALL";
+  var actividadF=document.getElementById("hist-actividad")?document.getElementById("hist-actividad").value:"ALL";
   var search=(document.getElementById("hist-search").value||"").toLowerCase().trim();
   var from=desdeVal?pdate(desdeVal):null;
   var to=hastaVal?pdate(hastaVal):null;
   if(to){to.setHours(23,59,59,999);}
   var data=await loadBloqueosHistorial();
+  var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
   var enriched=data.map(function(r){
     var bd=pdate(r.block_date), ud=pdate(r.unblock_date), idt=pdate(r.imported_at);
     var active=!!r.is_active || (!ud && !!bd);
@@ -1335,7 +1349,11 @@ async function renderHistorial(){
     var unblockedInRange=inRange(ud,from,to);
     var doneInRange=blockedInRange || unblockedInRange;
     var daysOpen = bd ? daysBetween(bd, active?new Date():(ud||new Date())) : null;
-    return Object.assign({},r,{_blockDate:bd,_unblockDate:ud,_importedAt:idt,_active:active,_blockedInRange:blockedInRange,_unblockedInRange:unblockedInRange,_doneInRange:doneInRange,_daysOpen:daysOpen});
+    var cc=String(r.compound_code||"").replace(/^0+/,"");
+    var isCordoba=(r.compound_descr&&r.compound_descr.toLowerCase().indexOf("ordoba")>=0)||cc==="34";
+    return Object.assign({},r,{_blockDate:bd,_unblockDate:ud,_importedAt:idt,_active:active,
+      _blockedInRange:blockedInRange,_unblockedInRange:unblockedInRange,
+      _doneInRange:doneInRange,_daysOpen:daysOpen,_isCordoba:isCordoba});
   });
 
   var filtered=enriched.filter(function(r){
@@ -1351,29 +1369,39 @@ async function renderHistorial(){
     if(tipo==="all" && from && to){
       if(!(r._doneInRange || r._active)) return false;
     }
+    // Patio filter
+    if(patioF==="cordoba" && !r._isCordoba)return false;
+    if(patioF==="otros" && r._isCordoba)return false;
+    // Actividad filter
+    if(actividadF==="preventivo" && PREV_CODES.indexOf(r.block_code)<0)return false;
+    if(actividadF==="c30" && r.block_code!=="C30")return false;
+    if(actividadF==="c37" && r.block_code!=="C37")return false;
     return true;
   });
 
   var stats={
     total: filtered.length,
-    unique: new Set(filtered.map(function(r){return r.vin;})).size,
-    blockedRange: enriched.filter(function(r){return r._blockedInRange;}).length,
-    unblockedRange: enriched.filter(function(r){return r._unblockedInRange;}).length,
-    active: enriched.filter(function(r){return r._active;}).length,
-    closed: enriched.filter(function(r){return !r._active;}).length
+    unique: (function(){var s={};filtered.forEach(function(r){s[r.vin]=1;});return Object.keys(s).length;})(),
+    blockedRange: filtered.filter(function(r){return r._blockedInRange;}).length,
+    unblockedRange: filtered.filter(function(r){return r._unblockedInRange;}).length,
+    active: filtered.filter(function(r){return r._active;}).length,
+    closed: filtered.filter(function(r){return !r._active;}).length
   };
   document.getElementById("hist-count").textContent=filtered.length+" registros";
   document.getElementById("hist-stats").innerHTML=[
     {lbl:"Registros visibles",val:stats.total,c:"var(--blue)"},
-    {lbl:"VIN únicos visibles",val:stats.unique,c:"var(--gold)"},
+    {lbl:"VIN únicos",val:stats.unique,c:"var(--gold)"},
     {lbl:"Bloqueados en rango",val:stats.blockedRange,c:"#C62828"},
     {lbl:"Desbloqueados en rango",val:stats.unblockedRange,c:"#2E7D32"},
-    {lbl:"Falta / activos",val:stats.active,c:"#E65100"},
+    {lbl:"Activos",val:stats.active,c:"#E65100"},
     {lbl:"Cerrados",val:stats.closed,c:"#1565C0"}
   ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
 
   document.getElementById("hist-tbody").innerHTML=filtered.map(function(r){
     var estado=r._active?'<span class="badge b-pending">ACTIVO</span>':'<span class="badge b-done">CERRADO</span>';
+    var patioLabel=r._isCordoba
+      ?'<span style="font-size:10px;color:#2E7D32;font-weight:700;">CBA</span> '
+      :'<span style="font-size:10px;color:#1565C0;font-weight:700;">OTRO</span> ';
     return '<tr>'
       +'<td style="font-family:monospace;font-size:11px">'+esc(r.vin||"")+'</td>'
       +'<td><b style="color:var(--gold)">'+esc(r.block_code||"—")+'</b></td>'
@@ -1381,7 +1409,7 @@ async function renderHistorial(){
       +'<td>'+safeDateStr(r.unblock_date)+'</td>'
       +'<td>'+estado+'</td>'
       +'<td>'+(r._daysOpen==null?'—':r._daysOpen+' d')+'</td>'
-      +'<td style="font-size:11px">'+esc(r.compound_descr||r.compound_code||"—")+'</td>'
+      +'<td style="font-size:11px">'+patioLabel+esc(r.compound_descr||r.compound_code||"—")+'</td>'
       +'<td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.source_file||"—")+'</td>'
       +'<td style="font-size:11px">'+safeDateStr(r.imported_at)+'</td>'
       +'</tr>';
@@ -2550,7 +2578,7 @@ async function saveChecklist(){
   var batFotoFile=document.getElementById("cl-bat-foto").files[0];
   if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","checklist/"+uuid()+"-"+fotoFile.name).catch(function(){return null;});
   if(batFotoFile)batFotoUrl=await uploadPhoto(batFotoFile,"fotos-mantenimiento","baterias/"+uuid()+"-"+batFotoFile.name).catch(function(){return null;});
-  // Save checklist record
+  // Save checklist record — sbPost expects object or array, send object directly
   var record={
     vin:vin,maint_code:code,operario_id:currentUser.id,fecha:fecha,
     bat_volt_inicial:parseFloat(document.getElementById("cl-bat-volt").value)||null,
@@ -2568,43 +2596,68 @@ async function saveChecklist(){
     foto_url:fotoUrl,bat_foto_url:batFotoUrl
   };
   var saved=false;
+  var savedId=null;
   try{
-    await sbPost("checklist_registros",[record]);
+    var saveResp=await sbPost("checklist_registros",record);
+    // sbPost returns array with inserted record
+    if(Array.isArray(saveResp)&&saveResp.length){savedId=saveResp[0].id;}
+    else if(saveResp&&saveResp.id){savedId=saveResp.id;}
     saved=true;
+    wsDiv.innerHTML='<div style="padding:8px 12px;background:#E8F5E9;border-radius:6px;font-size:12px;color:#2E7D32;margin-bottom:6px;font-weight:600;">✅ Checklist guardado correctamente</div>';
   }catch(e){
-    wsDiv.innerHTML='<div style="padding:8px;background:#FFEBEE;border-radius:6px;font-size:12px;color:#C62828;">⚠️ Error guardando checklist: '+esc(e.message)+'</div>';
+    wsDiv.innerHTML='<div style="padding:8px;background:#FFEBEE;border-radius:6px;font-size:12px;color:#C62828;margin-bottom:6px;">⚠️ Error guardando checklist: '+esc(e.message)+'</div>';
+    btn.disabled=false;btn.textContent="Reintentar";
+    return;
   }
-  // WS: bloqueo + desbloqueo
-  wsDiv.innerHTML='<div style="padding:8px 12px;background:var(--bg2);border-radius:6px;font-size:12px;margin-bottom:4px;">⏳ Enviando bloqueo a OBT...</div>';
+  // WS: Bloqueo
+  wsDiv.innerHTML+='<div style="padding:8px 12px;background:var(--bg2);border-radius:6px;font-size:12px;margin-bottom:4px;">⏳ Enviando bloqueo a OBT...</div>';
   var blockOk=false;
   try{var r=await callWS(vin,cc,code,"B");blockOk=r.success;}catch(e){}
+  wsDiv.innerHTML='<div style="padding:8px 12px;background:#E8F5E9;border-radius:6px;font-size:12px;color:#2E7D32;font-weight:600;margin-bottom:4px;">✅ Checklist guardado</div>'
+    +'<div style="padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:6px;background:'+(blockOk?"#E8F5E9":"#FFEBEE")+';color:'+(blockOk?"#2E7D32":"#C62828")+'">'+(blockOk?"✅ Bloqueo OBT OK":"⚠️ Bloqueo OBT falló — igual se guardó el checklist")+'</div>';
   var unblockOk=false;
   if(blockOk){
-    await new Promise(function(res){setTimeout(res,600);});
+    // Countdown 60 seconds before unblock
+    var countdown=60;
+    var countEl=document.createElement("div");
+    countEl.style.cssText="padding:10px 12px;background:var(--bg2);border-radius:6px;font-size:12px;color:var(--text2);margin-bottom:4px;";
+    wsDiv.appendChild(countEl);
+    await new Promise(function(res){
+      var interval=setInterval(function(){
+        countdown--;
+        countEl.innerHTML="⏳ Esperando "+countdown+"s antes del desbloqueo...";
+        if(countdown<=0){clearInterval(interval);res();}
+      },1000);
+    });
+    countEl.innerHTML="⏳ Enviando desbloqueo a OBT...";
     try{var r2=await callWS(vin,cc,code,"U");unblockOk=r2.success;}catch(e){}
+    countEl.innerHTML='<div style="font-weight:600;color:'+(unblockOk?"#2E7D32":"#C62828")+'">'+(unblockOk?"✅ Desbloqueo OBT OK":"⚠️ Desbloqueo OBT falló")+'</div>';
+  } else {
+    wsDiv.innerHTML+='<div style="padding:8px;font-size:11px;color:var(--text3);">Desbloqueo no enviado porque el bloqueo falló. Revisá el Log WebService.</div>';
   }
   // Update checklist record with WS results
-  if(saved){
-    try{
-      var allRec=await sbGet("checklist_registros","vin=eq."+encodeURIComponent(vin)+"&maint_code=eq."+code+"&operario_id=eq."+currentUser.id+"&fecha=eq."+fecha+"&select=id&order=created_at.desc&limit=1");
-      if(Array.isArray(allRec)&&allRec.length){
-        await sbPatch("checklist_registros",allRec[0].id,{ws_block_ok:blockOk,ws_unblock_ok:unblockOk});
-      }
-    }catch(e){}
+  if(savedId){
+    try{await sbPatch("checklist_registros",savedId,{ws_block_ok:blockOk,ws_unblock_ok:unblockOk});}catch(e){}
   }
   // Save to historial
   try{
-    await sbUpsert("bloqueos_historial",{vin:vin,block_code:code,block_date:fecha,unblock_date:fecha,is_active:false,compound_code:"34",compound_descr:"Cordoba",source_file:"checklist_"+currentUser.nombre,imported_at:new Date().toISOString()},"vin,block_code");
+    await sbUpsert("bloqueos_historial",{
+      vin:vin,block_code:code,block_date:fecha,
+      unblock_date:unblockOk?fecha:null,
+      is_active:!unblockOk,
+      compound_code:"34",compound_descr:"Cordoba",
+      source_file:"checklist_"+currentUser.nombre,
+      imported_at:new Date().toISOString()
+    },"vin,block_code");
   }catch(e){}
-  wsDiv.innerHTML=
-    '<div style="padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:4px;background:'+(blockOk?"#E8F5E9":"#FFEBEE")+';color:'+(blockOk?"#2E7D32":"#C62828")+'">'+(blockOk?"✅ Bloqueo OBT OK":"⚠️ Bloqueo OBT falló")+'</div>'
-    +'<div style="padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;background:'+(unblockOk?"#E8F5E9":"#FFEBEE")+';color:'+(unblockOk?"#2E7D32":"#C62828")+'">'+(unblockOk?"✅ Desbloqueo OBT OK":"⚠️ Desbloqueo OBT falló")+'</div>';
+  btn.textContent="✅ Completado";
   setTimeout(function(){
     closeModal("modal-checklist");
-    showToast(saved?"✅ Servicio "+code+" registrado"+(blockOk&&unblockOk?" y procesado en OBT":""):"Error guardando — revisar conexión","success");
+    var msg=saved?"✅ "+code+" registrado"+(blockOk&&unblockOk?" — OBT OK":blockOk?" — desbloqueo falló":" — WS falló, revisar Log"):"Error al guardar";
+    showToast(msg,saved?"success":"error");
     loadStock();
     opRenderTareas();
-  },1800);
+  },1500);
 }
 
 // ══════════════════════════════════════════════════════
