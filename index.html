@@ -1594,7 +1594,7 @@ async function renderHistorial(){
     var doneInRange=blockedInRange || unblockedInRange;
     var daysOpen = bd ? daysBetween(bd, active?new Date():(ud||new Date())) : null;
     var cc=String(r.compound_code||"").replace(/^0+/,"");
-    var isCordoba=(r.compound_descr&&r.compound_descr.toLowerCase().indexOf("ordoba")>=0)||cc==="34";
+    var isCordoba=(r.compound_descr&&r.compound_descr.toLowerCase().indexOf("ordoba")>=0)||cc==="34"||cc==="00034";
     return Object.assign({},r,{_blockDate:bd,_unblockDate:ud,_importedAt:idt,_active:active,
       _blockedInRange:blockedInRange,_unblockedInRange:unblockedInRange,
       _doneInRange:doneInRange,_daysOpen:daysOpen,_isCordoba:isCordoba});
@@ -1682,7 +1682,7 @@ async function renderKPIs(){
     // Solo cuenta como "hecho" si el desbloqueo fue en Córdoba
     // compound_code puede venir como 34, "34", "00034", etc.
     var cc=String(r.compound_code||"").replace(/^0+/,"");
-    var isCordoba=(r.compound_descr&&r.compound_descr.toLowerCase().indexOf("ordoba")>=0)||cc==="34";
+    var isCordoba=(r.compound_descr&&r.compound_descr.toLowerCase().indexOf("ordoba")>=0)||cc==="34"||cc==="00034";
     return PREV_CODES.indexOf(r.block_code)>=0 && !r.is_active && r.unblock_date && isCordoba;
   });
   // Filter by date range if set
@@ -2010,7 +2010,7 @@ function detectImportType(rows,fileName){
 function isCordobaRow(r){
   var comp=String(r["Compound Descr"]||r["compound"]||r["Compound"]||"").toLowerCase();
   var code=String(r["Compound Code"]||r["compound_code"]||"").replace(/^0+/,"");
-  return comp.indexOf("ordoba")>=0 || code==="34" || code==="214";
+  return comp.indexOf("ordoba")>=0 || code==="34"||code==="00034" || code==="214";
 }
 function normalizeDateForDb(v){
   var d=pdate(v);
@@ -2349,7 +2349,7 @@ async function saveMant(){
       block_date:fecha,
       unblock_date:fecha,
       is_active:false,
-      compound_code:"34",
+      compound_code:"00034",
       compound_descr:"Cordoba",
       source_file:"manual_"+currentUser.nombre,
       imported_at:now.toISOString()
@@ -2374,7 +2374,7 @@ async function saveMant(){
       vin:vin,block_code:code,
       block_date:fecha,unblock_date:fecha,
       is_active:false,
-      compound_code:"34",compound_descr:"Cordoba",
+      compound_code:"00034",compound_descr:"Cordoba",
       source_file:"manual_ws_fallido_"+currentUser.nombre,
       imported_at:new Date().toISOString()
     };
@@ -2946,7 +2946,8 @@ async function showWsDetail(id){
       +'</div>'
       +'<div>'
       +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:6px;">Respuesta OBT</div>'
-      +'<pre id="wsdetail-resp" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:10px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;color:var(--text);font-family:monospace;"></pre>'
+      +'<pre id="wsdetail-resp" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:10px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:260px;overflow-y:auto;color:var(--text);font-family:monospace;"></pre>'
+      +'<div id="wsdetail-resp-summary" style="margin-top:6px;font-size:12px;font-weight:700;padding:8px 12px;border-radius:6px;display:none;"></div>'
       +'</div>'
       +'</div>'
       +'<div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal(\'modal-wsdetail\')">Cerrar</button>'
@@ -2972,7 +2973,27 @@ async function showWsDetail(id){
       +'</div>';
   }).join("");
   document.getElementById("wsdetail-xml").textContent=fmtXml(rec.xml_enviado||"(no disponible)");
-  document.getElementById("wsdetail-resp").textContent=fmtXml(rec.respuesta_raw||"(sin respuesta — timeout o error de red)");
+  var respText=rec.respuesta_raw||"";
+  document.getElementById("wsdetail-resp").textContent=fmtXml(respText||"(sin respuesta — timeout o error de red. Causa probable: Mixed Content HTTPS→HTTP o servidor no accesible)");
+  // Show summary of response
+  var summary=document.getElementById("wsdetail-resp-summary");
+  if(summary){
+    summary.style.display="block";
+    if(rec.success){
+      summary.style.background="#E8F5E9";summary.style.color="#2E7D32";
+      summary.textContent="✅ successFlag = 0 — Operación exitosa en OBT";
+    } else if(!respText){
+      summary.style.background="#FFF3E0";summary.style.color="#E65100";
+      summary.textContent="⚠️ Sin respuesta del servidor — El navegador bloqueó la llamada (Mixed Content HTTPS→HTTP) o el servidor no está accesible desde esta red";
+    } else {
+      summary.style.background="#FFEBEE";summary.style.color="#C62828";
+      var sf=respText.match(/<successFlag>(\d+)<\/successFlag>/);
+      var em=respText.match(/<errorMessage>(.*?)<\/errorMessage>/);
+      var msg="❌ successFlag = "+(sf?sf[1]:"desconocido");
+      if(em)msg+=" — Error: "+em[1];
+      summary.textContent=msg;
+    }
+  }
   openModal("modal-wsdetail");
 }
 function copyWsXml(){
@@ -3369,7 +3390,7 @@ function opOpenChecklist(vin,code,service,cc,modelo,boxatura){
 async function saveChecklist(){
   var vin=document.getElementById("cl-vin").value;
   var code=document.getElementById("cl-code").value;
-  var cc=document.getElementById("cl-cc").value||"34";
+  var cc=document.getElementById("cl-cc").value||"00034";
   var fecha=document.getElementById("cl-fecha").value;
   if(!vin||!code||!fecha){showToast("Faltan datos","error");return;}
   var btn=document.getElementById("btn-cl-save");
@@ -3449,7 +3470,7 @@ async function saveChecklist(){
       vin:vin,block_code:code,block_date:fecha,
       unblock_date:fecha, // siempre marcamos como desbloqueado — la tarea está hecha
       is_active:false,    // la tarea está completa independientemente del WS
-      compound_code:"34",compound_descr:"Cordoba",
+      compound_code:"00034",compound_descr:"Cordoba",
       source_file:"checklist_"+(blockOk&&unblockOk?"ws_ok":"ws_pendiente")+"_"+currentUser.nombre,
       imported_at:new Date().toISOString()
     },"vin,block_code");
