@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.2.9</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.3.0</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.9</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.3.0</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -452,13 +452,19 @@ tbody td{padding:9px 12px;color:var(--text);}
     <!-- KPIs -->
     <div class="page" id="page-kpis">
       <div class="page-title">KPIs y Reportes</div>
-      <div class="page-sub">Resumen de gestión del período</div>
+      <div class="page-sub">Resumen ejecutivo de gestión del período — completados, pendientes y estado por patio</div>
       <div class="filters">
         <input type="date" id="kpi-desde">
+        <span style="color:var(--text3);font-size:13px;align-self:center">al</span>
         <input type="date" id="kpi-hasta">
+        <select id="kpi-patio" onchange="renderKPIs()">
+          <option value="ALL">Todos los patios</option>
+        </select>
         <button class="btn btn-primary btn-sm" onclick="renderKPIs()">Actualizar</button>
-        <button class="btn btn-gold btn-sm" onclick="exportKPIs()">⬇ Exportar Excel completo</button>
+        <button class="btn btn-gold btn-sm" onclick="exportKPIsExcel()">⬇ Excel</button>
+        <button class="btn btn-sm" style="background:linear-gradient(135deg,#1A3C6E,#0D1F3C);color:white;" onclick="exportKPIsPDF()">📄 PDF Ejecutivo</button>
       </div>
+      <div class="stats-row" id="kpi-stats"></div>
       <div class="kpi-grid" id="kpi-grid"></div>
     </div>
 
@@ -1094,7 +1100,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.2.9";
+var APP_VERSION="v4.3.0";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2003,103 +2009,317 @@ async function renderHistorial(){
 async function renderKPIs(){
   var desde=document.getElementById("kpi-desde").value;
   var hasta=document.getElementById("kpi-hasta").value;
+  // Init patio filter
+  var patioSel=document.getElementById("kpi-patio");
+  if(patioSel&&patioSel.options.length<=1){
+    var phtml='<option value="ALL">Todos los patios</option>';
+    patiosCache.forEach(function(p){phtml+='<option value="'+esc(p.compound_code)+'">'+esc(p.nombre)+'</option>';});
+    patioSel.innerHTML=phtml;
+  }
+  var patioFilter=patioSel?patioSel.value:"ALL";
+  var patioNombre=patioFilter==="ALL"?"Todos los patios":(patiosCache.find(function(p){return p.compound_code===patioFilter;})||{nombre:patioFilter}).nombre;
+
+  // Load data
   var daños=[],gomas=[];
   try{daños=await sbGet("daños","select=*");}catch(e){}
   try{gomas=await sbGet("gomas","select=*");}catch(e){}
   if(!Array.isArray(daños))daños=[];if(!Array.isArray(gomas))gomas=[];
-  // Completados = bloqueos de mantenimiento preventivo con unblock_date en el historial
+
+  // Load historial via paginated fetch
   var historial=[];
   try{
-    var hp="select=*&limit=20000";
-    var hdata=await sbGet("bloqueos_historial",hp);
-    if(Array.isArray(hdata))historial=hdata;
+    var hrpc=await fetch(SB_URL+"/rest/v1/rpc/get_last_unblock",{method:"POST",headers:Object.assign({},sbH(),{"Content-Type":"application/json"}),body:"{}"});
+    var hdata=await hrpc.json();
+    // Also load full historial for completados count (with dates)
+    var hfull=await sbGet("bloqueos_historial","select=vin,block_code,unblock_date,is_active,compound_code,compound_descr&is_active=eq.false&unblock_date=not.is.null&limit=5000&order=unblock_date.desc");
+    if(Array.isArray(hfull))historial=hfull;
   }catch(e){}
+
   var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
-  var completados=historial.filter(function(r){
-    // Solo cuenta como "hecho" si el desbloqueo fue en Córdoba
-    // compound_code puede venir como 34, "34", "00034", etc.
+
+  // Filter completados by patio
+  function matchesPatio(r){
+    if(patioFilter==="ALL")return true;
     var cc=String(r.compound_code||"").replace(/^0+/,"");
-    var isCordoba=(r.compound_descr&&r.compound_descr.toLowerCase().indexOf("ordoba")>=0)||cc==="34"||cc==="00034";
-    return PREV_CODES.indexOf(r.block_code)>=0 && !r.is_active && r.unblock_date && isCordoba;
+    var fcc=patioFilter.replace(/^0+/,"");
+    return cc===fcc||String(r.compound_code||"")===(patioFilter);
+  }
+
+  // Include completedThisSession in completados count
+  var sessionComp=Object.keys(completedThisSession).map(function(k){
+    var parts=k.split("__");
+    return{vin:parts[0],block_code:parts[1],unblock_date:completedThisSession[k],compound_code:currentPatio?currentPatio.compound_code:"00034"};
   });
-  // Filter by date range if set
+
+  var completados=historial.filter(function(r){
+    return PREV_CODES.indexOf(r.block_code)>=0 && matchesPatio(r);
+  }).concat(sessionComp.filter(function(r){return PREV_CODES.indexOf(r.block_code)>=0&&matchesPatio(r);}));
+
+  // Deduplicate by vin+code (session may overlap historial)
+  var compSeen={};
+  completados=completados.filter(function(r){
+    var k=(r.vin||"")+"__"+(r.block_code||"");
+    if(compSeen[k])return false;compSeen[k]=true;return true;
+  });
+
   var compEnRango=completados;
   if(desde||hasta){
     compEnRango=completados.filter(function(r){
-      var ud=r.unblock_date?r.unblock_date.slice(0,10):"";
+      var ud=(r.unblock_date||"").slice(0,10);
       if(desde&&ud<desde)return false;
       if(hasta&&ud>hasta)return false;
       return true;
     });
   }
-  // Completados por servicio en el rango
-  var compByCode={};
+
+  // Filter pendingCache by patio
+  var pending=pendingCache;
+  if(patioFilter!=="ALL"){
+    var fcc2=patioFilter.replace(/^0+/,"");
+    pending=pendingCache.filter(function(p){return String(p.compoundCode||"").replace(/^0+/,"")=== fcc2;});
+  }
+
+  var compByCode={};var pendByCode={};
   PREV_CODES.forEach(function(code){
     compByCode[code]=compEnRango.filter(function(r){return r.block_code===code;}).length;
+    pendByCode[code]=pending.filter(function(p){return p.maint.code===code;}).length;
   });
-  // Pendientes por servicio (stock)
-  var prevTotal=pendingCache.length||1;
-  var byService={};
-  PREV_CODES.forEach(function(m){byService[m]=pendingCache.filter(function(p){return p.maint.code===m;}).length;});
-  var maxServ=Math.max.apply(null,PREV_CODES.map(function(c){return (byService[c]||0)+(compByCode[c]||0);})||[1])||1;
-  // C30 from stock
-  var stockC30count=stockCache.filter(function(v){
-    var blocks=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
-    return blocks.indexOf("C30")>=0;
-  }).length;
-  // C37 from stock
-  var stockC37count=stockCache.filter(function(v){
-    var blocks=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
-    return blocks.indexOf("C37")>=0;
-  }).length;
+
   var totalComp=compEnRango.length;
-  var totalPend=pendingCache.length;
+  var totalPend=pending.length;
+  var maxServ=Math.max.apply(null,PREV_CODES.map(function(c){return(compByCode[c]||0)+(pendByCode[c]||0);})||[1])||1;
+  var prevTotal=pending.length||1;
+
+  // Filter daños/gomas by patio
+  var stockFiltrado=patioFilter==="ALL"?stockCache:stockCache.filter(function(v){
+    return String(v.compound_code||v["Compound Code"]||"").replace(/^0+/,"")===(patioFilter.replace(/^0+/,""));
+  });
+  var stockC30count=stockFiltrado.filter(function(v){return String(v.blocks||v["Blocks"]||"").toUpperCase().indexOf("C30")>=0;}).length;
+  var stockC37count=stockFiltrado.filter(function(v){return String(v.blocks||v["Blocks"]||"").toUpperCase().indexOf("C37")>=0;}).length;
+  var pctComp=totalPend+totalComp>0?Math.round(totalComp/(totalComp+totalPend)*100):0;
+
+  // Stats row
+  document.getElementById("kpi-stats").innerHTML=[
+    {lbl:"Completados en período",val:totalComp,c:"#2E7D32"},
+    {lbl:"Pendientes actuales",val:totalPend,c:"#C62828"},
+    {lbl:"% Completado",val:pctComp+"%",c:pctComp>=80?"#2E7D32":pctComp>=50?"#E65100":"#C62828"},
+    {lbl:"Vencidos",val:pending.filter(function(p){return p.urgency==="overdue";}).length,c:"#C62828"},
+    {lbl:"Urgentes ≤15d",val:pending.filter(function(p){return p.urgency==="urgent";}).length,c:"#E65100"},
+    {lbl:"Stock total "+patioNombre,val:stockFiltrado.length,c:"var(--blue)"},
+  ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
+
+  // Store for export
+  window._kpiData={desde:desde,hasta:hasta,patioNombre:patioNombre,patioFilter:patioFilter,
+    totalComp:totalComp,totalPend:totalPend,pctComp:pctComp,
+    compByCode:compByCode,pendByCode:pendByCode,PREV_CODES:PREV_CODES,
+    pending:pending,stockC30count:stockC30count,stockC37count:stockC37count,
+    daños:daños,gomas:gomas,maxServ:maxServ};
+
   document.getElementById("kpi-grid").innerHTML=
-    '<div class="kpi-card"><h4>Preventivo — Completados vs Pendientes</h4>'
+    // Preventivo completados vs pendientes
+    '<div class="kpi-card"><h4>Preventivo — Completados vs Pendientes <small style="font-size:11px;color:var(--text3);font-weight:400">'+patioNombre+(desde||hasta?" · "+( desde?desde:"")+(hasta?" → "+hasta:""):"")+'</small></h4>'
     +PREV_CODES.map(function(code){
-      var comp=compByCode[code]||0;
-      var pend=byService[code]||0;
-      var total=comp+pend||1;
-      var pctComp=Math.round(comp/maxServ*100);
-      var pctPend=Math.round(pend/maxServ*100);
-      return'<div class="bar-item" style="margin-bottom:10px">'
-        +'<div class="bar-label" style="width:45px">'+code+'</div>'
-        +'<div style="flex:1">'
-        +'<div style="display:flex;gap:2px;height:8px;border-radius:4px;overflow:hidden;background:var(--border)">'
-        +'<div style="width:'+pctComp+'%;background:#2E7D32;transition:width .5s" title="Completados: '+comp+'"></div>'
-        +'<div style="width:'+pctPend+'%;background:var(--blue);transition:width .5s" title="Pendientes: '+pend+'"></div>'
+      var comp=compByCode[code]||0;var pend=pendByCode[code]||0;
+      var svc=CATALOG.find(function(m){return m.code===code;})||{service:code};
+      var pctC=Math.round(comp/maxServ*100);var pctP=Math.round(pend/maxServ*100);
+      return'<div class="bar-item" style="margin-bottom:12px">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:4px;">'
+        +'<span style="font-weight:700;font-size:12px;color:var(--text)">'+code+' <span style="font-weight:400;color:var(--text3);font-size:11px">'+svc.service+'</span></span>'
+        +'<span style="font-size:11px;color:var(--text2)"><b style="color:#2E7D32">'+comp+'</b> hechos · <b style="color:var(--blue)">'+pend+'</b> pend.</span>'
         +'</div>'
-        +'<div style="display:flex;gap:12px;margin-top:3px;font-size:10px">'
-        +'<span style="color:#2E7D32">&#10003; '+comp+' hechos</span>'
-        +'<span style="color:var(--text3)">'+pend+' pendientes</span>'
-        +'</div></div></div>';
+        +'<div style="height:12px;border-radius:6px;overflow:hidden;background:var(--border);display:flex;">'
+        +'<div style="width:'+pctC+'%;background:linear-gradient(90deg,#2E7D32,#43A047);transition:width .5s;" title="Completados: '+comp+'"></div>'
+        +'<div style="width:'+pctP+'%;background:linear-gradient(90deg,#1565C0,#1976D2);transition:width .5s;" title="Pendientes: '+pend+'"></div>'
+        +'</div></div>';
     }).join("")
-    +'<div style="display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:12px">'
-    +'<span style="color:#2E7D32;font-weight:700">&#10003; '+totalComp+' completados en el período</span>'
-    +'<span style="color:var(--text3)">/ '+totalPend+' pendientes totales</span>'
+    +'<div style="display:flex;gap:16px;margin-top:8px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;flex-wrap:wrap;">'
+    +'<span style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:3px;background:#2E7D32;display:inline-block"></span><b style="color:#2E7D32">'+totalComp+'</b> completados</span>'
+    +'<span style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:3px;background:#1565C0;display:inline-block"></span><b style="color:#1565C0">'+totalPend+'</b> pendientes</span>'
+    +'<span style="color:var(--text3)">Avance: <b style="color:'+(pctComp>=80?"#2E7D32":pctComp>=50?"#E65100":"#C62828")+'">'+pctComp+'%</b></span>'
     +'</div></div>'
-    +'<div class="kpi-card"><h4>Por urgencia (pendientes)</h4>'
-    +[{l:"Vencidos",v:pendingCache.filter(function(p){return p.urgency==="overdue";}).length,c:"#C62828"},
-      {l:"Urgentes",v:pendingCache.filter(function(p){return p.urgency==="urgent";}).length,c:"#E65100"},
-      {l:"Próximos",v:pendingCache.filter(function(p){return p.urgency==="soon";}).length,c:"#1565C0"},
-      {l:"A tiempo",v:pendingCache.filter(function(p){return p.urgency==="ok";}).length,c:"#2E7D32"},
-    ].map(function(s){var pct=Math.round(s.v/prevTotal*100)||0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>'
+    // Urgencia
+    +'<div class="kpi-card"><h4>Pendientes por urgencia</h4>'
+    +[{l:"🔴 Vencidos",v:pending.filter(function(p){return p.urgency==="overdue";}).length,c:"#C62828"},
+      {l:"🟠 Urgentes ≤15d",v:pending.filter(function(p){return p.urgency==="urgent";}).length,c:"#E65100"},
+      {l:"🔵 Próximos ≤30d",v:pending.filter(function(p){return p.urgency==="soon";}).length,c:"#1565C0"},
+      {l:"🟢 A tiempo",v:pending.filter(function(p){return p.urgency==="ok";}).length,c:"#2E7D32"},
+    ].map(function(s){var pct=Math.round(s.v/prevTotal*100)||0;return'<div class="bar-item"><div class="bar-label" style="width:130px">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val" style="color:'+s.c+';font-weight:700">'+s.v+'</div></div>';}).join("")+'</div>'
+    // C30
     +'<div class="kpi-card"><h4>Daños C30</h4>'
-    +[{l:"En stock",v:stockC30count,c:"var(--gold)"},
-      {l:"Con datos",v:daños.length,c:"var(--blue)"},
+    +[{l:"En stock c/C30",v:stockC30count,c:"var(--gold)"},
+      {l:"Registrados",v:daños.length,c:"var(--blue)"},
       {l:"Pendientes",v:daños.filter(function(d){return d.estado==="pendiente";}).length,c:"#E65100"},
       {l:"En reparación",v:daños.filter(function(d){return d.estado==="en_reparacion";}).length,c:"#1565C0"},
       {l:"Resueltos",v:daños.filter(function(d){return d.estado==="resuelto";}).length,c:"#2E7D32"},
-      {l:"Sin datos aún",v:stockC30count-daños.length>0?stockC30count-daños.length:0,c:"var(--text3)"},
-    ].map(function(s){var pct=stockC30count?Math.round(s.v/stockC30count*100):0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>'
+    ].map(function(s){var pct=stockC30count?Math.round(s.v/stockC30count*100):0;return'<div class="bar-item"><div class="bar-label" style="width:130px">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>'
+    // C37
     +'<div class="kpi-card"><h4>Neumáticos C37</h4>'
-    +[{l:"En stock",v:stockC37count,c:"var(--gold)"},
-      {l:"Con datos",v:gomas.length,c:"var(--blue)"},
+    +[{l:"En stock c/C37",v:stockC37count,c:"var(--gold)"},
+      {l:"Registrados",v:gomas.length,c:"var(--blue)"},
       {l:"KO activas",v:gomas.filter(function(g){return g.estado_stock==="ko";}).length,c:"#C62828"},
       {l:"OK resueltas",v:gomas.filter(function(g){return g.estado_stock==="ok";}).length,c:"#2E7D32"},
-      {l:"Sin datos aún",v:stockC37count-gomas.length>0?stockC37count-gomas.length:0,c:"var(--text3)"},
-    ].map(function(s){var pct=stockC37count?Math.round(s.v/stockC37count*100):0;return'<div class="bar-item"><div class="bar-label">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>';
+    ].map(function(s){var pct=stockC37count?Math.round(s.v/stockC37count*100):0;return'<div class="bar-item"><div class="bar-label" style="width:130px">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val">'+s.v+'</div></div>';}).join("")+'</div>';
 }
+
+// ── KPI EXPORT EXCEL ──────────────────────────────────
+async function exportKPIsExcel(){
+  var kpi=window._kpiData||{};
+  if(!kpi.PREV_CODES){showToast("Actualizá los KPIs primero","error");return;}
+  var SVCMAP={};CATALOG.forEach(function(m){SVCMAP[m.code]=m.service;});
+  var now=new Date();
+  var fmtDate=function(d){return d?d.slice(0,10):"—";};
+  // Sheet 1: Resumen
+  var resumen=[
+    ["STELLANTIS ARGENTINA","","","","",""],
+    ["Reporte KPI de Mantenimiento"],
+    ["Patio: "+kpi.patioNombre,"","Período: "+(kpi.desde||"Inicio")+" → "+(kpi.hasta||"Hoy"),"","Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}),""],
+    [],
+    ["RESUMEN EJECUTIVO"],
+    ["Métrica","Valor"],
+    ["Total completados en período",kpi.totalComp],
+    ["Total pendientes actuales",kpi.totalPend],
+    ["Porcentaje de avance",kpi.pctComp+"%"],
+    ["Unidades en stock",kpi.pending?kpi.pending.length+kpi.totalComp:"—"],
+    [],
+    ["DETALLE POR SERVICIO"],
+    ["Código","Servicio","Completados","Pendientes","Total","% Completado"],
+  ];
+  kpi.PREV_CODES.forEach(function(code){
+    var comp=kpi.compByCode[code]||0;
+    var pend=kpi.pendByCode[code]||0;
+    var total=comp+pend;
+    resumen.push([code,SVCMAP[code]||code,comp,pend,total,total?Math.round(comp/total*100)+"%":"—"]);
+  });
+  resumen.push([]);
+  resumen.push(["PENDIENTES POR URGENCIA"]);
+  resumen.push(["Estado","Cantidad"]);
+  [["🔴 Vencidos","overdue"],["🟠 Urgentes ≤15d","urgent"],["🔵 Próximos ≤30d","soon"],["🟢 A tiempo","ok"]].forEach(function(s){
+    resumen.push([s[0],(kpi.pending||[]).filter(function(p){return p.urgency===s[1];}).length]);
+  });
+
+  // Sheet 2: Detalle pendientes
+  var detPend=[["VIN","Modelo","Boxatura","Compound","Servicio","Código","Vencimiento","Días","Estado"]];
+  (kpi.pending||[]).forEach(function(p){
+    detPend.push([p.vin,p.modelDescr,p.boxatura,p.compoundCode,p.maint.service,p.maint.code,fmt(p.dueDate),p.daysToDue,p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK"]);
+  });
+
+  var wb=XLSX.utils.book_new();
+  var ws1=XLSX.utils.aoa_to_sheet(resumen);
+  ws1["!cols"]=[{wch:22},{wch:30},{wch:14},{wch:14},{wch:10},{wch:14}];
+  ws1["!merges"]=[{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}},{s:{r:2,c:0},e:{r:2,c:1}},{s:{r:2,c:2},e:{r:2,c:3}}];
+  XLSX.utils.book_append_sheet(wb,ws1,"KPI Resumen");
+  var ws2=XLSX.utils.aoa_to_sheet(detPend);
+  ws2["!cols"]=[{wch:20},{wch:28},{wch:12},{wch:10},{wch:24},{wch:8},{wch:12},{wch:6},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,ws2,"Pendientes");
+  XLSX.writeFile(wb,"KPI_Mantenimiento_"+kpi.patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10)+".xlsx");
+  showToast("Excel KPI generado","success");
+}
+
+// ── KPI PDF EJECUTIVO ─────────────────────────────────
+async function exportKPIsPDF(){
+  var kpi=window._kpiData||{};
+  if(!kpi.PREV_CODES){showToast("Actualizá los KPIs primero","error");return;}
+  var SVCMAP={};CATALOG.forEach(function(m){SVCMAP[m.code]=m.service;});
+  var now=new Date();
+  var periodo=(kpi.desde||"inicio")+" → "+(kpi.hasta||now.toISOString().slice(0,10));
+  var fmtN=function(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,".");};
+
+  // Build service rows
+  var serviceRows=kpi.PREV_CODES.map(function(code){
+    var comp=kpi.compByCode[code]||0;var pend=kpi.pendByCode[code]||0;
+    var total=comp+pend;var pct=total?Math.round(comp/total*100):0;
+    var barColor=pct>=80?"#2E7D32":pct>=50?"#E65100":"#C62828";
+    var barW=Math.min(100,pct);
+    return'<tr style="border-bottom:1px solid #E2E8F0;">'
+      +'<td style="padding:7px 10px;font-weight:700;color:#1A3C6E;font-size:12px;">'+code+'</td>'
+      +'<td style="padding:7px 10px;font-size:11px;color:#4A5568;">'+esc(SVCMAP[code]||code)+'</td>'
+      +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:#2E7D32;font-size:13px;">'+comp+'</td>'
+      +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:#1565C0;font-size:13px;">'+pend+'</td>'
+      +'<td style="padding:7px 10px;text-align:center;font-size:11px;color:#4A5568;">'+total+'</td>'
+      +'<td style="padding:7px 10px;min-width:120px;">'
+      +'<div style="height:10px;background:#E2E8F0;border-radius:5px;overflow:hidden;">'
+      +'<div style="width:'+barW+'%;height:100%;background:'+barColor+';border-radius:5px;"></div>'
+      +'</div>'
+      +'<div style="font-size:10px;color:'+barColor+';font-weight:700;margin-top:2px;">'+pct+'%</div>'
+      +'</td></tr>';
+  }).join("");
+
+  var urgItems=[(kpi.pending||[]).filter(function(p){return p.urgency==="overdue";}).length,
+    (kpi.pending||[]).filter(function(p){return p.urgency==="urgent";}).length,
+    (kpi.pending||[]).filter(function(p){return p.urgency==="soon";}).length,
+    (kpi.pending||[]).filter(function(p){return p.urgency==="ok";}).length];
+  var urgTotal=urgItems.reduce(function(a,b){return a+b;},0)||1;
+
+  var html='<div style="font-family:Arial,sans-serif;padding:0;background:white;max-width:800px;margin:0 auto;">'
+    // HEADER
+    +'<div style="background:linear-gradient(135deg,#0D1F3C,#1A3C6E);padding:28px 32px;display:flex;justify-content:space-between;align-items:flex-start;">'
+    +'<div><div style="font-size:32px;font-weight:900;color:#C8A44A;letter-spacing:4px;">STELLANTIS</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,0.6);margin-top:4px;">ARGENTINA — GESTIÓN DE MANTENIMIENTO</div></div>'
+    +'<div style="text-align:right;">'
+    +'<div style="background:#C8A44A;color:#0D1F3C;font-size:10px;font-weight:700;padding:4px 12px;border-radius:4px;margin-bottom:6px;">REPORTE KPI</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,0.7);">'+now.toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"})+'</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;">'+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})+'</div>'
+    +'</div></div>'
+    // META
+    +'<div style="background:#F8FAFC;padding:16px 32px;border-bottom:3px solid #C8A44A;display:flex;gap:32px;">'
+    +'<div><div style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600;">Patio</div><div style="font-size:14px;font-weight:700;color:#1A3C6E;">'+esc(kpi.patioNombre)+'</div></div>'
+    +'<div><div style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600;">Período analizado</div><div style="font-size:14px;font-weight:700;color:#1A3C6E;">'+esc(periodo)+'</div></div>'
+    +'<div style="margin-left:auto;text-align:right;"><div style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600;">Versión</div><div style="font-size:12px;color:#718096;">'+APP_VERSION+'</div></div>'
+    +'</div>'
+    // KPI CARDS
+    +'<div style="padding:24px 32px;">'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">'
+    +[{v:fmtN(kpi.totalComp),l:"Completados en período",c:"#2E7D32",bg:"#E8F5E9",border:"#A5D6A7"},
+      {v:fmtN(kpi.totalPend),l:"Pendientes actuales",c:"#C62828",bg:"#FFEBEE",border:"#EF9A9A"},
+      {v:kpi.pctComp+"%",l:"Avance del período",c:kpi.pctComp>=80?"#2E7D32":kpi.pctComp>=50?"#E65100":"#C62828",bg:kpi.pctComp>=80?"#E8F5E9":kpi.pctComp>=50?"#FFF3E0":"#FFEBEE",border:kpi.pctComp>=80?"#A5D6A7":kpi.pctComp>=50?"#FFCC02":"#EF9A9A"},
+      {v:fmtN(urgItems[0]),l:"Vencidos",c:"#C62828",bg:"#FFEBEE",border:"#EF9A9A"},
+      {v:fmtN(urgItems[1]),l:"Urgentes ≤15 días",c:"#E65100",bg:"#FFF3E0",border:"#FFCC80"},
+      {v:fmtN(kpi.stockC30count),l:"Con Daño C30 activo",c:"#7B1FA2",bg:"#F3E5F5",border:"#CE93D8"},
+    ].map(function(s){return'<div style="background:'+s.bg+';border:1px solid '+s.border+';border-radius:10px;padding:16px;text-align:center;">'
+      +'<div style="font-size:28px;font-weight:900;color:'+s.c+';line-height:1;">'+s.v+'</div>'
+      +'<div style="font-size:10px;color:'+s.c+';font-weight:600;margin-top:6px;text-transform:uppercase;">'+s.l+'</div>'
+      +'</div>';}).join("")
+    +'</div>'
+    // TABLE
+    +'<div style="font-size:13px;font-weight:700;color:#1A3C6E;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Detalle por Servicio</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+    +'<thead><tr style="background:#1A3C6E;color:white;">'
+    +'<th style="padding:9px 10px;text-align:left;font-weight:700;">Código</th>'
+    +'<th style="padding:9px 10px;text-align:left;font-weight:700;">Servicio</th>'
+    +'<th style="padding:9px 10px;text-align:center;font-weight:700;">✅ Hechos</th>'
+    +'<th style="padding:9px 10px;text-align:center;font-weight:700;">⏳ Pendientes</th>'
+    +'<th style="padding:9px 10px;text-align:center;font-weight:700;">Total</th>'
+    +'<th style="padding:9px 10px;font-weight:700;">Avance</th>'
+    +'</tr></thead><tbody>'+serviceRows+'</tbody></table>'
+    // URGENCIA
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;">'
+    +'<div style="background:#F8FAFC;border-radius:10px;padding:16px;border:1px solid #E2E8F0;">'
+    +'<div style="font-size:12px;font-weight:700;color:#1A3C6E;text-transform:uppercase;margin-bottom:12px;">Pendientes por Urgencia</div>'
+    +[["🔴 Vencidos",urgItems[0],"#C62828"],["🟠 Urgentes",urgItems[1],"#E65100"],["🔵 Próximos",urgItems[2],"#1565C0"],["🟢 A tiempo",urgItems[3],"#2E7D32"]].map(function(s){
+      var pct=Math.round(s[1]/urgTotal*100);
+      return'<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span>'+s[0]+'</span><span style="font-weight:700;color:'+s[2]+'">'+s[1]+'</span></div>'
+        +'<div style="height:8px;background:#E2E8F0;border-radius:4px;overflow:hidden;"><div style="width:'+Math.min(100,pct)+'%;height:100%;background:'+s[2]+';border-radius:4px;"></div></div></div>';
+    }).join("")+'</div>'
+    +'<div style="background:#F8FAFC;border-radius:10px;padding:16px;border:1px solid #E2E8F0;">'
+    +'<div style="font-size:12px;font-weight:700;color:#1A3C6E;text-transform:uppercase;margin-bottom:12px;">Intervenciones</div>'
+    +[["🔴 Daños C30 en stock",kpi.stockC30count,"#C62828"],["📋 Daños registrados",kpi.daños?kpi.daños.length:0,"#1565C0"],["🟡 C37 en stock",kpi.stockC37count,"#E65100"],["🔧 C37 registrados",kpi.gomas?kpi.gomas.length:0,"#7B1FA2"]].map(function(s){
+      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #E2E8F0;">'
+        +'<span style="font-size:11px;color:#4A5568;">'+s[0]+'</span>'
+        +'<span style="font-size:16px;font-weight:900;color:'+s[2]+';">'+s[1]+'</span></div>';
+    }).join("")+'</div>'
+    +'</div>'
+    // FOOTER
+    +'<div style="margin-top:24px;padding-top:16px;border-top:2px solid #1A3C6E;display:flex;justify-content:space-between;font-size:9px;color:#718096;">'
+    +'<span>Stellantis Argentina S.A. · Sistema de Gestión de Mantenimiento</span>'
+    +'<span>Uso Interno Confidencial · '+APP_VERSION+'</span>'
+    +'</div></div></div>';
+
+  document.getElementById("pdf-area").innerHTML=html;
+  setTimeout(function(){window.print();},300);
+}
+
+// ── REEMPLAZAR exportKPIs legacy ──────────────────────
+async function exportKPIs(){return exportKPIsExcel();}
 
 // ══════════════════════════════════════════════════════
 // USUARIOS
@@ -2496,80 +2716,133 @@ async function importStock(evt){
 // ══════════════════════════════════════════════════════
 // EXPORTS
 // ══════════════════════════════════════════════════════
-function exportPreventivo(){
-  var ws=XLSX.utils.json_to_sheet(pendingCache.map(function(p){return{"VIN":p.vin,"Modelo":p.modelDescr,"Boxatura":p.boxatura,"Código":p.maint.code,"Servicio":p.maint.service,"Fecha Ref.":fmt(p.refDate),"Vencimiento":fmt(p.dueDate),"Días":p.daysToDue,"Estado":URGLBL[p.urgency]};}));
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Preventivo");
-  XLSX.writeFile(wb,"Mantenimiento_Preventivo_"+new Date().toISOString().slice(0,10)+".xlsx");
+// ── EXCEL HELPER: build styled workbook header ────────
+function xlHeader(ws, titulo, subtitulo, cols, startRow){
+  // Row 0: Title
+  ws["A1"]={v:titulo,t:"s"};
+  ws["A2"]={v:subtitulo,t:"s"};
+  ws["A3"]={v:"Generado: "+new Date().toLocaleDateString("es-AR")+" "+new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}),t:"s"};
+  ws["A4"]={v:"",t:"s"};
+  // Merge title rows
+  ws["!merges"]=(ws["!merges"]||[]).concat([
+    {s:{r:0,c:0},e:{r:0,c:cols-1}},
+    {s:{r:1,c:0},e:{r:1,c:cols-1}},
+    {s:{r:2,c:0},e:{r:2,c:cols-1}},
+    {s:{r:3,c:0},e:{r:3,c:cols-1}},
+  ]);
+  return startRow||4; // data starts at row 4 (0-indexed)
 }
+
+function exportPreventivo(){
+  var now=new Date();
+  var patioNombre=currentPatio?currentPatio.nombre:"Todos los patios";
+  var rows=pendingCache.map(function(p){
+    return[p.vin,p.modelDescr,p.boxatura,p.compoundCode,p.maint.code,p.maint.service,
+      fmt(p.refDate),fmt(p.dueDate),p.daysToDue<0?"VENCIDO "+Math.abs(p.daysToDue)+"d":p.daysToDue+"d",
+      p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK",
+      p.refSource==="historial"?"Historial":"Stock"];
+  });
+  var aoa=[
+    ["STELLANTIS ARGENTINA — MANTENIMIENTO PREVENTIVO"],
+    ["Patio: "+patioNombre+" · "+pendingCache.length+" unidades pendientes"],
+    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
+    [],
+    ["VIN","Modelo","Boxatura","Compound","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado","Fuente"],
+  ].concat(rows);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:20},{wch:30},{wch:12},{wch:10},{wch:7},{wch:22},{wch:14},{wch:14},{wch:10},{wch:10},{wch:10}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:10}},{s:{r:1,c:0},e:{r:1,c:10}},{s:{r:2,c:0},e:{r:2,c:10}}];
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Preventivo");
+  XLSX.writeFile(wb,"Preventivo_"+patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10)+".xlsx");
+  showToast("Excel Preventivo generado — "+rows.length+" registros","success");
+}
+
 async function exportDaños(){
   var data=await sbGet("daños","select=*&order=created_at.desc");
   if(!Array.isArray(data))data=[];
-  var ws=XLSX.utils.json_to_sheet(data.map(function(d){return{"VIN":d.vin,"Modelo":d.model_descr,"Boxatura":d.boxatura,"Descripción":d.descripcion,"Ubicación":d.ubicacion,"Facturado":d.facturado?"Sí":"No","Estado":d.estado,"Bloqueo C30":d.ws_bloqueo_ok?"OK":"Pendiente","Fecha":d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):""};}));
+  var now=new Date();
+  var aoa=[
+    ["STELLANTIS ARGENTINA — DAÑOS C30"],
+    [data.length+" registros · "+data.filter(function(d){return d.estado!=="resuelto";}).length+" activos"],
+    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
+    [],
+    ["VIN","Modelo","Boxatura","Compound","Tipo de daño","Ubicación","Descripción","Responsabilidad","Operario responsable","Facturado","Estado","Fecha registro"],
+  ].concat(data.map(function(d){return[d.vin,d.model_descr,d.boxatura,d.compound_code,d.tipo_daño,d.ubicacion,d.descripcion,d.responsabilidad,d.operario_responsable,d.facturado?"Sí":"No",d.estado,d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):""];}));
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:20},{wch:28},{wch:12},{wch:10},{wch:18},{wch:18},{wch:30},{wch:20},{wch:20},{wch:10},{wch:14},{wch:14}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:11}},{s:{r:1,c:0},e:{r:1,c:11}},{s:{r:2,c:0},e:{r:2,c:11}}];
   var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Daños C30");
-  XLSX.writeFile(wb,"Daños_C30_"+new Date().toISOString().slice(0,10)+".xlsx");
+  XLSX.writeFile(wb,"Daños_C30_"+now.toISOString().slice(0,10)+".xlsx");
+  showToast("Excel Daños C30 generado","success");
 }
+
 async function exportGomas(){
   var data=await sbGet("gomas","select=*&order=created_at.desc");
   if(!Array.isArray(data))data=[];
-  var ws=XLSX.utils.json_to_sheet(data.map(function(g){return{"VIN":g.vin,"Modelo":g.model_descr,"Boxatura":g.boxatura,"Neumático":g.modelo_neumático,"Posición":g.posicion,"Estado":g.estado_stock==="ok"?"OK":"KO","Observaciones":g.observaciones,"Bloqueo C37":g.ws_bloqueo_ok?"OK":"Pendiente","Fecha":g.created_at?new Date(g.created_at).toLocaleDateString("es-AR"):""};}));
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Gomas C37");
-  XLSX.writeFile(wb,"Gomas_C37_"+new Date().toISOString().slice(0,10)+".xlsx");
+  var now=new Date();
+  var aoa=[
+    ["STELLANTIS ARGENTINA — NEUMÁTICOS C37"],
+    [data.length+" registros · "+data.filter(function(g){return g.estado_stock==="ko";}).length+" KO activos"],
+    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
+    [],
+    ["VIN","Modelo","Boxatura","Compound","Neumático","Posición","Estado","Observaciones","Fecha registro"],
+  ].concat(data.map(function(g){return[g.vin,g.model_descr,g.boxatura,g.compound_code,g.modelo_neumático,g.posicion,g.estado_stock==="ok"?"OK":"KO",g.observaciones,g.created_at?new Date(g.created_at).toLocaleDateString("es-AR"):""];}));
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:20},{wch:28},{wch:12},{wch:10},{wch:28},{wch:18},{wch:8},{wch:30},{wch:14}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}},{s:{r:2,c:0},e:{r:2,c:8}}];
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Neumáticos C37");
+  XLSX.writeFile(wb,"Neumaticos_C37_"+now.toISOString().slice(0,10)+".xlsx");
+  showToast("Excel Neumáticos C37 generado","success");
 }
+
 async function exportPlan(){
   var fecha=document.getElementById("plan-fecha").value;
   var data=await sbGet("plan_diario","fecha=eq."+fecha+"&select=*,operario:operario_id(nombre)");
   if(!Array.isArray(data))data=[];
-  var ws=XLSX.utils.json_to_sheet(data.map(function(a){return{"VIN":a.vin,"Servicio":a.maint_code,"Operario":a.operario?a.operario.nombre:"—","Prioridad":a.prioridad,"Estado":a.estado,"Fecha":a.fecha};}));
+  var now=new Date();
+  var aoa=[
+    ["STELLANTIS ARGENTINA — PLAN DIARIO DE MANTENIMIENTO"],
+    ["Fecha: "+fecha+" · "+(currentPatio?currentPatio.nombre:"")+" · "+data.length+" tareas planificadas"],
+    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
+    [],
+    ["VIN","Servicio","Operario","Prioridad","Estado","Fecha"],
+  ].concat(data.map(function(a){return[a.vin,a.maint_code,a.operario?a.operario.nombre:"Sin asignar",a.prioridad===1?"Alta":a.prioridad===2?"Media":"Normal",a.estado,a.fecha];}));
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:20},{wch:10},{wch:22},{wch:10},{wch:14},{wch:12}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}},{s:{r:2,c:0},e:{r:2,c:5}}];
   var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Plan "+fecha);
   XLSX.writeFile(wb,"Plan_Diario_"+fecha+".xlsx");
+  showToast("Excel Plan generado","success");
 }
 
 async function exportWsPendiente(){
-  // Load checklist records where WS failed (ws_block_ok=false OR ws_unblock_ok=false)
   var data=[];
-  try{
-    data=await sbGet("checklist_registros",
-      "select=*&order=created_at.desc&limit=500");
-  }catch(e){}
+  try{data=await sbGet("checklist_registros","select=*&order=created_at.desc&limit=500");}catch(e){}
   if(!Array.isArray(data))data=[];
-  // Filter only WS failures
   var failed=data.filter(function(r){return !r.ws_block_ok||!r.ws_unblock_ok;});
   if(!failed.length){showToast("No hay operaciones WS pendientes","info");return;}
-  // Build rows: one row per operation (block + unblock)
+  var now=new Date();
   var rows=[];
   failed.forEach(function(r){
     var v=stockCache.find(function(s){return(s.vin||s.VIN||"").toUpperCase()===(r.vin||"").toUpperCase();});
-    var cc=v?String(v.compound_code||v["Compound Code"]||"34").replace(/^0+/,""):"34";
-    var fecha=r.fecha||new Date().toISOString().slice(0,10);
-    if(!r.ws_block_ok){
-      rows.push({
-        "VIN":r.vin,"Código":r.maint_code,"Operación":"BLOQUEO (B)",
-        "Compound":cc,"Fecha":fecha,
-        "XML_operationCode":"B","XML_blockCode":r.maint_code,
-        "Estado WS":"PENDIENTE — No se procesó",
-        "Operario":currentUser?currentUser.nombre:"—",
-        "Instrucción":"Aplicar bloqueo manualmente en OBT Gate In"
-      });
-    }
-    if(r.ws_block_ok&&!r.ws_unblock_ok){
-      rows.push({
-        "VIN":r.vin,"Código":r.maint_code,"Operación":"DESBLOQUEO (U)",
-        "Compound":cc,"Fecha":fecha,
-        "XML_operationCode":"U","XML_blockCode":r.maint_code,
-        "Estado WS":"PENDIENTE — Bloqueo OK pero desbloqueo falló",
-        "Operario":currentUser?currentUser.nombre:"—",
-        "Instrucción":"Aplicar desbloqueo manualmente en OBT Gate In"
-      });
-    }
+    var cc=v?String(v.compound_code||v["Compound Code"]||"00034").padStart(5,"0"):"00034";
+    var fecha=r.fecha||now.toISOString().slice(0,10);
+    rows.push([r.vin,r.maint_code,"BLOQUEO (B)",cc,fecha,"Pendiente — aplicar en OBT Gate In",currentUser?currentUser.nombre:"—"]);
+    rows.push([r.vin,r.maint_code,"DESBLOQUEO (U)",cc,fecha,"Pendiente — aplicar en OBT Gate In",currentUser?currentUser.nombre:"—"]);
   });
-  var ws=XLSX.utils.json_to_sheet(rows);
-  // Style header row
-  ws["!cols"]=[{wch:20},{wch:8},{wch:18},{wch:10},{wch:12},{wch:15},{wch:12},{wch:35},{wch:15},{wch:40}];
-  var wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,"WS Pendientes OBT");
-  var fileName="WS_Pendientes_OBT_"+new Date().toISOString().slice(0,10)+".xlsx";
-  XLSX.writeFile(wb,fileName);
-  showToast("Excel generado: "+rows.length+" operaciones pendientes para OBT","success");
+  var aoa=[
+    ["STELLANTIS ARGENTINA — OPERACIONES OBT PENDIENTES"],
+    ["Aplicar BLOQUEO y DESBLOQUEO en OBT Gate In para cada VIN · "+rows.length/2+" servicios"],
+    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
+    [],
+    ["VIN","Código","Operación","Compound","Fecha","Instrucción","Operario"],
+  ].concat(rows);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:20},{wch:8},{wch:16},{wch:10},{wch:12},{wch:38},{wch:18}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:6}},{s:{r:2,c:0},e:{r:2,c:6}}];
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"OBT Pendiente");
+  XLSX.writeFile(wb,"OBT_Pendiente_"+now.toISOString().slice(0,10)+".xlsx");
+  showToast("Excel OBT generado — "+rows.length+" operaciones","success");
 }
 
 // ── EXPORT PATIO EXCEL (styled) ──────────────────────
@@ -2581,69 +2854,67 @@ function exportPatioExcel(patioNombre, compoundCode){
   });
   if(!items.length){showToast("Sin pendientes para "+patioNombre,"info");return;}
   var now=new Date();
-  var fecha=now.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"});
-  var hora=now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
-  // Header rows for professional look
-  var wsData=[
-    ["STELLANTIS ARGENTINA — GESTIÓN DE MANTENIMIENTO"],
-    ["Patio: "+patioNombre+" ("+compoundCode+")"],
-    ["Generado: "+fecha+" "+hora],
-    ["Total pendientes: "+items.length],
+  var venc=items.filter(function(p){return p.urgency==="overdue";}).length;
+  var urg=items.filter(function(p){return p.urgency==="urgent";}).length;
+  var aoa=[
+    ["STELLANTIS ARGENTINA — MANTENIMIENTO PREVENTIVO"],
+    ["Patio: "+patioNombre+" ("+compoundCode+") · "+items.length+" pendientes — "+venc+" vencidos · "+urg+" urgentes"],
+    ["Generado: "+now.toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"})+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
     [],
-    ["VIN","Modelo","Boxatura","Cód. Servicio","Servicio","Fecha Ref.","Vencimiento","Días","Estado","Fuente fecha"]
-  ];
-  items.forEach(function(p){
-    var days=p.daysToDue<0?"VENCIDO "+Math.abs(p.daysToDue)+"d":p.daysToDue+"d";
-    wsData.push([
-      p.vin, p.modelDescr, p.boxatura, p.maint.code, p.maint.service,
-      fmt(p.refDate), fmt(p.dueDate), p.daysToDue, URGLBL[p.urgency], p.refSource==="historial"?"Historial":"Stock"
-    ]);
-  });
-  var ws=XLSX.utils.aoa_to_sheet(wsData);
-  // Column widths
-  ws["!cols"]=[{wch:20},{wch:30},{wch:12},{wch:8},{wch:22},{wch:14},{wch:14},{wch:6},{wch:10},{wch:10}];
-  // Merge header rows
-  ws["!merges"]=[
-    {s:{r:0,c:0},e:{r:0,c:9}},
-    {s:{r:1,c:0},e:{r:1,c:9}},
-    {s:{r:2,c:0},e:{r:2,c:9}},
-    {s:{r:3,c:0},e:{r:3,c:9}},
-  ];
-  var wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,"Pendientes_"+patioNombre);
-  XLSX.writeFile(wb,"Mantenimiento_"+patioNombre+"_"+now.toISOString().slice(0,10)+".xlsx");
+    ["VIN","Modelo","Boxatura","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado"],
+  ].concat(items.map(function(p){
+    return[p.vin,p.modelDescr,p.boxatura,p.maint.code,p.maint.service,
+      fmt(p.refDate),fmt(p.dueDate),p.daysToDue,
+      p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK"];
+  }));
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:20},{wch:30},{wch:12},{wch:8},{wch:24},{wch:14},{wch:14},{wch:6},{wch:10}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}},{s:{r:2,c:0},e:{r:2,c:8}}];
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Pendientes");
+  XLSX.writeFile(wb,"Mantenimiento_"+patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10)+".xlsx");
   showToast("Excel generado — "+items.length+" pendientes de "+patioNombre,"success");
 }
 
 // ── EXPORT OBT PENDIENTE (operario view) ─────────────
 async function exportObtPendienteOperario(){
-  // Load today's checklist records where WS not processed
   var hoy=new Date().toISOString().slice(0,10);
   var data=[];
   try{data=await sbGet("checklist_registros","fecha=eq."+hoy+"&select=*&order=created_at.desc");}catch(e){}
   if(!Array.isArray(data))data=[];
-  if(!data.length){showToast("No hay mantenimientos registrados hoy","info");return;}
-  var now=new Date();
-  var wsData=[
-    ["STELLANTIS ARGENTINA — OPERACIONES OBT PENDIENTES"],
-    ["Patio: "+(currentPatio?currentPatio.nombre:"—")],
-    ["Fecha: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
-    ["NOTA: Aplicar BLOQUEO y DESBLOQUEO en OBT Gate In para cada VIN"],
-    [],
-    ["VIN","Cód. Mantenimiento","Servicio","Fecha realizado","Compound","Operación 1","Operación 2","Operario"]
-  ];
-  var SVCMAP={};CATALOG.forEach(function(m){SVCMAP[m.code]=m.service;});
-  data.forEach(function(r){
-    var cc=currentPatio?currentPatio.compound_code:"00034";
-    wsData.push([r.vin,r.maint_code,SVCMAP[r.maint_code]||"",r.fecha,cc,"BLOQUEO (B)","DESBLOQUEO (U)",currentUser?currentUser.nombre:"—"]);
+  // Also include session operations not yet in DB
+  var sessionRows=Object.keys(completedThisSession).map(function(k){
+    var parts=k.split("__");
+    return{vin:parts[0],maint_code:parts[1],fecha:completedThisSession[k]};
+  }).filter(function(r){return r.fecha===hoy;});
+  // Merge, deduplicate
+  var seen={};
+  var allOps=[].concat(data,sessionRows).filter(function(r){
+    var k=(r.vin||"")+"__"+(r.maint_code||"");
+    if(seen[k])return false;seen[k]=true;return true;
   });
-  var ws=XLSX.utils.aoa_to_sheet(wsData);
-  ws["!cols"]=[{wch:20},{wch:8},{wch:22},{wch:14},{wch:10},{wch:16},{wch:16},{wch:18}];
-  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}},{s:{r:3,c:0},e:{r:3,c:7}}];
-  var wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,"OBT_"+hoy);
-  XLSX.writeFile(wb,"OBT_Pendiente_"+hoy+".xlsx");
-  showToast("Excel OBT generado — "+data.length+" operaciones","success");
+  if(!allOps.length){showToast("No hay mantenimientos del día","info");return;}
+  var now=new Date();
+  var SVCMAP={};CATALOG.forEach(function(m){SVCMAP[m.code]=m.service;});
+  var rows=[];
+  allOps.forEach(function(r){
+    var stockRow=stockCache.find(function(s){return(s.vin||s.VIN||"").toUpperCase()===(r.vin||"").toUpperCase();});
+    var cc=stockRow?String(stockRow.compound_code||"00034").padStart(5,"0"):currentPatio?currentPatio.compound_code:"00034";
+    rows.push([r.vin,r.maint_code,SVCMAP[r.maint_code]||"",r.fecha,cc,"BLOQUEO (B)",currentUser?currentUser.nombre:"—"]);
+    rows.push([r.vin,r.maint_code,SVCMAP[r.maint_code]||"",r.fecha,cc,"DESBLOQUEO (U)",currentUser?currentUser.nombre:"—"]);
+  });
+  var aoa=[
+    ["STELLANTIS ARGENTINA — OPERACIONES OBT DEL DÍA"],
+    ["Patio: "+(currentPatio?currentPatio.nombre:"Todos")+" · "+allOps.length+" servicios realizados · Aplicar B y U en OBT Gate In"],
+    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
+    [],
+    ["VIN","Código","Servicio","Fecha","Compound","Operación","Operario"],
+  ].concat(rows);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:20},{wch:8},{wch:24},{wch:12},{wch:10},{wch:16},{wch:20}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:6}},{s:{r:2,c:0},e:{r:2,c:6}}];
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"OBT_"+hoy);
+  XLSX.writeFile(wb,"OBT_Del_Dia_"+hoy+".xlsx");
+  showToast("Excel OBT generado — "+allOps.length+" servicios ("+rows.length+" operaciones)","success");
 }
 
 async function exportHistorial(){
