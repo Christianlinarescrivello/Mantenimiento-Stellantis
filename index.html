@@ -176,7 +176,7 @@ tbody td{padding:9px 12px;color:var(--text);}
 .bar-fill{height:100%;border-radius:4px;transition:width .6s ease;}
 .bar-val{width:28px;font-weight:700;color:var(--text);font-size:11px;}
 @media(max-width:768px){.sidenav{display:none;}.main{margin-left:0;padding:16px;}.field-row{grid-template-columns:1fr;}}
-@media print{.sidenav,.topbar,.no-print{display:none!important;}.main{margin-left:0;}@page{margin:12mm;}}
+@media print{.sidenav,.topbar,.no-print,#data-info-bar{display:none!important;}.main{margin-left:0;}#app,#app-operario{display:none!important;}#pdf-area{display:block!important;}@page{margin:10mm;}}
 /* SEMÁFORO */
 .sem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;}
 .sem-card{border-radius:10px;padding:12px 10px;text-align:center;position:relative;border:2px solid transparent;transition:transform .15s;}
@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.3.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.4.0</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.3.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.0</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -307,14 +307,19 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div class="page-sub" id="dash-date"></div>
       <!-- KPI Stats row -->
       <div class="stats-row" id="dash-stats"></div>
+      <!-- LO QUE HICIMOS HOY -->
+      <div style="margin-bottom:24px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;" id="dash-hecho-title">✅ Lo que hicimos hoy</div>
+        <div id="dash-hecho-hoy"></div>
+      </div>
       <!-- SEMÁFORO GLOBAL por patio (visible cuando hay múltiples patios) -->
       <div id="dash-semaforo-wrap" style="display:none;margin-bottom:20px;">
-        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">🚦 Semáforo por Patio</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">🚦 Lo que falta — Por Patio y Servicio</div>
         <div id="dash-semaforo-patios"></div>
       </div>
-      <!-- SEMÁFORO por tipo de servicio -->
-      <div style="margin-bottom:20px;">
-        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">📊 Estado por Servicio <span id="dash-patio-label" style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;margin-left:8px;"></span></div>
+      <!-- SEMÁFORO por tipo de servicio (solo patio individual) -->
+      <div id="dash-servicios-wrap" style="margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">🚦 Lo que falta — Por Servicio <span id="dash-patio-label" style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;margin-left:8px;"></span></div>
         <div id="dash-semaforo-servicios"></div>
       </div>
       <!-- Bottom grid: urgentes + daños -->
@@ -1100,7 +1105,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.3.0";
+var APP_VERSION="v4.4.0";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1382,6 +1387,7 @@ async function initApp(){
   await loadCatalogo();
   await loadStock();
   await loadOperarios();
+  updateDataInfoBar();
   // Add OBT Excel button to topbar if not present
   var tb=document.querySelector(".topbar");
   if(tb&&!document.getElementById("btn-obt-excel")){
@@ -1543,14 +1549,20 @@ async function renderDashboard(){
   var ok=pendingCache.filter(function(p){return p.urgency==="ok";}).length;
 
   document.getElementById("dash-stats").innerHTML=[
-    {lbl:"Total preventivo",val:pendingCache.length,c:"var(--blue)"},
-    {lbl:"🔴 Vencidos",val:overdue,c:"#C62828"},
+    {lbl:"Total preventivo",val:pendingCache.length,c:"var(--text)",large:true},
+    {lbl:"🔴 Vencidos",val:overdue,c:"#C62828",large:true},
     {lbl:"🟠 Urgentes ≤15d",val:urgent,c:"#E65100"},
     {lbl:"🔵 Próximos ≤30d",val:soon,c:"#1565C0"},
     {lbl:"🟢 A tiempo",val:ok,c:"#2E7D32"},
     {lbl:"Daños activos C30",val:daños.length,c:"#C62828"},
     {lbl:"Neumáticos KO C37",val:gomas.length,c:"#E65100"},
-  ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
+  ].map(function(s){
+    var fontSize=s.large?"28px":"22px";
+    return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+';font-size:'+fontSize+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';
+  }).join("");
+
+  // Render "hecho hoy" section
+  renderHechoHoy();
 
   // ── SEMÁFORO POR SERVICIO ────────────────────────────
   // Función que calcula el semáforo de un grupo de pendientes
@@ -1574,21 +1586,19 @@ async function renderDashboard(){
       var codeItems=items.filter(function(p){return p.maint.code===code;});
       var sem=calcSemaforo(codeItems);
       var svc=CATALOG.find(function(m){return m.code===code;});
-      var details="";
-      if(sem.total>0){
-        var parts=[];
-        if(sem.ov>0)parts.push('<span style="color:#C62828;font-weight:700">'+sem.ov+' venc.</span>');
-        if(sem.urg>0)parts.push('<span style="color:#E65100">'+sem.urg+' urg.</span>');
-        if(sem.sn>0)parts.push('<span style="color:#1565C0">'+sem.sn+' próx.</span>');
-        if(sem.ok>0)parts.push('<span style="color:#2E7D32">'+sem.ok+' ok</span>');
-        details=parts.join(' · ');
-      }
-      html+='<div class="sem-card sem-'+sem.color+'" title="'+esc((svc&&svc.service)||code)+'">'
-        +'<div class="sem-dot sem-dot-'+sem.dot+'"></div>'
-        +'<div class="sem-code">'+code+'</div>'
-        +'<div class="sem-count" style="color:'+(sem.color==="rojo"?"#C62828":sem.color==="naranja"?"#E65100":sem.color==="amarillo"?"#F9A825":sem.color==="verde"?"#2E7D32":"#94A3B8")+'">'+sem.total+'</div>'
-        +'<div class="sem-label">'+esc((svc&&svc.service)||"")+' · '+sem.label+'</div>'
-        +(details?'<div class="sem-detail" style="margin-top:4px">'+details+'</div>':"")
+      var cardBg=sem.color==="rojo"?"#FFEBEE":sem.color==="naranja"?"#FFF3E0":sem.color==="amarillo"?"#FFFDE7":sem.color==="verde"?"#F1F8E9":"var(--bg2)";
+      var borderCol=sem.color==="rojo"?"#C62828":sem.color==="naranja"?"#E65100":sem.color==="amarillo"?"#F9A825":sem.color==="verde"?"#558B2F":"#94A3B8";
+      var parts=[];
+      if(sem.ov>0)parts.push('<b style="color:#C62828;font-size:11px;">'+sem.ov+' venc.</b>');
+      if(sem.urg>0)parts.push('<span style="color:#E65100;font-size:10px;">'+sem.urg+' urg.</span>');
+      if(sem.sn>0)parts.push('<span style="color:#1565C0;font-size:10px;">'+sem.sn+' próx.</span>');
+      if(sem.ok>0)parts.push('<span style="color:#558B2F;font-size:10px;">'+sem.ok+' ok</span>');
+      html+='<div style="background:'+cardBg+';border:2px solid '+borderCol+';border-radius:10px;padding:12px 8px;text-align:center;" title="'+esc((svc&&svc.service)||code)+'">'
+        +'<div style="font-size:10px;font-weight:800;color:#1A1A2E;letter-spacing:.5px;margin-bottom:2px;">'+code+'</div>'
+        +'<div style="font-size:28px;font-weight:900;color:#1A1A2E;line-height:1.1;margin:4px 0;">'+sem.total+'</div>'
+        +'<div style="font-size:9px;color:var(--text3);margin-bottom:4px;">'+esc((svc&&svc.service)||"")+'</div>'
+        +'<div style="background:'+borderCol+';color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:4px;">'+sem.label+'</div>'
+        +(parts.length?'<div style="font-size:9px;line-height:1.8;margin-top:3px;">'+parts.join('<br>')+'</div>':"")
         +'</div>';
     });
     html+='</div>';
@@ -1726,7 +1736,13 @@ async function renderPreventivo(){
 async function renderPlanificador(){
   var fecha=document.getElementById("plan-fecha").value||new Date().toISOString().slice(0,10);
   var opFilter=document.getElementById("plan-operario").value;
-  var unassigned=pendingCache.filter(function(p){return p.urgency==="overdue"||p.urgency==="urgent"||p.urgency==="soon";}).slice(0,20);
+  // Filter pending by patio
+  var patioItems=pendingCache;
+  if(currentPatio&&!currentUser.todos_patios){
+    var fcc=currentPatio.compound_code.replace(/^0+/,"");
+    patioItems=pendingCache.filter(function(p){return String(p.compoundCode||"").replace(/^0+/,"")=== fcc;});
+  }
+  var unassigned=patioItems.filter(function(p){return p.urgency==="overdue"||p.urgency==="urgent"||p.urgency==="soon";}).slice(0,20);
   document.getElementById("plan-unassigned").innerHTML=unassigned.map(function(p){
     var days=p.daysToDue<0?"-"+Math.abs(p.daysToDue)+"d":"+"+p.daysToDue+"d";
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc(p.vin.slice(-8))+'</td>'
@@ -2167,51 +2183,58 @@ async function exportKPIsExcel(){
   if(!kpi.PREV_CODES){showToast("Actualizá los KPIs primero","error");return;}
   var SVCMAP={};CATALOG.forEach(function(m){SVCMAP[m.code]=m.service;});
   var now=new Date();
-  var fmtDate=function(d){return d?d.slice(0,10):"—";};
-  // Sheet 1: Resumen
-  var resumen=[
-    ["STELLANTIS ARGENTINA","","","","",""],
-    ["Reporte KPI de Mantenimiento"],
-    ["Patio: "+kpi.patioNombre,"","Período: "+(kpi.desde||"Inicio")+" → "+(kpi.hasta||"Hoy"),"","Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}),""],
-    [],
-    ["RESUMEN EJECUTIVO"],
-    ["Métrica","Valor"],
-    ["Total completados en período",kpi.totalComp],
-    ["Total pendientes actuales",kpi.totalPend],
-    ["Porcentaje de avance",kpi.pctComp+"%"],
-    ["Unidades en stock",kpi.pending?kpi.pending.length+kpi.totalComp:"—"],
-    [],
-    ["DETALLE POR SERVICIO"],
-    ["Código","Servicio","Completados","Pendientes","Total","% Completado"],
-  ];
-  kpi.PREV_CODES.forEach(function(code){
-    var comp=kpi.compByCode[code]||0;
-    var pend=kpi.pendByCode[code]||0;
-    var total=comp+pend;
-    resumen.push([code,SVCMAP[code]||code,comp,pend,total,total?Math.round(comp/total*100)+"%":"—"]);
-  });
-  resumen.push([]);
-  resumen.push(["PENDIENTES POR URGENCIA"]);
-  resumen.push(["Estado","Cantidad"]);
-  [["🔴 Vencidos","overdue"],["🟠 Urgentes ≤15d","urgent"],["🔵 Próximos ≤30d","soon"],["🟢 A tiempo","ok"]].forEach(function(s){
-    resumen.push([s[0],(kpi.pending||[]).filter(function(p){return p.urgency===s[1];}).length]);
-  });
-
-  // Sheet 2: Detalle pendientes
-  var detPend=[["VIN","Modelo","Boxatura","Compound","Servicio","Código","Vencimiento","Días","Estado"]];
-  (kpi.pending||[]).forEach(function(p){
-    detPend.push([p.vin,p.modelDescr,p.boxatura,p.compoundCode,p.maint.service,p.maint.code,fmt(p.dueDate),p.daysToDue,p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK"]);
-  });
-
-  var wb=XLSX.utils.book_new();
-  var ws1=XLSX.utils.aoa_to_sheet(resumen);
-  ws1["!cols"]=[{wch:22},{wch:30},{wch:14},{wch:14},{wch:10},{wch:14}];
-  ws1["!merges"]=[{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}},{s:{r:2,c:0},e:{r:2,c:1}},{s:{r:2,c:2},e:{r:2,c:3}}];
-  XLSX.utils.book_append_sheet(wb,ws1,"KPI Resumen");
-  var ws2=XLSX.utils.aoa_to_sheet(detPend);
-  ws2["!cols"]=[{wch:20},{wch:28},{wch:12},{wch:10},{wch:24},{wch:8},{wch:12},{wch:6},{wch:10}];
-  XLSX.utils.book_append_sheet(wb,ws2,"Pendientes");
-  XLSX.writeFile(wb,"KPI_Mantenimiento_"+kpi.patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10)+".xlsx");
+  var urgColors={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
+  // Resumen table
+  var resumenRows=[
+    xlsRow([{__val:"Total completados en período",__bold:true},{__val:kpi.totalComp,__bold:true,__color:"#2E7D32"}],false),
+    xlsRow([{__val:"Total pendientes actuales",__bold:true},{__val:kpi.totalPend,__bold:true,__color:"#C62828"}],true),
+    xlsRow([{__val:"Porcentaje de avance",__bold:true},{__val:kpi.pctComp+"%",__bold:true,__color:kpi.pctComp>=80?"#2E7D32":kpi.pctComp>=50?"#E65100":"#C62828"}],false),
+    xlsRow(["Vencidos",{__val:(kpi.pending||[]).filter(function(p){return p.urgency==="overdue";}).length,__color:"#C62828",__bold:true}],true),
+    xlsRow(["Urgentes ≤15d",{__val:(kpi.pending||[]).filter(function(p){return p.urgency==="urgent";}).length,__color:"#E65100",__bold:true}],false),
+    xlsRow(["Próximos ≤30d",{__val:(kpi.pending||[]).filter(function(p){return p.urgency==="soon";}).length,__color:"#1565C0"}],true),
+    xlsRow(["A tiempo",{__val:(kpi.pending||[]).filter(function(p){return p.urgency==="ok";}).length,__color:"#2E7D32"}],false),
+  ].join("");
+  // Servicio table
+  var svcHeaders=["Código","Servicio","Completados","Pendientes","Total","% Avance"];
+  var svcRows=kpi.PREV_CODES.map(function(code,i){
+    var comp=kpi.compByCode[code]||0;var pend=kpi.pendByCode[code]||0;
+    var total=comp+pend;var pct=total?Math.round(comp/total*100):0;
+    return xlsRow([
+      {__val:code,__bold:true,__color:"#1A3C6E"},
+      SVCMAP[code]||code,
+      {__val:comp,__color:"#2E7D32",__bold:comp>0},
+      {__val:pend,__color:pend>0?"#C62828":"#4A5568"},
+      total,
+      {__val:pct+"%",__color:pct>=80?"#2E7D32":pct>=50?"#E65100":"#C62828",__bold:true}
+    ],i%2===0);
+  }).join("");
+  // Pendientes detail
+  var pendHeaders=["VIN","Modelo","Boxatura","Compound","Código","Servicio","Vencimiento","Días","Estado"];
+  var pendRows=(kpi.pending||[]).map(function(p,i){
+    return xlsRow([
+      {__val:p.vin,__bold:true,__color:"#1A3C6E"},p.modelDescr,p.boxatura,p.compoundCode,
+      {__val:p.maint.code,__bold:true},p.maint.service,fmt(p.dueDate),
+      {__val:p.daysToDue,__color:urgColors[p.urgency]||"#4A5568",__bold:p.urgency==="overdue"},
+      {__val:p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK",__color:urgColors[p.urgency]||"#2E7D32",__bold:true}
+    ],i%2===0,p.urgency);
+  }).join("");
+  var periodo=(kpi.desde||"inicio")+" → "+(kpi.hasta||now.toISOString().slice(0,10));
+  var html='<html><head><meta charset="UTF-8"></head><body>'
+    // Resumen
+    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;margin-bottom:20px;">'
+    +xlsHeader("KPI de Mantenimiento — "+kpi.patioNombre,"Período: "+periodo+" · Avance: "+kpi.pctComp+"%",2)
+    +xlsColHeader(["Métrica","Valor"])
+    +resumenRows+'</table>'
+    // Por servicio
+    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;margin-bottom:20px;">'
+    +'<tr><td colspan="6" style="background:#E8ECF0;font-weight:bold;font-family:Calibri,Arial;font-size:11pt;padding:8px 12px;color:#1A3C6E;">Detalle por Servicio</td></tr>'
+    +xlsColHeader(svcHeaders)+svcRows+'</table>'
+    // Pendientes
+    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +'<tr><td colspan="9" style="background:#E8ECF0;font-weight:bold;font-family:Calibri,Arial;font-size:11pt;padding:8px 12px;color:#1A3C6E;">Listado de Pendientes — '+(kpi.pending||[]).length+' unidades</td></tr>'
+    +xlsColHeader(pendHeaders)+pendRows+'</table>'
+    +'</body></html>';
+  styledXlsxDownload(html,"KPI_"+kpi.patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10));
   showToast("Excel KPI generado","success");
 }
 
@@ -2733,46 +2756,86 @@ function xlHeader(ws, titulo, subtitulo, cols, startRow){
   return startRow||4; // data starts at row 4 (0-indexed)
 }
 
+// ── STYLED EXCEL via HTML ─────────────────────────────
+// Excel can open .xls HTML files with full color support
+function styledXlsxDownload(htmlContent, filename){
+  var blob=new Blob(["\ufeff"+htmlContent],{type:"application/vnd.ms-excel;charset=utf-8"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");a.href=url;a.download=filename+".xls";
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+}
+
+function xlsHeader(titulo, subtitulo, cols){
+  return '<tr><td colspan="'+cols+'" style="background:#1A3C6E;color:white;font-size:14pt;font-weight:bold;font-family:Calibri,Arial;padding:10px 14px;letter-spacing:1px;">STELLANTIS ARGENTINA</td></tr>'
+    +'<tr><td colspan="'+cols+'" style="background:#1A3C6E;color:#C8A44A;font-size:12pt;font-weight:bold;font-family:Calibri,Arial;padding:8px 14px;">'+titulo+'</td></tr>'
+    +'<tr><td colspan="'+cols+'" style="background:#E8ECF0;color:#2D3748;font-size:9pt;font-family:Calibri,Arial;padding:6px 14px;">'+subtitulo+'</td></tr>'
+    +'<tr><td colspan="'+cols+'" style="background:#F7F9FC;color:#718096;font-size:8pt;font-family:Calibri,Arial;padding:4px 14px;">Generado: '+new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"})+' '+new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})+'</td></tr>'
+    +'<tr><td colspan="'+cols+'" style="background:white;height:8px;"></td></tr>';
+}
+
+function xlsColHeader(headers){
+  return '<tr>'+headers.map(function(h){return'<td style="background:#1A3C6E;color:white;font-weight:bold;font-family:Calibri,Arial;font-size:10pt;padding:8px 10px;border:1px solid #0D1F3C;">'+h+'</td>';}).join('')+'</tr>';
+}
+
+function xlsRow(cells, isOdd, urgency){
+  var rowBg=isOdd?"#F7F9FC":"white";
+  if(urgency==="overdue")rowBg="#FFEBEE";
+  else if(urgency==="urgent")rowBg="#FFF3E0";
+  else if(urgency==="soon")rowBg="#E3F2FD";
+  return '<tr>'+cells.map(function(c,i){
+    var style="background:"+rowBg+";font-family:Calibri,Arial;font-size:9pt;padding:6px 10px;border:1px solid #E2E8F0;";
+    if(c&&c.__bold)style+="font-weight:bold;";
+    if(c&&c.__color)style+="color:"+c.__color+";";
+    var v=(c&&c.__val!==undefined)?c.__val:(c||"");
+    return'<td style="'+style+'">'+esc(String(v||""))+'</td>';
+  }).join('')+'</tr>';
+}
+
 function exportPreventivo(){
   var now=new Date();
   var patioNombre=currentPatio?currentPatio.nombre:"Todos los patios";
-  var rows=pendingCache.map(function(p){
-    return[p.vin,p.modelDescr,p.boxatura,p.compoundCode,p.maint.code,p.maint.service,
-      fmt(p.refDate),fmt(p.dueDate),p.daysToDue<0?"VENCIDO "+Math.abs(p.daysToDue)+"d":p.daysToDue+"d",
-      p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK",
-      p.refSource==="historial"?"Historial":"Stock"];
-  });
-  var aoa=[
-    ["STELLANTIS ARGENTINA — MANTENIMIENTO PREVENTIVO"],
-    ["Patio: "+patioNombre+" · "+pendingCache.length+" unidades pendientes"],
-    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
-    [],
-    ["VIN","Modelo","Boxatura","Compound","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado","Fuente"],
-  ].concat(rows);
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:20},{wch:30},{wch:12},{wch:10},{wch:7},{wch:22},{wch:14},{wch:14},{wch:10},{wch:10},{wch:10}];
-  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:10}},{s:{r:1,c:0},e:{r:1,c:10}},{s:{r:2,c:0},e:{r:2,c:10}}];
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Preventivo");
-  XLSX.writeFile(wb,"Preventivo_"+patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10)+".xlsx");
-  showToast("Excel Preventivo generado — "+rows.length+" registros","success");
+  var urgColors={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
+  var headers=["VIN","Modelo","Boxatura","Compound","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado"];
+  var rows=pendingCache.map(function(p,i){
+    return xlsRow([
+      {__val:p.vin,__bold:true,__color:"#1A3C6E"},
+      p.modelDescr,p.boxatura,p.compoundCode,
+      {__val:p.maint.code,__bold:true},{__val:p.maint.service},
+      fmt(p.refDate),fmt(p.dueDate),
+      {__val:p.daysToDue,__color:urgColors[p.urgency]||"#1A1A2E",__bold:p.urgency==="overdue"},
+      {__val:p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK",__color:urgColors[p.urgency]||"#2E7D32",__bold:true}
+    ],i%2===0,p.urgency);
+  }).join("");
+  var venc=pendingCache.filter(function(p){return p.urgency==="overdue";}).length;
+  var urg=pendingCache.filter(function(p){return p.urgency==="urgent";}).length;
+  var html='<html><head><meta charset="UTF-8"></head><body><table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Mantenimiento Preventivo — "+patioNombre,pendingCache.length+" unidades · "+venc+" vencidas · "+urg+" urgentes",headers.length)
+    +xlsColHeader(headers)+rows+'</table></body></html>';
+  styledXlsxDownload(html,"Preventivo_"+patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10));
+  showToast("Excel Preventivo generado — "+pendingCache.length+" registros","success");
 }
 
 async function exportDaños(){
   var data=await sbGet("daños","select=*&order=created_at.desc");
   if(!Array.isArray(data))data=[];
   var now=new Date();
-  var aoa=[
-    ["STELLANTIS ARGENTINA — DAÑOS C30"],
-    [data.length+" registros · "+data.filter(function(d){return d.estado!=="resuelto";}).length+" activos"],
-    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
-    [],
-    ["VIN","Modelo","Boxatura","Compound","Tipo de daño","Ubicación","Descripción","Responsabilidad","Operario responsable","Facturado","Estado","Fecha registro"],
-  ].concat(data.map(function(d){return[d.vin,d.model_descr,d.boxatura,d.compound_code,d.tipo_daño,d.ubicacion,d.descripcion,d.responsabilidad,d.operario_responsable,d.facturado?"Sí":"No",d.estado,d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):""];}));
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:20},{wch:28},{wch:12},{wch:10},{wch:18},{wch:18},{wch:30},{wch:20},{wch:20},{wch:10},{wch:14},{wch:14}];
-  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:11}},{s:{r:1,c:0},e:{r:1,c:11}},{s:{r:2,c:0},e:{r:2,c:11}}];
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Daños C30");
-  XLSX.writeFile(wb,"Daños_C30_"+now.toISOString().slice(0,10)+".xlsx");
+  var headers=["VIN","Modelo","Boxatura","Compound","Tipo de daño","Ubicación","Responsabilidad","Operario resp.","Facturado","Estado","Fecha"];
+  var estadoColor={"pendiente":"#E65100","en_reparacion":"#1565C0","resuelto":"#2E7D32"};
+  var rows=data.map(function(d,i){
+    return xlsRow([
+      {__val:d.vin,__bold:true,__color:"#1A3C6E"},d.model_descr,d.boxatura,d.compound_code,
+      d.tipo_daño,d.ubicacion,d.responsabilidad,d.operario_responsable,
+      d.facturado?"Sí":"No",
+      {__val:d.estado,__color:estadoColor[d.estado]||"#1A1A2E",__bold:true},
+      d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):""
+    ],i%2===0);
+  }).join("");
+  var activos=data.filter(function(d){return d.estado!=="resuelto";}).length;
+  var html='<html><head><meta charset="UTF-8"></head><body><table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Daños C30",data.length+" registros · "+activos+" activos",headers.length)
+    +xlsColHeader(headers)+rows+'</table></body></html>';
+  styledXlsxDownload(html,"Daños_C30_"+now.toISOString().slice(0,10));
   showToast("Excel Daños C30 generado","success");
 }
 
@@ -2780,18 +2843,22 @@ async function exportGomas(){
   var data=await sbGet("gomas","select=*&order=created_at.desc");
   if(!Array.isArray(data))data=[];
   var now=new Date();
-  var aoa=[
-    ["STELLANTIS ARGENTINA — NEUMÁTICOS C37"],
-    [data.length+" registros · "+data.filter(function(g){return g.estado_stock==="ko";}).length+" KO activos"],
-    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
-    [],
-    ["VIN","Modelo","Boxatura","Compound","Neumático","Posición","Estado","Observaciones","Fecha registro"],
-  ].concat(data.map(function(g){return[g.vin,g.model_descr,g.boxatura,g.compound_code,g.modelo_neumático,g.posicion,g.estado_stock==="ok"?"OK":"KO",g.observaciones,g.created_at?new Date(g.created_at).toLocaleDateString("es-AR"):""];}));
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:20},{wch:28},{wch:12},{wch:10},{wch:28},{wch:18},{wch:8},{wch:30},{wch:14}];
-  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}},{s:{r:2,c:0},e:{r:2,c:8}}];
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Neumáticos C37");
-  XLSX.writeFile(wb,"Neumaticos_C37_"+now.toISOString().slice(0,10)+".xlsx");
+  var headers=["VIN","Modelo","Boxatura","Compound","Neumático","Posición","Estado","Observaciones","Fecha"];
+  var rows=data.map(function(g,i){
+    var esKo=g.estado_stock==="ko";
+    return xlsRow([
+      {__val:g.vin,__bold:true,__color:"#1A3C6E"},g.model_descr,g.boxatura,g.compound_code,
+      g.modelo_neumático,g.posicion,
+      {__val:esKo?"KO":"OK",__color:esKo?"#C62828":"#2E7D32",__bold:true},
+      g.observaciones,
+      g.created_at?new Date(g.created_at).toLocaleDateString("es-AR"):""
+    ],i%2===0);
+  }).join("");
+  var ko=data.filter(function(g){return g.estado_stock==="ko";}).length;
+  var html='<html><head><meta charset="UTF-8"></head><body><table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Neumáticos C37",data.length+" registros · "+ko+" KO activos",headers.length)
+    +xlsColHeader(headers)+rows+'</table></body></html>';
+  styledXlsxDownload(html,"Neumaticos_C37_"+now.toISOString().slice(0,10));
   showToast("Excel Neumáticos C37 generado","success");
 }
 
@@ -2800,52 +2867,24 @@ async function exportPlan(){
   var data=await sbGet("plan_diario","fecha=eq."+fecha+"&select=*,operario:operario_id(nombre)");
   if(!Array.isArray(data))data=[];
   var now=new Date();
-  var aoa=[
-    ["STELLANTIS ARGENTINA — PLAN DIARIO DE MANTENIMIENTO"],
-    ["Fecha: "+fecha+" · "+(currentPatio?currentPatio.nombre:"")+" · "+data.length+" tareas planificadas"],
-    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
-    [],
-    ["VIN","Servicio","Operario","Prioridad","Estado","Fecha"],
-  ].concat(data.map(function(a){return[a.vin,a.maint_code,a.operario?a.operario.nombre:"Sin asignar",a.prioridad===1?"Alta":a.prioridad===2?"Media":"Normal",a.estado,a.fecha];}));
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:20},{wch:10},{wch:22},{wch:10},{wch:14},{wch:12}];
-  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}},{s:{r:2,c:0},e:{r:2,c:5}}];
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Plan "+fecha);
-  XLSX.writeFile(wb,"Plan_Diario_"+fecha+".xlsx");
+  var headers=["VIN","Servicio","Operario","Prioridad","Estado","Fecha"];
+  var prioColor={"1":"#C62828","2":"#E65100","3":"#1565C0"};
+  var rows=data.map(function(a,i){
+    return xlsRow([
+      {__val:a.vin,__bold:true,__color:"#1A3C6E"},
+      {__val:a.maint_code,__bold:true},
+      a.operario?a.operario.nombre:"Sin asignar",
+      {__val:a.prioridad===1?"Alta":a.prioridad===2?"Media":"Normal",__color:prioColor[String(a.prioridad)]||"#4A5568",__bold:a.prioridad===1},
+      a.estado,a.fecha
+    ],i%2===0);
+  }).join("");
+  var html='<html><head><meta charset="UTF-8"></head><body><table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Plan Diario de Mantenimiento","Fecha: "+fecha+" · "+data.length+" tareas · "+(currentPatio?currentPatio.nombre:""),headers.length)
+    +xlsColHeader(headers)+rows+'</table></body></html>';
+  styledXlsxDownload(html,"Plan_Diario_"+fecha);
   showToast("Excel Plan generado","success");
 }
 
-async function exportWsPendiente(){
-  var data=[];
-  try{data=await sbGet("checklist_registros","select=*&order=created_at.desc&limit=500");}catch(e){}
-  if(!Array.isArray(data))data=[];
-  var failed=data.filter(function(r){return !r.ws_block_ok||!r.ws_unblock_ok;});
-  if(!failed.length){showToast("No hay operaciones WS pendientes","info");return;}
-  var now=new Date();
-  var rows=[];
-  failed.forEach(function(r){
-    var v=stockCache.find(function(s){return(s.vin||s.VIN||"").toUpperCase()===(r.vin||"").toUpperCase();});
-    var cc=v?String(v.compound_code||v["Compound Code"]||"00034").padStart(5,"0"):"00034";
-    var fecha=r.fecha||now.toISOString().slice(0,10);
-    rows.push([r.vin,r.maint_code,"BLOQUEO (B)",cc,fecha,"Pendiente — aplicar en OBT Gate In",currentUser?currentUser.nombre:"—"]);
-    rows.push([r.vin,r.maint_code,"DESBLOQUEO (U)",cc,fecha,"Pendiente — aplicar en OBT Gate In",currentUser?currentUser.nombre:"—"]);
-  });
-  var aoa=[
-    ["STELLANTIS ARGENTINA — OPERACIONES OBT PENDIENTES"],
-    ["Aplicar BLOQUEO y DESBLOQUEO en OBT Gate In para cada VIN · "+rows.length/2+" servicios"],
-    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
-    [],
-    ["VIN","Código","Operación","Compound","Fecha","Instrucción","Operario"],
-  ].concat(rows);
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:20},{wch:8},{wch:16},{wch:10},{wch:12},{wch:38},{wch:18}];
-  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:6}},{s:{r:2,c:0},e:{r:2,c:6}}];
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"OBT Pendiente");
-  XLSX.writeFile(wb,"OBT_Pendiente_"+now.toISOString().slice(0,10)+".xlsx");
-  showToast("Excel OBT generado — "+rows.length+" operaciones","success");
-}
-
-// ── EXPORT PATIO EXCEL (styled) ──────────────────────
 function exportPatioExcel(patioNombre, compoundCode){
   var cc=compoundCode.replace(/^0+/,"");
   var items=pendingCache.filter(function(p){
@@ -2856,22 +2895,21 @@ function exportPatioExcel(patioNombre, compoundCode){
   var now=new Date();
   var venc=items.filter(function(p){return p.urgency==="overdue";}).length;
   var urg=items.filter(function(p){return p.urgency==="urgent";}).length;
-  var aoa=[
-    ["STELLANTIS ARGENTINA — MANTENIMIENTO PREVENTIVO"],
-    ["Patio: "+patioNombre+" ("+compoundCode+") · "+items.length+" pendientes — "+venc+" vencidos · "+urg+" urgentes"],
-    ["Generado: "+now.toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"})+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
-    [],
-    ["VIN","Modelo","Boxatura","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado"],
-  ].concat(items.map(function(p){
-    return[p.vin,p.modelDescr,p.boxatura,p.maint.code,p.maint.service,
-      fmt(p.refDate),fmt(p.dueDate),p.daysToDue,
-      p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK"];
-  }));
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:20},{wch:30},{wch:12},{wch:8},{wch:24},{wch:14},{wch:14},{wch:6},{wch:10}];
-  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}},{s:{r:2,c:0},e:{r:2,c:8}}];
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Pendientes");
-  XLSX.writeFile(wb,"Mantenimiento_"+patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10)+".xlsx");
+  var urgColors={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
+  var headers=["VIN","Modelo","Boxatura","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado"];
+  var rows=items.map(function(p,i){
+    return xlsRow([
+      {__val:p.vin,__bold:true,__color:"#1A3C6E"},p.modelDescr,p.boxatura,
+      {__val:p.maint.code,__bold:true},p.maint.service,
+      fmt(p.refDate),fmt(p.dueDate),
+      {__val:p.daysToDue,__color:urgColors[p.urgency],__bold:p.urgency==="overdue"},
+      {__val:p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK",__color:urgColors[p.urgency],__bold:true}
+    ],i%2===0,p.urgency);
+  }).join("");
+  var html='<html><head><meta charset="UTF-8"></head><body><table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Mantenimiento Preventivo — "+patioNombre+" ("+compoundCode+")",items.length+" pendientes · "+venc+" vencidos · "+urg+" urgentes",headers.length)
+    +xlsColHeader(headers)+rows+'</table></body></html>';
+  styledXlsxDownload(html,"Mantenimiento_"+patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10));
   showToast("Excel generado — "+items.length+" pendientes de "+patioNombre,"success");
 }
 
@@ -3797,11 +3835,22 @@ function addObtOperation(vin,code,op,cc,fecha){
 
 function exportObtDiario(){
   if(!pendingObtOperations.length){showToast("No hay operaciones pendientes para hoy","info");return;}
-  var ws=XLSX.utils.json_to_sheet(pendingObtOperations);
-  ws["!cols"]=[{wch:20},{wch:8},{wch:14},{wch:10},{wch:12},{wch:40},{wch:18},{wch:18}];
-  var wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,"OBT_"+new Date().toISOString().slice(0,10));
-  XLSX.writeFile(wb,"OBT_Manual_"+new Date().toISOString().slice(0,10)+".xlsx");
+  var now=new Date();
+  var headers=["VIN","Código","Operación","Compound","Fecha","Estado","Operario","Patio"];
+  var opColors={"BLOQUEO":"#C62828","DESBLOQUEO":"#2E7D32"};
+  var rows=pendingObtOperations.map(function(r,i){
+    var esBloqueo=r["Operación"]==="BLOQUEO";
+    return xlsRow([
+      {__val:r.VIN,__bold:true,__color:"#1A3C6E"},
+      {__val:r["Código"],__bold:true},
+      {__val:r["Operación"],__color:esBloqueo?"#C62828":"#2E7D32",__bold:true},
+      r.Compound,r.Fecha,r["Estado"]||"Pendiente",r.Operario,r.Patio
+    ],i%2===0);
+  }).join("");
+  var html='<html><head><meta charset="UTF-8"></head><body><table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Operaciones OBT del Día","Aplicar en OBT Gate In · "+pendingObtOperations.length+" operaciones · "+(currentPatio?currentPatio.nombre:""),headers.length)
+    +xlsColHeader(headers)+rows+'</table></body></html>';
+  styledXlsxDownload(html,"OBT_Manual_"+now.toISOString().slice(0,10));
   showToast("Excel generado — "+pendingObtOperations.length+" operaciones","success");
 }
 
@@ -3810,6 +3859,106 @@ function opVolverAlPanel(){
   document.getElementById("app").style.display="block";
   var b=document.getElementById("op-back-btn-inline");
   if(b)b.style.display="none";
+}
+
+// ══════════════════════════════════════════════════════
+// DATA INFO BAR — rango de datos cargados
+// ══════════════════════════════════════════════════════
+async function updateDataInfoBar(){
+  var bar=document.getElementById("data-info-bar");
+  if(!bar)return;
+  bar.style.display="flex";
+  // Stock info
+  var stockCount=stockCache.length;
+  var stockDates=stockCache.map(function(r){return r.assignment_date||r["Assignment date"]||"";}).filter(Boolean).sort();
+  var stockMin=stockDates[0]||"—";
+  var stockMax=stockDates[stockDates.length-1]||"—";
+  document.getElementById("dib-stock").textContent="📦 Stock: "+stockCount.toLocaleString()+" unidades"+(stockMin!=="—"?" ("+fmtShort(stockMin)+" → "+fmtShort(stockMax)+")":"");
+  // Historial range
+  try{
+    var hmin=await sbGet("bloqueos_historial","select=unblock_date&order=unblock_date.asc&limit=1&unblock_date=not.is.null");
+    var hmax=await sbGet("bloqueos_historial","select=unblock_date&order=unblock_date.desc&limit=1&unblock_date=not.is.null");
+    var dMin=Array.isArray(hmin)&&hmin.length?hmin[0].unblock_date:"—";
+    var dMax=Array.isArray(hmax)&&hmax.length?hmax[0].unblock_date:"—";
+    document.getElementById("dib-historial").textContent="🗂️ Historial bloqueos: "+fmtShort(dMin)+" → "+fmtShort(dMax);
+  }catch(e){}
+  // Version
+  var vEl=document.getElementById("dib-version");
+  if(vEl)vEl.textContent=APP_VERSION;
+}
+function fmtShort(d){
+  if(!d||d==="—")return"—";
+  try{var p=d.slice(0,10).split("-");return p[2]+"/"+p[1]+"/"+p[0];}catch(e){return d;}
+}
+
+// ══════════════════════════════════════════════════════
+// DASHBOARD — "LO QUE HICIMOS HOY"
+// ══════════════════════════════════════════════════════
+async function renderHechoHoy(){
+  var hoy=new Date().toISOString().slice(0,10);
+  var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
+  // Load today's completions from historial + session
+  var data=[];
+  try{
+    var h=await sbGet("bloqueos_historial","select=vin,block_code,unblock_date,compound_code,compound_descr&unblock_date=eq."+hoy+"&is_active=eq.false");
+    if(Array.isArray(h))data=h.filter(function(r){return PREV_CODES.indexOf(r.block_code)>=0;});
+  }catch(e){}
+  // Add session completions
+  Object.keys(completedThisSession).forEach(function(k){
+    if(completedThisSession[k]===hoy){
+      var parts=k.split("__");
+      if(PREV_CODES.indexOf(parts[1])>=0){
+        data.push({vin:parts[0],block_code:parts[1],unblock_date:hoy,compound_code:currentPatio?currentPatio.compound_code:"00034"});
+      }
+    }
+  });
+  // Deduplicate
+  var seen={};
+  data=data.filter(function(r){var k=(r.vin||"")+"__"+(r.block_code||"");if(seen[k])return false;seen[k]=true;return true;});
+  var wrap=document.getElementById("dash-hecho-hoy");
+  if(!wrap)return;
+  if(!data.length){
+    wrap.innerHTML='<div style="background:var(--card);border-radius:12px;padding:20px 24px;border:1px solid var(--border);text-align:center;color:var(--text3);font-size:13px;">Todavía no se registraron actividades hoy</div>';
+    return;
+  }
+  // Group by patio
+  var byPatio={};
+  data.forEach(function(r){
+    var cc=String(r.compound_code||"").replace(/^0+/,"");
+    var patio=patiosCache.find(function(p){return p.compound_code.replace(/^0+/,"")=== cc;})||{nombre:r.compound_descr||r.compound_code||"Patio"};
+    var key=patio.nombre;
+    if(!byPatio[key])byPatio[key]={nombre:key,total:0,byCod:{}};
+    byPatio[key].total++;
+    byPatio[key].byCod[r.block_code]=(byPatio[key].byCod[r.block_code]||0)+1;
+  });
+  var total=data.length;
+  var html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">';
+  Object.values(byPatio).forEach(function(patio){
+    html+='<div style="background:var(--card);border-radius:12px;padding:18px 20px;border:1px solid var(--border);box-shadow:var(--shadow);border-top:4px solid #2E7D32;">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+      +'<div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">'+esc(patio.nombre)+'</div>'
+      +'<div style="font-size:32px;font-weight:900;color:#2E7D32;line-height:1;">'+patio.total+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);">servicios realizados hoy</div>'
+      +'</div>'
+      +'<div style="width:56px;height:56px;border-radius:50%;background:#E8F5E9;display:flex;align-items:center;justify-content:center;font-size:26px;">✅</div>'
+      +'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    PREV_CODES.forEach(function(code){
+      var cnt=patio.byCod[code]||0;
+      if(cnt===0)return;
+      html+='<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;padding:5px 10px;display:flex;flex-direction:column;align-items:center;min-width:44px;">'
+        +'<div style="font-size:16px;font-weight:900;color:#2E7D32;line-height:1;">'+cnt+'</div>'
+        +'<div style="font-size:9px;font-weight:700;color:#2E7D32;text-transform:uppercase;">'+code+'</div>'
+        +'</div>';
+    });
+    html+='</div></div>';
+  });
+  html+='</div>';
+  wrap.innerHTML=html;
+  // Update section title with total
+  var titleEl=document.getElementById("dash-hecho-title");
+  if(titleEl)titleEl.textContent="✅ Lo que hicimos hoy — "+total+" servicio"+(total!==1?"s":"")+" completado"+(total!==1?"s":"");
 }
 
 function showOpView(){
@@ -4723,5 +4872,18 @@ async function opRenderMiDia(){
   document.getElementById("op-hoy-list").innerHTML=html||'<div class="empty" style="padding:24px"><div class="empty-icon">🌅</div>Todavía no hay registros hoy</div>';
 }
 </script>
+
+<!-- PDF print area (hidden) -->
+<div id="pdf-area" style="display:none;"></div>
+
+<!-- DATA INFO BAR -->
+<div id="data-info-bar" style="display:none;position:fixed;bottom:0;left:220px;right:0;background:var(--navy,#0D1F3C);border-top:1px solid rgba(255,255,255,0.1);padding:5px 20px;font-size:10px;color:rgba(255,255,255,0.5);display:flex;gap:20px;align-items:center;z-index:50;font-family:'Barlow',sans-serif;">
+  <span id="dib-stock">📦 Stock: —</span>
+  <span style="color:rgba(255,255,255,0.2)">|</span>
+  <span id="dib-historial">🗂️ Historial: —</span>
+  <span style="color:rgba(255,255,255,0.2)">|</span>
+  <span id="dib-version" style="margin-left:auto;color:rgba(255,255,255,0.3)"></span>
+</div>
+
 </body>
 </html>
