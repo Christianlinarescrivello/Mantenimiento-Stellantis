@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.1.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.2.0</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.1.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.0</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -342,6 +342,7 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div class="page-sub">Compound Córdoba — tareas calculadas automáticamente</div>
       <div class="filters">
         <input type="text" id="prev-search" placeholder="🔍 VIN / Modelo..." oninput="renderPreventivo()" style="width:200px">
+        <select id="prev-patio" onchange="renderPreventivo()" style="display:none"><option value="ALL">Todos los patios</option></select>
         <select id="prev-code" onchange="renderPreventivo()"><option value="ALL">Todos los servicios</option></select>
         <select id="prev-urg" onchange="renderPreventivo()">
           <option value="ALL">Toda urgencia</option>
@@ -528,14 +529,8 @@ tbody td{padding:9px 12px;color:var(--text);}
             <button class="btn btn-danger btn-sm" onclick="openAjusteNeumModal('ko')">+ Agregar KO</button>
           </div>
         </div>
-        <div class="card">
-          <div class="tbl-wrap">
-            <table>
-              <thead><tr><th>Vehículo</th><th>Diseño</th><th>Medida</th><th>Código parte</th><th>Stock OK</th><th>Stock KO</th><th>Solicitados</th><th class="supervisor-only">Acciones</th></tr></thead>
-              <tbody id="dep-neum-tbody"></tbody>
-            </table>
-          </div>
-        </div>
+        <!-- Card grid view -->
+        <div id="dep-neum-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;"></div>
         <!-- KO Detail section -->
         <div id="dep-ko-detail" style="display:none;margin-top:16px;">
           <div class="card-head" style="background:var(--card);border-radius:12px 12px 0 0;padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
@@ -1099,7 +1094,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.1.0";
+var APP_VERSION="v4.2.0";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 
 // ══════════════════════════════════════════════════════
@@ -1578,8 +1573,9 @@ async function renderDashboard(){
   var patioLabel=document.getElementById("dash-patio-label");
 
   if(isMultiPatio){
-    // Show patio-level semaphore
+    // Show patio-level semaphore, hide single-patio service section
     semaforoWrap.style.display="block";
+    var svw=document.getElementById("dash-servicios-wrap");if(svw)svw.style.display="none";
     var patioHtml="";
     patiosCache.forEach(function(patio){
       var cc=patio.compound_code.replace(/^0+/,"");
@@ -1590,12 +1586,15 @@ async function renderDashboard(){
       });
       var sem=calcSemaforo(patioItems);
       var borderColor=sem.color==="rojo"?"#C62828":sem.color==="naranja"?"#E65100":sem.color==="amarillo"?"#F9A825":sem.color==="verde"?"#2E7D32":"#94A3B8";
+      // Store patio items for export (use data attribute via encoded id)
+      var patioId=patio.id;
       patioHtml+='<div class="patio-block" style="border-left-color:'+borderColor+'">'
         +'<div class="patio-block-title">'
         +'<div class="sem-dot sem-dot-'+sem.dot+'" style="width:14px;height:14px;flex-shrink:0;"></div>'
         +'<span style="font-size:15px;font-weight:800;color:var(--text)">'+esc(patio.nombre)+'</span>'
         +'<span style="font-size:11px;color:var(--text3);margin-left:4px">'+esc(patio.compound_code)+'</span>'
-        +'<span class="badge" style="margin-left:auto;background:'+(sem.color==="verde"?"#E8F5E9":sem.color==="amarillo"?"#FFF8E1":sem.color==="naranja"?"#FFF3E0":sem.color==="rojo"?"#FFEBEE":"var(--bg2)")+';color:'+borderColor+'">'+sem.label+' — '+patioItems.length+' pendientes</span>'
+        +'<span class="badge" style="background:'+(sem.color==="verde"?"#E8F5E9":sem.color==="amarillo"?"#FFF8E1":sem.color==="naranja"?"#FFF3E0":sem.color==="rojo"?"#FFEBEE":"var(--bg2)")+';color:'+borderColor+'">'+sem.label+' — '+patioItems.length+' pendientes</span>'
+        +'<button onclick="exportPatioExcel(\''+esc(patio.nombre)+'\',\''+esc(patio.compound_code)+'\')" style="margin-left:8px;background:rgba(200,164,74,0.15);border:1px solid var(--gold);color:var(--gold);padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:\'Barlow\',sans-serif;white-space:nowrap;">⬇ Excel</button>'
         +'</div>'
         +renderSemaforoServicios(patioItems,patio.nombre)
         +'</div>';
@@ -1606,6 +1605,7 @@ async function renderDashboard(){
   } else {
     // Single patio view
     semaforoWrap.style.display="none";
+    var svw2=document.getElementById("dash-servicios-wrap");if(svw2)svw2.style.display="block";
     semaforoServicios.innerHTML=renderSemaforoServicios(pendingCache, currentPatio?currentPatio.nombre:"");
     patioLabel.textContent=currentPatio?"— "+currentPatio.nombre:"";
   }
@@ -1631,6 +1631,18 @@ async function renderDashboard(){
 // PREVENTIVO
 // ══════════════════════════════════════════════════════
 async function renderPreventivo(){
+  // Init patio filter if admin/regional
+  var patioSel=document.getElementById("prev-patio");
+  if(patioSel){
+    var showPatioFilter=currentUser&&(currentUser.todos_patios||isAdmin()||isRegional());
+    patioSel.style.display=showPatioFilter?"block":"none";
+    if(showPatioFilter&&patioSel.options.length<=1){
+      var html='<option value="ALL">Todos los patios</option>';
+      patiosCache.forEach(function(p){html+='<option value="'+esc(p.compound_code)+'">'+esc(p.nombre)+'</option>';});
+      patioSel.innerHTML=html;
+    }
+  }
+  var patioFilter=patioSel?patioSel.value:"ALL";
   var search=(document.getElementById("prev-search").value||"").toLowerCase();
   var code=document.getElementById("prev-code").value;
   var urgf=document.getElementById("prev-urg").value;
@@ -1639,6 +1651,11 @@ async function renderPreventivo(){
     if(code!=="ALL"&&p.maint.code!==code)return false;
     if(urgf!=="ALL"&&p.urgency!==urgf)return false;
     if(search&&p.vin.toLowerCase().indexOf(search)<0&&p.modelDescr.toLowerCase().indexOf(search)<0)return false;
+    if(patioFilter!=="ALL"){
+      var pcc=String(p.compoundCode||"").replace(/^0+/,"");
+      var fcc=patioFilter.replace(/^0+/,"");
+      if(pcc!==fcc)return false;
+    }
     return true;
   });
   if(sortBy==="days")f.sort(function(a,b){return a.daysToDue-b.daysToDue;});
@@ -2531,6 +2548,80 @@ async function exportWsPendiente(){
   showToast("Excel generado: "+rows.length+" operaciones pendientes para OBT","success");
 }
 
+// ── EXPORT PATIO EXCEL (styled) ──────────────────────
+function exportPatioExcel(patioNombre, compoundCode){
+  var cc=compoundCode.replace(/^0+/,"");
+  var items=pendingCache.filter(function(p){
+    var pcc=String(p.compoundCode||"").replace(/^0+/,"");
+    return pcc===cc||pcc===compoundCode;
+  });
+  if(!items.length){showToast("Sin pendientes para "+patioNombre,"info");return;}
+  var now=new Date();
+  var fecha=now.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"});
+  var hora=now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+  // Header rows for professional look
+  var wsData=[
+    ["STELLANTIS ARGENTINA — GESTIÓN DE MANTENIMIENTO"],
+    ["Patio: "+patioNombre+" ("+compoundCode+")"],
+    ["Generado: "+fecha+" "+hora],
+    ["Total pendientes: "+items.length],
+    [],
+    ["VIN","Modelo","Boxatura","Cód. Servicio","Servicio","Fecha Ref.","Vencimiento","Días","Estado","Fuente fecha"]
+  ];
+  items.forEach(function(p){
+    var days=p.daysToDue<0?"VENCIDO "+Math.abs(p.daysToDue)+"d":p.daysToDue+"d";
+    wsData.push([
+      p.vin, p.modelDescr, p.boxatura, p.maint.code, p.maint.service,
+      fmt(p.refDate), fmt(p.dueDate), p.daysToDue, URGLBL[p.urgency], p.refSource==="historial"?"Historial":"Stock"
+    ]);
+  });
+  var ws=XLSX.utils.aoa_to_sheet(wsData);
+  // Column widths
+  ws["!cols"]=[{wch:20},{wch:30},{wch:12},{wch:8},{wch:22},{wch:14},{wch:14},{wch:6},{wch:10},{wch:10}];
+  // Merge header rows
+  ws["!merges"]=[
+    {s:{r:0,c:0},e:{r:0,c:9}},
+    {s:{r:1,c:0},e:{r:1,c:9}},
+    {s:{r:2,c:0},e:{r:2,c:9}},
+    {s:{r:3,c:0},e:{r:3,c:9}},
+  ];
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Pendientes_"+patioNombre);
+  XLSX.writeFile(wb,"Mantenimiento_"+patioNombre+"_"+now.toISOString().slice(0,10)+".xlsx");
+  showToast("Excel generado — "+items.length+" pendientes de "+patioNombre,"success");
+}
+
+// ── EXPORT OBT PENDIENTE (operario view) ─────────────
+async function exportObtPendienteOperario(){
+  // Load today's checklist records where WS not processed
+  var hoy=new Date().toISOString().slice(0,10);
+  var data=[];
+  try{data=await sbGet("checklist_registros","fecha=eq."+hoy+"&select=*&order=created_at.desc");}catch(e){}
+  if(!Array.isArray(data))data=[];
+  if(!data.length){showToast("No hay mantenimientos registrados hoy","info");return;}
+  var now=new Date();
+  var wsData=[
+    ["STELLANTIS ARGENTINA — OPERACIONES OBT PENDIENTES"],
+    ["Patio: "+(currentPatio?currentPatio.nombre:"—")],
+    ["Fecha: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
+    ["NOTA: Aplicar BLOQUEO y DESBLOQUEO en OBT Gate In para cada VIN"],
+    [],
+    ["VIN","Cód. Mantenimiento","Servicio","Fecha realizado","Compound","Operación 1","Operación 2","Operario"]
+  ];
+  var SVCMAP={};CATALOG.forEach(function(m){SVCMAP[m.code]=m.service;});
+  data.forEach(function(r){
+    var cc=currentPatio?currentPatio.compound_code:"00034";
+    wsData.push([r.vin,r.maint_code,SVCMAP[r.maint_code]||"",r.fecha,cc,"BLOQUEO (B)","DESBLOQUEO (U)",currentUser?currentUser.nombre:"—"]);
+  });
+  var ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws["!cols"]=[{wch:20},{wch:8},{wch:22},{wch:14},{wch:10},{wch:16},{wch:16},{wch:18}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}},{s:{r:3,c:0},e:{r:3,c:7}}];
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"OBT_"+hoy);
+  XLSX.writeFile(wb,"OBT_Pendiente_"+hoy+".xlsx");
+  showToast("Excel OBT generado — "+data.length+" operaciones","success");
+}
+
 async function exportHistorial(){
   var data=await loadBloqueosHistorial();
   var desdeVal=document.getElementById("hist-desde").value;
@@ -2623,9 +2714,8 @@ async function saveMant(){
   btn.disabled=true;
   var wsDiv=document.getElementById("mant-ws-status");
   // Step 1: Bloqueo
-  wsDiv.innerHTML='<div style="padding:8px 12px;border-radius:6px;background:var(--bg2);font-size:12px;margin-bottom:6px">⏳ Enviando bloqueo a OBT...</div>';
-  var blockOk=false;
-  try{var r=await callWS(vin,cc,code,"B");blockOk=r.success;}catch(e){}
+  // WS desactivado temporalmente — sin mensajes de error
+  var blockOk=false, unblockOk=false;
   wsDiv.innerHTML='<div style="padding:8px 12px;border-radius:6px;background:'+(blockOk?"#E8F5E9":"#FFEBEE")+';font-size:12px;margin-bottom:6px;font-weight:600">'
     +(blockOk?"✅ Bloqueo OK":"⚠️ Bloqueo falló — verificar WS")+'</div>';
   if(blockOk){
@@ -2749,24 +2839,46 @@ async function renderDepNeumaticos(){
     {lbl:"KO solicitados al prov.",val:totalSol,c:"#E65100"},
   ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
 
-  var isSup=currentUser&&currentUser.rol==="supervisor";
-  document.getElementById("dep-neum-tbody").innerHTML=filtered.map(function(r){
-    var okBg=r.ok>0?"#E8F5E9":"var(--bg2)";var okC=r.ok>0?"#2E7D32":"var(--text3)";
-    var koBg=r.ko>0?"#FFEBEE":"var(--bg2)";var koC=r.ko>0?"#C62828":"var(--text3)";
-    var solBg=r.solicitado>0?"#FFF3E0":"var(--bg2)";var solC=r.solicitado>0?"#E65100":"var(--text3)";
-    var detailBtn=(r.ko>0||r.solicitado>0)?'<button class="btn btn-ghost btn-sm" onclick="showKoDetail(\''+r.cat.id+'\',\''+esc(r.cat.vehiculo+" "+r.cat.modelo)+'\')">Ver KO</button>':'';
-    var supBtns=isSup?detailBtn:'';
-    return'<tr>'
-      +'<td><b style="color:var(--gold)">'+esc(r.cat.vehiculo)+'</b></td>'
-      +'<td style="font-size:11px">'+esc(r.cat.modelo)+'</td>'
-      +'<td style="font-size:11px">'+esc(r.cat.medida)+'</td>'
-      +'<td style="font-family:monospace;font-size:11px">'+esc(r.cat.codigo_parte||"—")+'</td>'
-      +'<td><span style="background:'+okBg+';color:'+okC+';font-weight:700;padding:3px 10px;border-radius:8px;font-size:12px">'+r.ok+'</span></td>'
-      +'<td><span style="background:'+koBg+';color:'+koC+';font-weight:700;padding:3px 10px;border-radius:8px;font-size:12px">'+r.ko+'</span></td>'
-      +'<td><span style="background:'+solBg+';color:'+solC+';font-weight:700;padding:3px 10px;border-radius:8px;font-size:12px">'+r.solicitado+'</span></td>'
-      +'<td>'+supBtns+'</td>'
-      +'</tr>';
-  }).join("")||'<tr><td colspan="8"><div class="empty"><div class="empty-icon">📦</div>Sin datos de stock</div></td></tr>';
+  var isSup=isSupervisor();
+  var cardsEl=document.getElementById("dep-neum-cards");
+  if(!cardsEl)return;
+  cardsEl.innerHTML=filtered.map(function(r){
+    var okBg=r.ok>0?"#E8F5E9":"var(--bg2)";
+    var okC=r.ok>0?"#2E7D32":"var(--text3)";
+    var koBg=(r.ko>0||r.solicitado>0)?"#FFEBEE":"var(--bg2)";
+    var koC=(r.ko>0||r.solicitado>0)?"#C62828":"var(--text3)";
+    // Photo - use foto_ok_url if available, else placeholder
+    var stockRow=stockRows.find(function(s){return s.catalogo_id===r.cat.id;});
+    var fotoUrl=stockRow&&stockRow.foto_ok_url?stockRow.foto_ok_url:null;
+    var fotoHtml=fotoUrl
+      ?'<img src="'+esc(fotoUrl)+'" style="width:100%;height:120px;object-fit:cover;border-radius:8px 8px 0 0;" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'">'
+        +'<div style="display:none;width:100%;height:120px;background:var(--bg2);border-radius:8px 8px 0 0;align-items:center;justify-content:center;font-size:28px;">🔵</div>'
+      :'<div style="width:100%;height:80px;background:var(--bg2);border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--text3);">🔵</div>';
+    var detailBtn=(r.ko>0||r.solicitado>0)?'<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px" onclick="showKoDetail(\''+r.cat.id+'\',\''+esc(r.cat.vehiculo+" "+r.cat.modelo)+'\')">Ver KO →</button>':'';
+    return'<div style="background:var(--card);border-radius:10px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;">'
+      +fotoHtml
+      +'<div style="padding:12px;">'
+      +'<div style="font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;margin-bottom:2px;">'+esc(r.cat.vehiculo)+'</div>'
+      +'<div style="font-size:12px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:2px;">'+esc(r.cat.modelo)+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">'+esc(r.cat.medida)+(r.cat.codigo_parte?'<br><span style="font-family:monospace">'+esc(r.cat.codigo_parte)+'</span>':"")+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">'
+      +'<div style="background:'+okBg+';border-radius:6px;padding:8px;text-align:center;">'
+      +'<div style="font-size:18px;font-weight:900;color:'+okC+'">'+r.ok+'</div>'
+      +'<div style="font-size:9px;color:var(--text3);font-weight:600;">STOCK OK</div>'
+      +'</div>'
+      +'<div style="background:'+koBg+';border-radius:6px;padding:8px;text-align:center;">'
+      +'<div style="font-size:18px;font-weight:900;color:'+koC+'">'+(r.ko+r.solicitado)+'</div>'
+      +'<div style="font-size:9px;color:var(--text3);font-weight:600;">STOCK KO'+(r.solicitado>0?' ('+r.solicitado+' solic.)':'')+'</div>'
+      +'</div>'
+      +'</div>'
+      +detailBtn
+      +(isSup?'<div style="display:flex;gap:4px;margin-top:4px;">'
+        +'<button class="btn btn-success btn-sm" style="flex:1;font-size:10px" onclick="openAjusteNeumModalPre(\'ok\',\''+r.cat.id+'\')">+OK</button>'
+        +'<button class="btn btn-danger btn-sm" style="flex:1;font-size:10px" onclick="openAjusteNeumModalPre(\'ko\',\''+r.cat.id+'\')">+KO</button>'
+        +'</div>':"")
+      +'</div>'
+      +'</div>';
+  }).join("")||'<div style="grid-column:1/-1"><div class="empty"><div class="empty-icon">📦</div>Sin diseños en el catálogo</div></div>';
 }
 
 async function showKoDetail(catalogoId, titulo){
@@ -2808,6 +2920,13 @@ async function showKoDetail(catalogoId, titulo){
 }
 
 // Ajuste manual stock neumáticos (supervisor)
+function openAjusteNeumModalPre(tipo,catId){
+  openAjusteNeumModal(tipo);
+  setTimeout(function(){
+    var sel=document.getElementById("an-catalogo");
+    if(sel&&catId){sel.value=catId;}
+  },50);
+}
 function openAjusteNeumModal(tipo){
   document.getElementById("an-tipo").value=tipo;
   document.getElementById("ajuste-neum-title").textContent=tipo==="ok"?"Agregar neumáticos OK al depósito":"Registrar neumáticos KO";
@@ -3358,40 +3477,7 @@ function openAjusteNeumModalConFoto(tipo){
 }
 
 // Override openAjusteNeumModal buttons to use foto version
-function openAjusteNeumModal(tipo){
-  document.getElementById("an-tipo").value=tipo;
-  document.getElementById("ajuste-neum-title").textContent=tipo==="ok"?"➕ Agregar neumáticos OK al depósito":"➕ Registrar neumáticos KO";
-  document.getElementById("an-cantidad").value=1;
-  document.getElementById("an-obs").value="";
-  document.getElementById("an-vin-wrap").style.display=tipo==="ko"?"block":"none";
-  document.getElementById("an-vin-search").value="";
-  document.getElementById("an-vin").innerHTML='<option value="">Seleccionar VIN...</option>';
-  // Build catalogo select
-  var html='<option value="">Seleccionar diseño...</option>';
-  var byV={};
-  catalogoCache.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
-  Object.keys(byV).sort().forEach(function(v){
-    html+='<optgroup label="'+esc(v)+'">';
-    byV[v].forEach(function(n){html+='<option value="'+n.id+'">'+esc(n.modelo+" — "+n.medida+(n.codigo_parte?" ["+n.codigo_parte+"]":""))+'</option>';});
-    html+='</optgroup>';
-  });
-  document.getElementById("an-catalogo").innerHTML=html;
-  // Add foto field
-  var mb=document.querySelector("#modal-ajuste-neum .modal-body");
-  if(mb&&!document.getElementById("an-foto-wrap")){
-    var div=document.createElement("div");
-    div.id="an-foto-wrap";div.className="field";
-    div.innerHTML='<label>Foto del neumático (opcional)</label>'
-      +'<div class="photo-placeholder" onclick="document.getElementById(\'an-foto-input\').click()">📷 Agregar foto</div>'
-      +'<input type="file" id="an-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,\'an-foto-prev\')">'
-      +'<img id="an-foto-prev" class="photo-preview">';
-    mb.appendChild(div);
-  } else {
-    var prev=document.getElementById("an-foto-prev");
-    if(prev){prev.style.display="none";prev.src="";}
-  }
-  openModal("modal-ajuste-neum");
-}
+
 
 async function saveAjusteNeum(){
   var tipo=document.getElementById("an-tipo").value;
@@ -3710,7 +3796,10 @@ async function exportWsLog(){
           <option value="soon">Próximos ≤30d</option>
         </select>
       </div>
-      <div id="op-tareas-count" style="font-size:12px;color:var(--text3);margin-bottom:10px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div id="op-tareas-count" style="font-size:12px;color:var(--text3);"></div>
+        <button onclick="exportObtPendienteOperario()" style="background:rgba(200,164,74,0.15);border:1px solid var(--gold);color:var(--gold);padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">📋 Excel OBT</button>
+      </div>
       <div id="op-tareas-list"></div>
     </div>
     <!-- TAB: INTERVENCIONES -->
@@ -4153,37 +4242,13 @@ async function saveChecklist(){
     btn.disabled=false;btn.textContent="Reintentar";
     return;
   }
-  // WS: Bloqueo
-  wsDiv.innerHTML+='<div style="padding:8px 12px;background:var(--bg2);border-radius:6px;font-size:12px;margin-bottom:4px;">⏳ Enviando bloqueo a OBT...</div>';
-  var blockOk=false;
-  try{var r=await callWS(vin,cc,code,"B");blockOk=r.success;}catch(e){}
-  wsDiv.innerHTML='<div style="padding:8px 12px;background:#E8F5E9;border-radius:6px;font-size:12px;color:#2E7D32;font-weight:600;margin-bottom:4px;">✅ Checklist guardado</div>'
-    +'<div style="padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:6px;background:'+(blockOk?"#E8F5E9":"#FFEBEE")+';color:'+(blockOk?"#2E7D32":"#C62828")+'">'+(blockOk?"✅ Bloqueo OBT OK":"⚠️ Bloqueo OBT falló — igual se guardó el checklist")+'</div>';
-  var unblockOk=false;
-  if(blockOk){
-    // Countdown 60 seconds before unblock
-    var countdown=60;
-    var countEl=document.createElement("div");
-    countEl.style.cssText="padding:10px 12px;background:var(--bg2);border-radius:6px;font-size:12px;color:var(--text2);margin-bottom:4px;";
-    wsDiv.appendChild(countEl);
-    await new Promise(function(res){
-      var interval=setInterval(function(){
-        countdown--;
-        countEl.innerHTML="⏳ Esperando "+countdown+"s antes del desbloqueo...";
-        if(countdown<=0){clearInterval(interval);res();}
-      },1000);
-    });
-    countEl.innerHTML="⏳ Enviando desbloqueo a OBT...";
-    try{var r2=await callWS(vin,cc,code,"U");unblockOk=r2.success;}catch(e){}
-    countEl.innerHTML='<div style="font-weight:600;color:'+(unblockOk?"#2E7D32":"#C62828")+'">'+(unblockOk?"✅ Desbloqueo OBT OK":"⚠️ Desbloqueo OBT falló")+'</div>';
-  } else {
-    wsDiv.innerHTML+='<div style="padding:8px;font-size:11px;color:var(--text3);">Desbloqueo no enviado porque el bloqueo falló. Revisá el Log WebService.</div>';
-  }
-  // Update checklist record with WS results
+  // WS desactivado — registrar directamente, sin mensajes de error
+  var blockOk=false,unblockOk=false;
+  // Update checklist record
   if(savedId){
-    try{await sbPatch("checklist_registros",savedId,{ws_block_ok:blockOk,ws_unblock_ok:unblockOk});}catch(e){}
+    try{await sbPatch("checklist_registros",savedId,{ws_block_ok:false,ws_unblock_ok:false});}catch(e){}
   }
-  // SIEMPRE guardar en historial como completado
+  // Guardar en historial
   var patioCC=currentPatio?currentPatio.compound_code:"00034";
   var patioDescr=currentPatio?currentPatio.nombre:"Cordoba";
   try{
@@ -4191,18 +4256,17 @@ async function saveChecklist(){
       vin:vin,block_code:code,block_date:fecha,
       unblock_date:fecha,is_active:false,
       compound_code:patioCC,compound_descr:patioDescr,
-      source_file:"checklist_ws_pendiente_"+currentUser.nombre,
+      source_file:"checklist_obt_pendiente_"+currentUser.nombre,
       imported_at:new Date().toISOString()
     },"vin,block_code");
   }catch(e){}
-  // Agregar a lista de operaciones OBT pendientes del día
   addObtOperation(vin,code,"B",patioCC,fecha);
   addObtOperation(vin,code,"U",patioCC,fecha);
   btn.textContent="✅ Completado";
-  // Always show Excel button (WS desactivado)
-  wsDiv.innerHTML+='<div style="margin-top:8px;padding:10px 12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">✅ Tarea registrada. Aplicar en OBT manualmente:</div>'
-    +'<button class="btn btn-gold btn-sm" onclick="exportObtDiario()">⬇ Excel OBT del día ('+pendingObtOperations.length+' ops)</button>'
+  wsDiv.innerHTML='<div style="padding:12px 14px;background:#E8F5E9;border-radius:8px;border:1px solid #A5D6A7;">'
+    +'<div style="font-size:13px;font-weight:700;color:#2E7D32;margin-bottom:6px;">✅ '+code+' registrado correctamente</div>'
+    +'<div style="font-size:11px;color:#2E7D32;margin-bottom:8px;">Agregado al Excel OBT del día</div>'
+    +'<button class="btn btn-gold btn-sm" onclick="exportObtPendienteOperario()">⬇ Excel OBT del día</button>'
     +'</div>';
   setTimeout(function(){
     closeModal("modal-checklist");
