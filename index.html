@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.4.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.4.1</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.1</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -352,7 +352,7 @@ tbody td{padding:9px 12px;color:var(--text);}
         <select id="prev-urg" onchange="renderPreventivo()">
           <option value="ALL">Toda urgencia</option>
           <option value="overdue">Vencidos</option>
-          <option value="urgent">Urgentes ≤15d</option>
+          <option value="urgent">Urgentes ≤7d</option>
           <option value="soon">Próximos ≤30d</option>
           <option value="ok">A tiempo</option>
         </select>
@@ -765,10 +765,24 @@ tbody td{padding:9px 12px;color:var(--text);}
         <div class="field">
           <label>Modelo de neumático</label>
           <input type="hidden" id="g-catalogo-id">
-          <select id="g-neumático" onchange="onGomaNeumSelect()">
-            <option value="">Cargando catálogo...</option>
+          <!-- Rodado filter -->
+          <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:var(--text3);align-self:center;">Filtrar por rodado:</span>
+            <button type="button" onclick="filtrarGomaRodado('')" id="grod-all" class="btn btn-primary btn-sm" style="font-size:10px;padding:2px 8px;">Todos</button>
+            <button type="button" onclick="filtrarGomaRodado('R14')" id="grod-14" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R14</button>
+            <button type="button" onclick="filtrarGomaRodado('R15')" id="grod-15" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R15</button>
+            <button type="button" onclick="filtrarGomaRodado('R16')" id="grod-16" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R16</button>
+            <button type="button" onclick="filtrarGomaRodado('R17')" id="grod-17" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R17</button>
+            <button type="button" onclick="filtrarGomaRodado('R18')" id="grod-18" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R18</button>
+          </div>
+          <select id="g-neumático" onchange="onGomaNeumSelect()" style="width:100%">
+            <option value="">Seleccionar diseño...</option>
           </select>
           <div id="g-stock-info" style="margin-top:6px;font-size:11px;font-weight:700;display:none;padding:6px 10px;border-radius:6px;"></div>
+          <!-- Nuevo diseño (solo supervisor) -->
+          <div id="g-nuevo-diseno-wrap" class="supervisor-only" style="margin-top:6px;">
+            <button type="button" onclick="openNuevoDiseno()" class="btn btn-ghost btn-sm" style="font-size:11px;width:100%;">+ Agregar diseño nuevo al catálogo</button>
+          </div>
         </div>
         <div class="field"><label>Posición</label>
           <select id="g-posicion">
@@ -1065,6 +1079,41 @@ tbody td{padding:9px 12px;color:var(--text);}
   </div>
 </div>
 
+
+<!-- MODAL: Nuevo diseño de neumático -->
+<div class="modal-overlay" id="modal-nuevo-diseno">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-head"><h3>➕ Agregar diseño al catálogo</h3><button class="modal-close" onclick="closeModal('modal-nuevo-diseno')">×</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Vehículo *</label>
+          <select id="nd-vehiculo" onchange="document.getElementById('nd-vehiculo-custom').style.display=this.value==='otro'?'block':'none'">
+            <option value="Cronos">Cronos</option><option value="RAM">RAM</option>
+            <option value="Titano">Titano</option><option value="otro">Otro...</option>
+          </select>
+          <input type="text" id="nd-vehiculo-custom" placeholder="Nombre del vehículo" style="display:none;margin-top:4px;width:100%">
+        </div>
+        <div class="field"><label>Modelo / Nombre *</label>
+          <input type="text" id="nd-modelo" placeholder="Ej: WARLOCK R17 - TPMS">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Medida *</label><input type="text" id="nd-medida" placeholder="Ej: 265/65 R17"></div>
+        <div class="field"><label>Llanta *</label><input type="text" id="nd-llanta" placeholder="Ej: 17x7.5J Allow"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Código de parte</label><input type="text" id="nd-codigo" placeholder="Ej: 9871827580"></div>
+        <div class="field"><label>Tipo de válvula</label>
+          <select id="nd-valvula"><option value="común">Válvula común</option><option value="TPMS">TPMS sensor assy</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-nuevo-diseno')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveNuevoDiseno()">Guardar en catálogo</button>
+    </div>
+  </div>
+</div>
 <script>
 // ══════════════════════════════════════════════════════
 // CONFIG
@@ -1105,7 +1154,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.4.0";
+var APP_VERSION="v4.4.1";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1126,7 +1175,7 @@ function p2(n){return String(n).padStart(2,"0");}
 function fmtWS(d){d=d||new Date();return""+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate());}
 function fmtTWS(d){d=d||new Date();return p2(d.getHours())+p2(d.getMinutes())+p2(d.getSeconds());}
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
-function urg(due){var diff=(due-new Date())/86400000;if(diff<0)return"overdue";if(diff<=15)return"urgent";if(diff<=30)return"soon";return"ok";}
+function urg(due){var diff=(due-new Date())/86400000;if(diff<0)return"overdue";if(diff<=7)return"urgent";if(diff<=30)return"soon";return"ok";}
 function uuid(){return'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c=='x'?r:(r&0x3|0x8)).toString(16);});}
 
 function showToast(msg,type){
@@ -1551,7 +1600,7 @@ async function renderDashboard(){
   document.getElementById("dash-stats").innerHTML=[
     {lbl:"Total preventivo",val:pendingCache.length,c:"var(--text)",large:true},
     {lbl:"🔴 Vencidos",val:overdue,c:"#C62828",large:true},
-    {lbl:"🟠 Urgentes ≤15d",val:urgent,c:"#E65100"},
+    {lbl:"🟠 Urgentes ≤7d",val:urgent,c:"#E65100"},
     {lbl:"🔵 Próximos ≤30d",val:soon,c:"#1565C0"},
     {lbl:"🟢 A tiempo",val:ok,c:"#2E7D32"},
     {lbl:"Daños activos C30",val:daños.length,c:"#C62828"},
@@ -2120,7 +2169,7 @@ async function renderKPIs(){
     {lbl:"Pendientes actuales",val:totalPend,c:"#C62828"},
     {lbl:"% Completado",val:pctComp+"%",c:pctComp>=80?"#2E7D32":pctComp>=50?"#E65100":"#C62828"},
     {lbl:"Vencidos",val:pending.filter(function(p){return p.urgency==="overdue";}).length,c:"#C62828"},
-    {lbl:"Urgentes ≤15d",val:pending.filter(function(p){return p.urgency==="urgent";}).length,c:"#E65100"},
+    {lbl:"Urgentes ≤7d",val:pending.filter(function(p){return p.urgency==="urgent";}).length,c:"#E65100"},
     {lbl:"Stock total "+patioNombre,val:stockFiltrado.length,c:"var(--blue)"},
   ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
 
@@ -2156,7 +2205,7 @@ async function renderKPIs(){
     // Urgencia
     +'<div class="kpi-card"><h4>Pendientes por urgencia</h4>'
     +[{l:"🔴 Vencidos",v:pending.filter(function(p){return p.urgency==="overdue";}).length,c:"#C62828"},
-      {l:"🟠 Urgentes ≤15d",v:pending.filter(function(p){return p.urgency==="urgent";}).length,c:"#E65100"},
+      {l:"🟠 Urgentes ≤7d",v:pending.filter(function(p){return p.urgency==="urgent";}).length,c:"#E65100"},
       {l:"🔵 Próximos ≤30d",v:pending.filter(function(p){return p.urgency==="soon";}).length,c:"#1565C0"},
       {l:"🟢 A tiempo",v:pending.filter(function(p){return p.urgency==="ok";}).length,c:"#2E7D32"},
     ].map(function(s){var pct=Math.round(s.v/prevTotal*100)||0;return'<div class="bar-item"><div class="bar-label" style="width:130px">'+s.l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+s.c+'"></div></div><div class="bar-val" style="color:'+s.c+';font-weight:700">'+s.v+'</div></div>';}).join("")+'</div>'
@@ -2190,7 +2239,7 @@ async function exportKPIsExcel(){
     xlsRow([{__val:"Total pendientes actuales",__bold:true},{__val:kpi.totalPend,__bold:true,__color:"#C62828"}],true),
     xlsRow([{__val:"Porcentaje de avance",__bold:true},{__val:kpi.pctComp+"%",__bold:true,__color:kpi.pctComp>=80?"#2E7D32":kpi.pctComp>=50?"#E65100":"#C62828"}],false),
     xlsRow(["Vencidos",{__val:(kpi.pending||[]).filter(function(p){return p.urgency==="overdue";}).length,__color:"#C62828",__bold:true}],true),
-    xlsRow(["Urgentes ≤15d",{__val:(kpi.pending||[]).filter(function(p){return p.urgency==="urgent";}).length,__color:"#E65100",__bold:true}],false),
+    xlsRow(["Urgentes ≤7d",{__val:(kpi.pending||[]).filter(function(p){return p.urgency==="urgent";}).length,__color:"#E65100",__bold:true}],false),
     xlsRow(["Próximos ≤30d",{__val:(kpi.pending||[]).filter(function(p){return p.urgency==="soon";}).length,__color:"#1565C0"}],true),
     xlsRow(["A tiempo",{__val:(kpi.pending||[]).filter(function(p){return p.urgency==="ok";}).length,__color:"#2E7D32"}],false),
   ].join("");
@@ -2296,7 +2345,7 @@ async function exportKPIsPDF(){
       {v:fmtN(kpi.totalPend),l:"Pendientes actuales",c:"#C62828",bg:"#FFEBEE",border:"#EF9A9A"},
       {v:kpi.pctComp+"%",l:"Avance del período",c:kpi.pctComp>=80?"#2E7D32":kpi.pctComp>=50?"#E65100":"#C62828",bg:kpi.pctComp>=80?"#E8F5E9":kpi.pctComp>=50?"#FFF3E0":"#FFEBEE",border:kpi.pctComp>=80?"#A5D6A7":kpi.pctComp>=50?"#FFCC02":"#EF9A9A"},
       {v:fmtN(urgItems[0]),l:"Vencidos",c:"#C62828",bg:"#FFEBEE",border:"#EF9A9A"},
-      {v:fmtN(urgItems[1]),l:"Urgentes ≤15 días",c:"#E65100",bg:"#FFF3E0",border:"#FFCC80"},
+      {v:fmtN(urgItems[1]),l:"Urgentes ≤7 días",c:"#E65100",bg:"#FFF3E0",border:"#FFCC80"},
       {v:fmtN(kpi.stockC30count),l:"Con Daño C30 activo",c:"#7B1FA2",bg:"#F3E5F5",border:"#CE93D8"},
     ].map(function(s){return'<div style="background:'+s.bg+';border:1px solid '+s.border+';border-radius:10px;padding:16px;text-align:center;">'
       +'<div style="font-size:28px;font-weight:900;color:'+s.c+';line-height:1;">'+s.v+'</div>'
@@ -2422,17 +2471,15 @@ function openDañoModal(){
   openModal("modal-daño");
 }
 
-function openGomaModal(){
-  ["g-vin","g-modelo","g-box","g-obs"].forEach(function(id){document.getElementById(id).value="";});
-  document.getElementById("g-posicion").value="";
-  document.getElementById("g-catalogo-id").value="";
-  var si=document.getElementById("g-stock-info");if(si)si.style.display="none";
-  document.getElementById("g-foto-preview").style.display="none";
-  // Populate neumático select from catalogo
+function buildGomaNeumSelect(rodadoFilter){
   var sel=document.getElementById("g-neumático");
+  if(!sel)return;
+  var filtered=rodadoFilter
+    ?catalogoCache.filter(function(n){return(n.medida||"").indexOf(rodadoFilter)>=0;})
+    :catalogoCache;
   var html='<option value="">Seleccionar diseño...</option>';
   var byV={};
-  catalogoCache.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
+  filtered.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
   Object.keys(byV).sort().forEach(function(v){
     html+='<optgroup label="'+esc(v)+'">';
     byV[v].forEach(function(n){
@@ -2441,7 +2488,64 @@ function openGomaModal(){
     });
     html+='</optgroup>';
   });
+  if(!filtered.length)html+='<option disabled>Sin diseños para ese rodado</option>';
   sel.innerHTML=html;
+}
+
+function filtrarGomaRodado(rodado){
+  buildGomaNeumSelect(rodado);
+  // Update button styles
+  ["all","14","15","16","17","18"].forEach(function(r){
+    var btn=document.getElementById("grod-"+(r==="all"?"all":r));
+    if(btn){
+      var active=(rodado===""&&r==="all")||(rodado==="R"+r);
+      btn.className=active?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";
+      btn.style.fontSize="10px";btn.style.padding="2px 8px";
+    }
+  });
+  // Reset stock info
+  var si=document.getElementById("g-stock-info");
+  if(si)si.style.display="none";
+  document.getElementById("g-catalogo-id").value="";
+}
+
+function openNuevoDiseno(){
+  // Fill from current vehicle if something selected
+  ["nd-modelo","nd-medida","nd-llanta","nd-codigo"].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.value="";
+  });
+  document.getElementById("nd-vehiculo").value="Cronos";
+  document.getElementById("nd-vehiculo-custom").style.display="none";
+  openModal("modal-nuevo-diseno");
+}
+
+async function saveNuevoDiseno(){
+  var vehSel=document.getElementById("nd-vehiculo").value;
+  var veh=vehSel==="otro"?document.getElementById("nd-vehiculo-custom").value.trim():vehSel;
+  var modelo=document.getElementById("nd-modelo").value.trim();
+  var medida=document.getElementById("nd-medida").value.trim();
+  var llanta=document.getElementById("nd-llanta").value.trim();
+  var codigo=document.getElementById("nd-codigo").value.trim()||null;
+  var valvula=document.getElementById("nd-valvula").value;
+  if(!veh||!modelo||!medida||!llanta){showToast("Completá los campos obligatorios","error");return;}
+  try{
+    var rec={vehiculo:veh,modelo:modelo+(valvula==="TPMS"?" - TPMS":""),medida:medida,llanta:llanta,codigo_parte:codigo,activo:true};
+    await sbPost("neumaticos_catalogo",rec);
+    await loadCatalogo(); // reload cache
+    closeModal("modal-nuevo-diseno");
+    buildGomaNeumSelect(""); // rebuild selector
+    showToast("Diseño agregado al catálogo","success");
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+
+function openGomaModal(){
+  ["g-vin","g-modelo","g-box","g-obs"].forEach(function(id){document.getElementById(id).value="";});
+  document.getElementById("g-posicion").value="";
+  document.getElementById("g-catalogo-id").value="";
+  var si=document.getElementById("g-stock-info");if(si)si.style.display="none";
+  document.getElementById("g-foto-preview").style.display="none";
+  // Reset rodado filter buttons
+  filtrarGomaRodado(""); // builds select + resets buttons
   openModal("modal-goma");
 }
 async function onGomaNeumSelect(){
@@ -3233,24 +3337,54 @@ function openAjusteNeumModalPre(tipo,catId){
     if(sel&&catId){sel.value=catId;}
   },50);
 }
+function buildAnCatalogoSelect(rodadoFilter){
+  var html='<option value="">Seleccionar diseño...</option>';
+  var filtered=rodadoFilter?catalogoCache.filter(function(n){return(n.medida||"").indexOf(rodadoFilter)>=0;}):catalogoCache;
+  var byV={};
+  filtered.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
+  Object.keys(byV).sort().forEach(function(v){
+    html+='<optgroup label="'+esc(v)+'">';
+    filtered.filter(function(n){return n.vehiculo===v;}).forEach(function(n){html+='<option value="'+n.id+'">'+esc(n.modelo+" — "+n.medida+(n.codigo_parte?" ["+n.codigo_parte+"]":""))+'</option>';});
+    html+='</optgroup>';
+  });
+  var sel=document.getElementById("an-catalogo");
+  if(sel)sel.innerHTML=html;
+}
+
 function openAjusteNeumModal(tipo){
   document.getElementById("an-tipo").value=tipo;
-  document.getElementById("ajuste-neum-title").textContent=tipo==="ok"?"Agregar neumáticos OK al depósito":"Registrar neumáticos KO";
+  document.getElementById("ajuste-neum-title").textContent=tipo==="ok"?"➕ Agregar neumáticos OK":"➕ Registrar neumáticos KO";
   document.getElementById("an-cantidad").value=1;
   document.getElementById("an-obs").value="";
   document.getElementById("an-vin-wrap").style.display=tipo==="ko"?"block":"none";
   document.getElementById("an-vin-search").value="";
   document.getElementById("an-vin").innerHTML='<option value="">Seleccionar VIN...</option>';
-  // Build catalogo select
-  var html='<option value="">Seleccionar diseño...</option>';
-  var byV={};
-  catalogoCache.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
-  Object.keys(byV).sort().forEach(function(v){
-    html+='<optgroup label="'+esc(v)+'">';
-    byV[v].forEach(function(n){html+='<option value="'+n.id+'">'+esc(n.modelo+" — "+n.medida+(n.codigo_parte?" ["+n.codigo_parte+"]":""))+'</option>';});
-    html+='</optgroup>';
-  });
-  document.getElementById("an-catalogo").innerHTML=html;
+  buildAnCatalogoSelect("");
+  // Add rodado filter if not present
+  var sel=document.getElementById("an-catalogo");
+  if(sel&&!document.getElementById("an-rodado-btns")){
+    var div=document.createElement("div");
+    div.id="an-rodado-btns";div.style.cssText="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;";
+    div.innerHTML='<span style="font-size:10px;color:var(--text3);align-self:center;">Rodado:</span>'
+      +["","R14","R15","R16","R17","R18"].map(function(r,i){
+        return'<button type="button" onclick="buildAnCatalogoSelect(\''+r+'\')" class="btn '+(i===0?"btn-primary":"btn-ghost")+' btn-sm" style="font-size:10px;padding:2px 8px;">'+(r||"Todos")+'</button>';
+      }).join("");
+    sel.parentNode.insertBefore(div,sel);
+  }
+  // Add foto field
+  var mb=document.querySelector("#modal-ajuste-neum .modal-body");
+  if(mb&&!document.getElementById("an-foto-wrap")){
+    var div2=document.createElement("div");
+    div2.id="an-foto-wrap";div2.className="field";
+    div2.innerHTML='<label>Foto del neumático (opcional)</label>'
+      +'<div class="photo-placeholder" onclick="document.getElementById(\'an-foto-input\').click()">📷 Agregar foto</div>'
+      +'<input type="file" id="an-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,\'an-foto-prev\')">'
+      +'<img id="an-foto-prev" class="photo-preview">';
+    mb.appendChild(div2);
+  } else {
+    var prev=document.getElementById("an-foto-prev");
+    if(prev){prev.style.display="none";prev.src="";}
+  }
   openModal("modal-ajuste-neum");
 }
 
@@ -4218,7 +4352,7 @@ async function exportWsLog(){
         <select id="op-filter-urg" onchange="opRenderTareas()" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
           <option value="ALL">Toda urgencia</option>
           <option value="overdue">Vencidos</option>
-          <option value="urgent">Urgentes ≤15d</option>
+          <option value="urgent">Urgentes ≤7d</option>
           <option value="soon">Próximos ≤30d</option>
         </select>
       </div>
