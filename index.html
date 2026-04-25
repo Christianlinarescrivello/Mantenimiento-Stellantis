@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.2.8</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.2.9</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.8</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.9</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1094,7 +1094,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.2.8";
+var APP_VERSION="v4.2.9";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2730,72 +2730,45 @@ function openMantModal(vin,code,service,cc){
 async function saveMant(){
   var vin=document.getElementById("mant-vin").value;
   var code=document.getElementById("mant-code").value;
-  var cc=document.getElementById("mant-cc").value||"00034";
   var fecha=document.getElementById("mant-fecha").value;
   var obs=document.getElementById("mant-obs").value;
   if(!vin||!code||!fecha){showToast("Faltan datos obligatorios","error");return;}
   var btn=document.getElementById("btn-mant-save");
-  btn.disabled=true;
+  btn.disabled=true;btn.textContent="⏳ Guardando...";
   var wsDiv=document.getElementById("mant-ws-status");
-  // Step 1: Bloqueo
-  // WS desactivado temporalmente — sin mensajes de error
-  var blockOk=false, unblockOk=false;
-  wsDiv.innerHTML='<div style="padding:8px 12px;border-radius:6px;background:'+(blockOk?"#E8F5E9":"#FFEBEE")+';font-size:12px;margin-bottom:6px;font-weight:600">'
-    +(blockOk?"✅ Bloqueo OK":"⚠️ Bloqueo falló — verificar WS")+'</div>';
-  if(blockOk){
-    // Step 2: Desbloqueo inmediato (mantenimiento realizado)
-    wsDiv.innerHTML+='\n<div style="padding:8px 12px;border-radius:6px;background:var(--bg2);font-size:12px;margin-bottom:6px">⏳ Enviando desbloqueo a OBT...</div>';
-    await new Promise(function(res){setTimeout(res,800);}); // small delay between calls
-    var unblockOk=false;
-    try{var r2=await callWS(vin,cc,code,"U");unblockOk=r2.success;}catch(e){}
-    wsDiv.innerHTML='<div style="padding:8px 12px;border-radius:6px;background:'+(blockOk?"#E8F5E9":"#FFEBEE")+';font-size:12px;margin-bottom:6px;font-weight:600">'
-      +(blockOk?"✅ Bloqueo OK":"⚠️ Bloqueo falló")+'</div>'
-      +'<div style="padding:8px 12px;border-radius:6px;background:'+(unblockOk?"#E8F5E9":"#FFEBEE")+';font-size:12px;font-weight:600">'
-      +(unblockOk?"✅ Desbloqueo OK — mantenimiento registrado":"⚠️ Desbloqueo falló — verificar WS")+'</div>';
-    // Save to historial
-    var now=new Date();
-    var record={
-      vin:vin,block_code:code,
-      block_date:fecha,
-      unblock_date:fecha,
-      is_active:false,
-      compound_code:"00034",
-      compound_descr:"Cordoba",
-      source_file:"manual_"+currentUser.nombre,
-      imported_at:now.toISOString()
-    };
-    try{
-      await sbUpsert("bloqueos_historial",record,"vin,block_code");
-    }catch(e){
-      wsDiv.innerHTML+='<div style="padding:8px;font-size:11px;color:#C62828;margin-top:4px">⚠️ Error al guardar en historial: '+esc(e.message)+'</div>';
-    }
-    if(unblockOk){
-      setTimeout(function(){
-        closeModal("modal-mant");
-        showToast("✅ Mantenimiento "+code+" registrado para "+vin,"success");
-        loadStock(); // recalculate pending
-      },1500);
-    } else {
-      btn.disabled=false;btn.textContent="Reintentar";
-    }
-  } else {
-    // Block failed — still save to historial as manual record
-    var record2={
-      vin:vin,block_code:code,
-      block_date:fecha,unblock_date:fecha,
-      is_active:false,
-      compound_code:"00034",compound_descr:"Cordoba",
-      source_file:"manual_ws_fallido_"+currentUser.nombre,
-      imported_at:new Date().toISOString()
-    };
-    try{await sbUpsert("bloqueos_historial",record2,"vin,block_code");}catch(e){}
-    wsDiv.innerHTML+='<div style="padding:8px;font-size:12px;color:var(--text2);margin-top:4px">Mantenimiento guardado en historial aunque el WS falló.</div>';
-    setTimeout(function(){
-      closeModal("modal-mant");
-      showToast("Mantenimiento guardado (WS falló, revisar OBT)","info");
-      loadStock();
-    },2000);
+  // Get compound from stock row
+  var stockRow=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin.toUpperCase();});
+  var patioCC=stockRow?String(stockRow.compound_code||stockRow["Compound Code"]||"00034").padStart(5,"0"):"00034";
+  var patioDescr=stockRow?(stockRow.compound||stockRow["Compound Descr"]||patioCC):"Cordoba";
+  // Save to historial — delete all existing for this VIN+code then insert fresh
+  var saved=false;
+  try{
+    await fetch(SB_URL+"/rest/v1/bloqueos_historial?vin=eq."+encodeURIComponent(vin)+"&block_code=eq."+encodeURIComponent(code),
+      {method:"DELETE",headers:Object.assign({},sbH(),{"Prefer":"return=minimal"})});
+    await sbPost("bloqueos_historial",{
+      vin:vin,block_code:code,block_date:fecha,unblock_date:fecha,
+      is_active:false,compound_code:patioCC,compound_descr:patioDescr,
+      source_file:"mant_sup_"+currentUser.nombre,imported_at:new Date().toISOString()
+    });
+    saved=true;
+  }catch(e){
+    wsDiv.innerHTML='<div style="padding:8px;background:#FFEBEE;border-radius:6px;font-size:12px;color:#C62828;">Error al guardar: '+esc(e.message)+'</div>';
+    btn.disabled=false;btn.textContent="Reintentar";
+    return;
   }
+  // Mark completed in session immediately
+  completedThisSession[vin.toUpperCase()+"__"+code.toUpperCase()]=fecha;
+  addObtOperation(vin,code,"B",patioCC,fecha);
+  addObtOperation(vin,code,"U",patioCC,fecha);
+  wsDiv.innerHTML='<div style="padding:10px 12px;background:#E8F5E9;border-radius:8px;font-size:12px;color:#2E7D32;font-weight:700;">✅ '+code+' registrado correctamente</div>';
+  setTimeout(async function(){
+    closeModal("modal-mant");
+    showToast("✅ "+code+" completado — lista actualizada","success");
+    await new Promise(function(res){setTimeout(res,400);});
+    await loadStock();
+    renderPreventivo();
+    opRenderTareas();
+  },1000);
 }
 
 // ══════════════════════════════════════════════════════
