@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.2.3</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.2.4</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.3</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.4</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1094,7 +1094,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.2.3";
+var APP_VERSION="v4.2.4";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 
 // ══════════════════════════════════════════════════════
@@ -1433,7 +1433,7 @@ function computePending(rows, hist){
       if(!r.unblock_date)return;
       var ud=pdate(r.unblock_date);
       if(!ud)return;
-      var key=(r.vin||"").toUpperCase()+"__"+(r.block_code||"").toUpperCase();
+      var key=(r.vin||"").toUpperCase().trim()+"__"+(r.block_code||"").toUpperCase().trim();
       if(!lastDone[key]||ud>lastDone[key])lastDone[key]=ud;
     });
   }
@@ -4284,8 +4284,12 @@ async function saveChecklist(){
     try{await sbPatch("checklist_registros",savedId,{ws_block_ok:false,ws_unblock_ok:false});}catch(e){}
   }
   // Delete ALL existing records for this VIN+code (any compound variant) then insert fresh
-  var patioCC=currentPatio?currentPatio.compound_code:"00034";
-  var patioDescr=currentPatio?currentPatio.nombre:"Cordoba";
+  // Use the VIN's actual compound_code from stock (not the user's patio)
+  var stockRow=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin.toUpperCase();});
+  var patioCC=stockRow?(stockRow.compound_code||stockRow["Compound Code"]||"00034"):currentPatio?currentPatio.compound_code:"00034";
+  var patioDescr=stockRow?(stockRow.compound||stockRow["Compound Descr"]||patioCC):currentPatio?currentPatio.nombre:"Cordoba";
+  // Normalize compound_code to 5 digits
+  patioCC=String(patioCC).padStart(5,"0");
   try{
     // Delete all records for this vin+code regardless of compound (covers "34" and "00034")
     await fetch(SB_URL+"/rest/v1/bloqueos_historial?vin=eq."+encodeURIComponent(vin)+"&block_code=eq."+encodeURIComponent(code),
