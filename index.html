@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.2.1</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.2.3</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.1</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.3</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1094,7 +1094,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.2.1";
+var APP_VERSION="v4.2.3";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 
 // ══════════════════════════════════════════════════════
@@ -4283,18 +4283,25 @@ async function saveChecklist(){
   if(savedId){
     try{await sbPatch("checklist_registros",savedId,{ws_block_ok:false,ws_unblock_ok:false});}catch(e){}
   }
-  // Guardar en historial
+  // Delete ALL existing records for this VIN+code (any compound variant) then insert fresh
   var patioCC=currentPatio?currentPatio.compound_code:"00034";
   var patioDescr=currentPatio?currentPatio.nombre:"Cordoba";
   try{
-    await sbUpsert("bloqueos_historial",{
-      vin:vin,block_code:code,block_date:fecha,
-      unblock_date:fecha,is_active:false,
-      compound_code:patioCC,compound_descr:patioDescr,
+    // Delete all records for this vin+code regardless of compound (covers "34" and "00034")
+    await fetch(SB_URL+"/rest/v1/bloqueos_historial?vin=eq."+encodeURIComponent(vin)+"&block_code=eq."+encodeURIComponent(code),
+      {method:"DELETE",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Prefer":"return=minimal"}});
+    // Insert fresh record with today's date as unblock_date
+    await sbPost("bloqueos_historial",{
+      vin:vin,block_code:code,
+      block_date:fecha,
+      unblock_date:fecha,
+      is_active:false,
+      compound_code:patioCC,
+      compound_descr:patioDescr,
       source_file:"checklist_obt_pendiente_"+currentUser.nombre,
       imported_at:new Date().toISOString()
-    },"vin,block_code");
-  }catch(e){}
+    });
+  }catch(e){console.error("historial save error",e);}
   addObtOperation(vin,code,"B",patioCC,fecha);
   addObtOperation(vin,code,"U",patioCC,fecha);
   btn.textContent="✅ Completado";
@@ -4303,13 +4310,21 @@ async function saveChecklist(){
     +'<div style="font-size:11px;color:#2E7D32;margin-bottom:8px;">Agregado al Excel OBT del día</div>'
     +'<button class="btn btn-gold btn-sm" onclick="exportObtPendienteOperario()">⬇ Excel OBT del día</button>'
     +'</div>';
-  setTimeout(function(){
+  // Wait a bit longer to ensure Supabase has committed the new historial record
+  setTimeout(async function(){
     closeModal("modal-checklist");
-    var msg=saved?"✅ "+code+" registrado como completado"+(blockOk&&unblockOk?" — OBT OK":" — aplicar en OBT manualmente"):"Error al guardar";
-    showToast(msg,saved?"success":"error");
-    loadStock();
+    showToast("✅ "+code+" registrado — actualizando lista...","success");
+    // Small extra wait to ensure DB write is committed
+    await new Promise(function(res){setTimeout(res,800);});
+    await loadStock();
     opRenderTareas();
-  },blockOk&&unblockOk?1500:3000); // más tiempo si hay botón de Excel para verlo
+    // Refresh counts
+    var cnt=document.getElementById("op-tareas-count");
+    if(cnt)showToast("✅ "+code+" completado — lista actualizada","success");
+    if(document.getElementById("page-preventivo")&&document.getElementById("page-preventivo").classList.contains("active")){
+      renderPreventivo();
+    }
+  },1200);
 }
 
 // ══════════════════════════════════════════════════════
