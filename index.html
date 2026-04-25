@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.4.1</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.4.2</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.1</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.2</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -523,6 +523,7 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid var(--border);">
         <button onclick="depTab('neumaticos')" id="dep-tab-neum" style="padding:10px 20px;border:none;background:none;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid var(--gold);color:var(--gold);margin-bottom:-2px;">🟡 Neumáticos</button>
         <button onclick="depTab('materiales')" id="dep-tab-mat" style="padding:10px 20px;border:none;background:none;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);margin-bottom:-2px;">🔧 Materiales</button>
+        <button onclick="depTab('catalogo')" id="dep-tab-cat" style="padding:10px 20px;border:none;background:none;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);margin-bottom:-2px;">📋 Catálogo</button>
       </div>
 
       <!-- TAB NEUMÁTICOS -->
@@ -590,6 +591,28 @@ tbody td{padding:9px 12px;color:var(--text);}
                 <tbody id="dep-mov-tbody"></tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB CATÁLOGO -->
+      <div id="dep-cat" style="display:none;">
+        <div class="filters">
+          <select id="dep-cat-filtro" onchange="renderDepCatalogo()">
+            <option value="activo">Solo activos</option>
+            <option value="ALL">Todos (activos e inactivos)</option>
+            <option value="inactivo">Solo inactivos</option>
+          </select>
+          <input type="text" id="dep-cat-buscar" placeholder="🔍 Buscar..." oninput="renderDepCatalogo()" style="width:200px">
+          <button class="btn btn-primary btn-sm supervisor-only" onclick="openNuevoDiseno()">+ Nuevo diseño</button>
+          <span id="dep-cat-count" style="margin-left:auto;font-size:12px;color:var(--text3)"></span>
+        </div>
+        <div class="card">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Vehículo</th><th>Modelo</th><th>Medida</th><th>Llanta</th><th>Código parte</th><th>Estado</th><th class="supervisor-only">Acción</th></tr></thead>
+              <tbody id="dep-cat-tbody"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -765,24 +788,17 @@ tbody td{padding:9px 12px;color:var(--text);}
         <div class="field">
           <label>Modelo de neumático</label>
           <input type="hidden" id="g-catalogo-id">
-          <!-- Rodado filter -->
-          <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
-            <span style="font-size:11px;color:var(--text3);align-self:center;">Filtrar por rodado:</span>
-            <button type="button" onclick="filtrarGomaRodado('')" id="grod-all" class="btn btn-primary btn-sm" style="font-size:10px;padding:2px 8px;">Todos</button>
-            <button type="button" onclick="filtrarGomaRodado('R14')" id="grod-14" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R14</button>
-            <button type="button" onclick="filtrarGomaRodado('R15')" id="grod-15" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R15</button>
-            <button type="button" onclick="filtrarGomaRodado('R16')" id="grod-16" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R16</button>
-            <button type="button" onclick="filtrarGomaRodado('R17')" id="grod-17" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R17</button>
-            <button type="button" onclick="filtrarGomaRodado('R18')" id="grod-18" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;">R18</button>
+          <!-- Buscador libre -->
+          <input type="text" id="g-buscar" placeholder="🔍 Buscar por rodado, modelo... (ej: R17, Warlock, 265)" oninput="filtrarGomaNeumLista()" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-family:'Barlow',sans-serif;outline:none;">
+          <div id="g-neum-lista" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--card);">
+            <div style="padding:10px;color:var(--text3);font-size:11px;text-align:center;">Escribí para buscar</div>
           </div>
-          <select id="g-neumático" onchange="onGomaNeumSelect()" style="width:100%">
-            <option value="">Seleccionar diseño...</option>
-          </select>
+          <!-- Hidden select kept for compatibility -->
+          <select id="g-neumático" style="display:none" onchange="onGomaNeumSelect()"></select>
+          <div id="g-selected-label" style="display:none;margin-top:6px;padding:6px 10px;background:var(--bg2);border-radius:6px;font-size:11px;font-weight:700;color:var(--gold);"></div>
           <div id="g-stock-info" style="margin-top:6px;font-size:11px;font-weight:700;display:none;padding:6px 10px;border-radius:6px;"></div>
           <!-- Nuevo diseño (solo supervisor) -->
-          <div id="g-nuevo-diseno-wrap" class="supervisor-only" style="margin-top:6px;">
-            <button type="button" onclick="openNuevoDiseno()" class="btn btn-ghost btn-sm" style="font-size:11px;width:100%;">+ Agregar diseño nuevo al catálogo</button>
-          </div>
+          <button type="button" onclick="openNuevoDiseno()" class="btn btn-ghost btn-sm supervisor-only" style="font-size:11px;width:100%;margin-top:6px;">+ Agregar diseño nuevo al catálogo</button>
         </div>
         <div class="field"><label>Posición</label>
           <select id="g-posicion">
@@ -943,12 +959,23 @@ tbody td{padding:9px 12px;color:var(--text);}
 
 <!-- MODAL: Ajuste stock neumáticos -->
 <div class="modal-overlay" id="modal-ajuste-neum">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:500px">
     <div class="modal-head"><h3 id="ajuste-neum-title">Ajustar stock neumáticos</h3><button class="modal-close" onclick="closeModal('modal-ajuste-neum')">×</button></div>
     <div class="modal-body">
       <input type="hidden" id="an-tipo">
-      <div class="field"><label>Diseño de neumático *</label>
-        <select id="an-catalogo"><option value="">Seleccionar...</option></select>
+      <div class="field">
+        <label>Diseño de neumático *</label>
+        <!-- Buscador libre -->
+        <input type="text" id="an-buscar" placeholder="🔍 Buscar por rodado, modelo, marca... (ej: R17, Warlock, 265)" oninput="filtrarAnCatalogo()" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
+        <!-- Lista filtrada -->
+        <div id="an-lista" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--card);">
+          <div style="padding:12px;color:var(--text3);font-size:12px;text-align:center;">Escribí para buscar o dejá vacío para ver todos</div>
+        </div>
+        <input type="hidden" id="an-catalogo">
+        <div id="an-selected" style="display:none;margin-top:6px;padding:8px 12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);font-size:12px;color:var(--text);">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">Seleccionado:</div>
+          <div id="an-selected-label" style="font-weight:700;color:var(--gold);"></div>
+        </div>
       </div>
       <div class="field"><label>Cantidad *</label>
         <input type="number" id="an-cantidad" min="1" value="1" style="width:100px">
@@ -1154,7 +1181,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.4.1";
+var APP_VERSION="v4.4.2";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2471,49 +2498,44 @@ function openDañoModal(){
   openModal("modal-daño");
 }
 
-function buildGomaNeumSelect(rodadoFilter){
-  var sel=document.getElementById("g-neumático");
-  if(!sel)return;
-  var filtered=rodadoFilter
-    ?catalogoCache.filter(function(n){return(n.medida||"").indexOf(rodadoFilter)>=0;})
-    :catalogoCache;
-  var html='<option value="">Seleccionar diseño...</option>';
-  var byV={};
-  filtered.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
-  Object.keys(byV).sort().forEach(function(v){
-    html+='<optgroup label="'+esc(v)+'">';
-    byV[v].forEach(function(n){
-      var label=n.modelo+" — "+n.medida+(n.codigo_parte?" ["+n.codigo_parte+"]":"");
-      html+='<option value="'+esc(n.id)+'">'+esc(label)+'</option>';
-    });
-    html+='</optgroup>';
+function filtrarGomaNeumLista(){
+  var q=(document.getElementById("g-buscar")?document.getElementById("g-buscar").value||"":"").toLowerCase().trim();
+  var lista=document.getElementById("g-neum-lista");
+  if(!lista)return;
+  var filtered=catalogoCache.filter(function(n){
+    if(!q)return true;
+    var haystack=(n.vehiculo+" "+n.modelo+" "+n.medida+" "+(n.codigo_parte||"")).toLowerCase();
+    return haystack.indexOf(q)>=0;
   });
-  if(!filtered.length)html+='<option disabled>Sin diseños para ese rodado</option>';
-  sel.innerHTML=html;
+  if(!filtered.length){lista.innerHTML='<div style="padding:10px;color:var(--text3);font-size:11px;text-align:center;">Sin resultados</div>';return;}
+  lista.innerHTML=filtered.map(function(n){
+    return'<div onclick="selectGomaDiseno(\''+n.id+'\',\''+esc(n.vehiculo+" — "+n.modelo+" "+n.medida)+'\')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:11px;color:var(--text);" onmouseover="this.style.background=\'var(--bg2)\'" onmouseout="this.style.background=\'\'">'
+      +'<b style="color:var(--gold)">'+esc(n.vehiculo)+'</b> — '+esc(n.modelo)+' <span style="color:var(--text3)">'+esc(n.medida)+'</span>'+(n.codigo_parte?' <span style="font-size:10px;color:var(--text3)">['+esc(n.codigo_parte)+']</span>':"")
+      +'</div>';
+  }).join("");
 }
 
-function filtrarGomaRodado(rodado){
-  buildGomaNeumSelect(rodado);
-  // Update button styles
-  ["all","14","15","16","17","18"].forEach(function(r){
-    var btn=document.getElementById("grod-"+(r==="all"?"all":r));
-    if(btn){
-      var active=(rodado===""&&r==="all")||(rodado==="R"+r);
-      btn.className=active?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";
-      btn.style.fontSize="10px";btn.style.padding="2px 8px";
-    }
-  });
-  // Reset stock info
+async function selectGomaDiseno(id, label){
+  document.getElementById("g-catalogo-id").value=id;
+  var lbl=document.getElementById("g-selected-label");
+  if(lbl){lbl.style.display="block";lbl.textContent="✅ "+label;}
+  var buscar=document.getElementById("g-buscar");if(buscar)buscar.value="";
+  var lista=document.getElementById("g-neum-lista");
+  if(lista)lista.innerHTML='<div style="padding:8px 12px;color:var(--text3);font-size:11px;">✅ Seleccionado — buscá otro para cambiar</div>';
   var si=document.getElementById("g-stock-info");
-  if(si)si.style.display="none";
-  document.getElementById("g-catalogo-id").value="";
+  if(si){
+    si.style.display="block";si.innerHTML='<span style="color:var(--text3)">Verificando stock...</span>';
+    var stock=await verificarStockNeumatico(id);
+    if(stock>0){si.style.background="#E8F5E9";si.style.color="#2E7D32";si.innerHTML="✅ Hay "+stock+" en stock — Reemplazo automático disponible";}
+    else{si.style.background="#FFF3E0";si.style.color="#E65100";si.innerHTML="⚠️ Sin stock disponible — Se solicitará al proveedor";}
+  }
 }
+
+function buildGomaNeumSelect(){filtrarGomaNeumLista();}
+function filtrarGomaRodado(){filtrarGomaNeumLista();}
 
 function openNuevoDiseno(){
-  // Fill from current vehicle if something selected
-  ["nd-modelo","nd-medida","nd-llanta","nd-codigo"].forEach(function(id){
-    var el=document.getElementById(id);if(el)el.value="";
-  });
+  ["nd-modelo","nd-medida","nd-llanta","nd-codigo"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
   document.getElementById("nd-vehiculo").value="Cronos";
   document.getElementById("nd-vehiculo-custom").style.display="none";
   openModal("modal-nuevo-diseno");
@@ -2531,9 +2553,9 @@ async function saveNuevoDiseno(){
   try{
     var rec={vehiculo:veh,modelo:modelo+(valvula==="TPMS"?" - TPMS":""),medida:medida,llanta:llanta,codigo_parte:codigo,activo:true};
     await sbPost("neumaticos_catalogo",rec);
-    await loadCatalogo(); // reload cache
+    await loadCatalogo();
     closeModal("modal-nuevo-diseno");
-    buildGomaNeumSelect(""); // rebuild selector
+    filtrarGomaNeumLista();filtrarAnCatalogo();
     showToast("Diseño agregado al catálogo","success");
   }catch(e){showToast("Error: "+e.message,"error");}
 }
@@ -2543,9 +2565,10 @@ function openGomaModal(){
   document.getElementById("g-posicion").value="";
   document.getElementById("g-catalogo-id").value="";
   var si=document.getElementById("g-stock-info");if(si)si.style.display="none";
+  var lbl=document.getElementById("g-selected-label");if(lbl)lbl.style.display="none";
   document.getElementById("g-foto-preview").style.display="none";
-  // Reset rodado filter buttons
-  filtrarGomaRodado(""); // builds select + resets buttons
+  var buscar=document.getElementById("g-buscar");if(buscar)buscar.value="";
+  filtrarGomaNeumLista();
   openModal("modal-goma");
 }
 async function onGomaNeumSelect(){
@@ -3196,12 +3219,65 @@ var depKoCurrent=null; // current catalogo_id for KO detail
 function depTab(tab){
   document.getElementById("dep-neum").style.display=tab==="neumaticos"?"block":"none";
   document.getElementById("dep-mat").style.display=tab==="materiales"?"block":"none";
-  var nt=document.getElementById("dep-tab-neum");
-  var mt=document.getElementById("dep-tab-mat");
-  if(nt){nt.style.borderBottomColor=tab==="neumaticos"?"var(--gold)":"transparent";nt.style.color=tab==="neumaticos"?"var(--gold)":"var(--text3)";}
-  if(mt){mt.style.borderBottomColor=tab==="materiales"?"var(--gold)":"transparent";mt.style.color=tab==="materiales"?"var(--gold)":"var(--text3)";}
+  document.getElementById("dep-cat").style.display=tab==="catalogo"?"block":"none";
+  var tabs={"neum":"neumaticos","mat":"materiales","cat":"catalogo"};
+  Object.keys(tabs).forEach(function(k){
+    var btn=document.getElementById("dep-tab-"+k);
+    if(!btn)return;
+    var active=tabs[k]===tab;
+    btn.style.borderBottomColor=active?"var(--gold)":"transparent";
+    btn.style.color=active?"var(--gold)":"var(--text3)";
+  });
   if(tab==="neumaticos")renderDepNeumaticos();
   if(tab==="materiales")renderDepMateriales();
+  if(tab==="catalogo")renderDepCatalogo();
+}
+
+async function renderDepCatalogo(){
+  var filtro=document.getElementById("dep-cat-filtro")?document.getElementById("dep-cat-filtro").value:"activo";
+  var q=(document.getElementById("dep-cat-buscar")?document.getElementById("dep-cat-buscar").value||"":"").toLowerCase();
+  // Load all from DB (including inactive)
+  var data=[];
+  try{data=await sbGet("neumaticos_catalogo","select=*&order=vehiculo,modelo");}catch(e){}
+  if(!Array.isArray(data))data=[];
+  var filtered=data.filter(function(n){
+    if(filtro==="activo"&&!n.activo)return false;
+    if(filtro==="inactivo"&&n.activo)return false;
+    if(q){
+      var h=(n.vehiculo+" "+n.modelo+" "+n.medida+" "+(n.codigo_parte||"")).toLowerCase();
+      if(h.indexOf(q)<0)return false;
+    }
+    return true;
+  });
+  var countEl=document.getElementById("dep-cat-count");
+  if(countEl)countEl.textContent=filtered.length+" diseños";
+  var isSup=isSupervisor();
+  document.getElementById("dep-cat-tbody").innerHTML=filtered.map(function(n){
+    var estadoBadge=n.activo
+      ?'<span class="badge b-done">Activo</span>'
+      :'<span class="badge b-ko">Inactivo</span>';
+    var accion=isSup
+      ?'<button class="btn btn-ghost btn-sm" onclick="toggleCatalogoActivo(\''+n.id+'\','+(!n.activo)+')">'+(n.activo?"Desactivar":"Activar")+'</button>'
+      :"";
+    return'<tr style="'+(n.activo?"":"opacity:0.5;")+'">'
+      +'<td style="font-weight:700;color:var(--gold)">'+esc(n.vehiculo)+'</td>'
+      +'<td style="font-size:12px">'+esc(n.modelo)+'</td>'
+      +'<td style="font-size:12px">'+esc(n.medida)+'</td>'
+      +'<td style="font-size:11px;color:var(--text3)">'+esc(n.llanta||"—")+'</td>'
+      +'<td style="font-family:monospace;font-size:11px">'+esc(n.codigo_parte||"—")+'</td>'
+      +'<td>'+estadoBadge+'</td>'
+      +'<td class="supervisor-only">'+accion+'</td>'
+      +'</tr>';
+  }).join("")||'<tr><td colspan="7"><div class="empty"><div class="empty-icon">📋</div>Sin diseños</div></td></tr>';
+}
+
+async function toggleCatalogoActivo(id, nuevoEstado){
+  try{
+    await sbPatch("neumaticos_catalogo",id,{activo:nuevoEstado});
+    await loadCatalogo();
+    renderDepCatalogo();
+    showToast(nuevoEstado?"Diseño activado":"Diseño desactivado","success");
+  }catch(e){showToast("Error: "+e.message,"error");}
 }
 
 // ── NEUMÁTICOS ──────────────────────────────────────
@@ -3337,18 +3413,71 @@ function openAjusteNeumModalPre(tipo,catId){
     if(sel&&catId){sel.value=catId;}
   },50);
 }
-function buildAnCatalogoSelect(rodadoFilter){
-  var html='<option value="">Seleccionar diseño...</option>';
-  var filtered=rodadoFilter?catalogoCache.filter(function(n){return(n.medida||"").indexOf(rodadoFilter)>=0;}):catalogoCache;
-  var byV={};
-  filtered.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
-  Object.keys(byV).sort().forEach(function(v){
-    html+='<optgroup label="'+esc(v)+'">';
-    filtered.filter(function(n){return n.vehiculo===v;}).forEach(function(n){html+='<option value="'+n.id+'">'+esc(n.modelo+" — "+n.medida+(n.codigo_parte?" ["+n.codigo_parte+"]":""))+'</option>';});
-    html+='</optgroup>';
+function filtrarAnCatalogo(){
+  var q=(document.getElementById("an-buscar").value||"").toLowerCase().trim();
+  var lista=document.getElementById("an-lista");
+  if(!lista)return;
+  var filtered=catalogoCache.filter(function(n){
+    if(!q)return true;
+    var haystack=(n.vehiculo+" "+n.modelo+" "+n.medida+" "+(n.codigo_parte||"")).toLowerCase();
+    return haystack.indexOf(q)>=0;
   });
-  var sel=document.getElementById("an-catalogo");
-  if(sel)sel.innerHTML=html;
+  if(!filtered.length){
+    lista.innerHTML='<div style="padding:12px;color:var(--text3);font-size:12px;text-align:center;">Sin resultados para "'+esc(q)+'"</div>';
+    return;
+  }
+  lista.innerHTML=filtered.map(function(n){
+    var label='<b style="color:var(--gold)">'+esc(n.vehiculo)+'</b> — '+esc(n.modelo)+' <span style="color:var(--text3);font-size:11px;">'+esc(n.medida)+'</span>'+(n.codigo_parte?'<span style="color:var(--text3);font-size:10px;"> ['+esc(n.codigo_parte)+']</span>':"");
+    return'<div onclick="selectAnDiseno(\''+n.id+'\',\''+esc(n.vehiculo+" — "+n.modelo+" "+n.medida)+'\')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12px;color:var(--text);transition:background .1s;" onmouseover="this.style.background=\'var(--bg2)\'" onmouseout="this.style.background=\'\'">'+label+'</div>';
+  }).join("");
+}
+
+function selectAnDiseno(id, label){
+  document.getElementById("an-catalogo").value=id;
+  var sel=document.getElementById("an-selected");
+  var lbl=document.getElementById("an-selected-label");
+  if(sel)sel.style.display="block";
+  if(lbl)lbl.textContent=label;
+  // Clear search and close list
+  var buscar=document.getElementById("an-buscar");
+  if(buscar)buscar.value="";
+  var lista=document.getElementById("an-lista");
+  if(lista)lista.innerHTML='<div style="padding:8px 12px;color:var(--text3);font-size:11px;">✅ Diseño seleccionado — buscá otro para cambiar</div>';
+}
+
+function buildAnCatalogoSelect(){
+  // Now just initializes the search list
+  filtrarAnCatalogo();
+}
+
+function openAjusteNeumModal(tipo){
+  document.getElementById("an-tipo").value=tipo;
+  document.getElementById("ajuste-neum-title").textContent=tipo==="ok"?"➕ Agregar neumáticos OK al depósito":"➕ Registrar neumáticos KO";
+  document.getElementById("an-cantidad").value=1;
+  document.getElementById("an-obs").value="";
+  document.getElementById("an-vin-wrap").style.display=tipo==="ko"?"block":"none";
+  document.getElementById("an-vin-search").value="";
+  document.getElementById("an-vin").innerHTML='<option value="">Seleccionar VIN...</option>';
+  // Reset catalog selector
+  document.getElementById("an-catalogo").value="";
+  var buscar=document.getElementById("an-buscar");if(buscar)buscar.value="";
+  var sel=document.getElementById("an-selected");if(sel)sel.style.display="none";
+  filtrarAnCatalogo();
+  // Add foto field
+  var mb=document.querySelector("#modal-ajuste-neum .modal-body");
+  if(mb&&!document.getElementById("an-foto-wrap")){
+    var div=document.createElement("div");
+    div.id="an-foto-wrap";div.className="field";
+    div.innerHTML='<label>Foto del neumático (opcional)</label>'
+      +'<div class="photo-placeholder" onclick="document.getElementById(\'an-foto-input\').click()">📷 Agregar foto</div>'
+      +'<input type="file" id="an-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,\'an-foto-prev\')">'
+      +'<img id="an-foto-prev" class="photo-preview">';
+    mb.appendChild(div);
+  } else {
+    var prev=document.getElementById("an-foto-prev");
+    if(prev){prev.style.display="none";prev.src="";}
+  }
+  openModal("modal-ajuste-neum");
 }
 
 function openAjusteNeumModal(tipo){
