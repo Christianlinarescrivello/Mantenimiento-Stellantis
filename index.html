@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.2.4</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.2.6</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.4</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.6</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1094,7 +1094,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.2.4";
+var APP_VERSION="v4.2.6";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 
 // ══════════════════════════════════════════════════════
@@ -1164,7 +1164,11 @@ async function sbParse(r){
   }
   return data;
 }
-function sbGet(table,params){return fetch(SB_URL+"/rest/v1/"+table+"?"+params,{headers:sbH()}).then(sbParse);}
+function sbGet(table,params){
+  return fetch(SB_URL+"/rest/v1/"+table+"?"+params,{
+    headers:Object.assign({},sbH(),{"Prefer":"count=none","Accept-Profile":"public"})
+  }).then(sbParse);
+}
 function sbPost(table,data){return fetch(SB_URL+"/rest/v1/"+table,{method:"POST",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
 function sbPatch(table,id,data){return fetch(SB_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
 function sbPatchWhere(table,where,data){return fetch(SB_URL+"/rest/v1/"+table+"?"+where,{method:"PATCH",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
@@ -1415,12 +1419,18 @@ async function loadStock(){
       var data=await sbGet("stock",stockFilter);
       stockCache=Array.isArray(data)?data:[];
     }
-    // Load historial for all patios to get the most recent unblock_date per VIN+code
+    // Load historial via RPC function — returns only last unblock_date per VIN+code
+    // Single query instead of 42 paginated requests
     var hist=[];
     try{
-      var hdata=await sbGet("bloqueos_historial","select=vin,block_code,unblock_date,is_active&limit=20000");
+      var hrpc=await fetch(SB_URL+"/rest/v1/rpc/get_last_unblock",{
+        method:"POST",
+        headers:Object.assign({},sbH(),{"Content-Type":"application/json"}),
+        body:"{}"
+      });
+      var hdata=await hrpc.json();
       if(Array.isArray(hdata))hist=hdata;
-    }catch(e){}
+    }catch(e){hist=[];}
     pendingCache=computePending(stockCache,hist);
   }catch(e){stockCache=[];pendingCache=[];}
 }
