@@ -176,7 +176,28 @@ tbody td{padding:9px 12px;color:var(--text);}
 .bar-fill{height:100%;border-radius:4px;transition:width .6s ease;}
 .bar-val{width:28px;font-weight:700;color:var(--text);font-size:11px;}
 @media(max-width:768px){.sidenav{display:none;}.main{margin-left:0;padding:16px;}.field-row{grid-template-columns:1fr;}}
-@media print{.sidenav,.topbar,.no-print{display:none!important;}.main{margin-left:0;}}
+@media print{.sidenav,.topbar,.no-print{display:none!important;}.main{margin-left:0;}@page{margin:12mm;}}
+/* SEMÁFORO */
+.sem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;}
+.sem-card{border-radius:10px;padding:12px 10px;text-align:center;position:relative;border:2px solid transparent;transition:transform .15s;}
+.sem-card:hover{transform:translateY(-2px);}
+.sem-verde{background:#E8F5E9;border-color:#2E7D32;}
+.sem-amarillo{background:#FFF8E1;border-color:#F9A825;}
+.sem-naranja{background:#FFF3E0;border-color:#E65100;}
+.sem-rojo{background:#FFEBEE;border-color:#C62828;}
+.sem-gris{background:var(--bg2);border-color:var(--border);}
+.sem-dot{width:18px;height:18px;border-radius:50%;margin:0 auto 6px;box-shadow:0 0 6px rgba(0,0,0,0.2);}
+.sem-dot-verde{background:#2E7D32;}
+.sem-dot-amarillo{background:#F9A825;}
+.sem-dot-naranja{background:#E65100;}
+.sem-dot-rojo{background:#C62828;}
+.sem-dot-gris{background:#94A3B8;}
+.sem-code{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text);}
+.sem-label{font-size:9px;color:var(--text3);margin-top:2px;}
+.sem-count{font-size:18px;font-weight:900;line-height:1;margin:4px 0;}
+.sem-detail{font-size:9px;color:var(--text2);}
+.patio-block{background:var(--card);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow);border-left:4px solid var(--blue);}
+.patio-block-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
 </style>
 </head>
 <body>
@@ -190,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.0.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.1.0</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -242,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.0.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.1.0</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -284,10 +305,22 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="page active" id="page-dashboard">
       <div class="page-title">Resumen del día</div>
       <div class="page-sub" id="dash-date"></div>
+      <!-- KPI Stats row -->
       <div class="stats-row" id="dash-stats"></div>
+      <!-- SEMÁFORO GLOBAL por patio (visible cuando hay múltiples patios) -->
+      <div id="dash-semaforo-wrap" style="display:none;margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">🚦 Semáforo por Patio</div>
+        <div id="dash-semaforo-patios"></div>
+      </div>
+      <!-- SEMÁFORO por tipo de servicio -->
+      <div style="margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">📊 Estado por Servicio <span id="dash-patio-label" style="font-size:11px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;margin-left:8px;"></span></div>
+        <div id="dash-semaforo-servicios"></div>
+      </div>
+      <!-- Bottom grid: urgentes + daños -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="card">
-          <div class="card-head"><span class="card-title">⚠️ Más urgentes hoy</span></div>
+          <div class="card-head"><span class="card-title">⚠️ Más urgentes</span></div>
           <div class="tbl-wrap"><table>
             <thead><tr><th>VIN</th><th>Servicio</th><th>Días</th><th>Estado</th></tr></thead>
             <tbody id="dash-urgent"></tbody>
@@ -1066,7 +1099,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.0.0";
+var APP_VERSION="v4.1.0";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 
 // ══════════════════════════════════════════════════════
@@ -1474,27 +1507,123 @@ async function renderDashboard(){
   var now=new Date();
   document.getElementById("dash-date").textContent=
     now.toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
-  var overdue=pendingCache.filter(function(p){return p.urgency==="overdue";}).length;
-  var urgent=pendingCache.filter(function(p){return p.urgency==="urgent";}).length;
-  var soon=pendingCache.filter(function(p){return p.urgency==="soon";}).length;
+
   var daños=[],gomas=[];
   try{daños=await sbGet("daños","estado=neq.resuelto&select=*");}catch(e){}
   try{gomas=await sbGet("gomas","estado_stock=eq.ko&select=*");}catch(e){}
+
+  var overdue=pendingCache.filter(function(p){return p.urgency==="overdue";}).length;
+  var urgent=pendingCache.filter(function(p){return p.urgency==="urgent";}).length;
+  var soon=pendingCache.filter(function(p){return p.urgency==="soon";}).length;
+  var ok=pendingCache.filter(function(p){return p.urgency==="ok";}).length;
+
   document.getElementById("dash-stats").innerHTML=[
     {lbl:"Total preventivo",val:pendingCache.length,c:"var(--blue)"},
-    {lbl:"Vencidos",val:overdue,c:"#C62828"},
-    {lbl:"Urgentes ≤15d",val:urgent,c:"#E65100"},
-    {lbl:"Próximos ≤30d",val:soon,c:"#1565C0"},
-    {lbl:"Daños activos (C30)",val:daños.length,c:"#C62828"},
-    {lbl:"Gomas KO (C37)",val:gomas.length,c:"#E65100"},
+    {lbl:"🔴 Vencidos",val:overdue,c:"#C62828"},
+    {lbl:"🟠 Urgentes ≤15d",val:urgent,c:"#E65100"},
+    {lbl:"🔵 Próximos ≤30d",val:soon,c:"#1565C0"},
+    {lbl:"🟢 A tiempo",val:ok,c:"#2E7D32"},
+    {lbl:"Daños activos C30",val:daños.length,c:"#C62828"},
+    {lbl:"Neumáticos KO C37",val:gomas.length,c:"#E65100"},
   ].map(function(s){return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';}).join("");
+
+  // ── SEMÁFORO POR SERVICIO ────────────────────────────
+  // Función que calcula el semáforo de un grupo de pendientes
+  function calcSemaforo(items){
+    var ov=items.filter(function(p){return p.urgency==="overdue";}).length;
+    var urg=items.filter(function(p){return p.urgency==="urgent";}).length;
+    var sn=items.filter(function(p){return p.urgency==="soon";}).length;
+    var ok=items.filter(function(p){return p.urgency==="ok";}).length;
+    var total=items.length;
+    if(!total)return{color:"gris",dot:"gris",label:"Sin stock",ov:0,urg:0,sn:0,ok:0,total:0};
+    if(ov>0)return{color:"rojo",dot:"rojo",label:"CRÍTICO",ov:ov,urg:urg,sn:sn,ok:ok,total:total};
+    if(urg>0)return{color:"naranja",dot:"naranja",label:"URGENTE",ov:ov,urg:urg,sn:sn,ok:ok,total:total};
+    if(sn>0)return{color:"amarillo",dot:"amarillo",label:"ATENCIÓN",ov:ov,urg:urg,sn:sn,ok:ok,total:total};
+    return{color:"verde",dot:"verde",label:"OK",ov:ov,urg:urg,sn:sn,ok:ok,total:total};
+  }
+
+  function renderSemaforoServicios(items, patioNombre){
+    var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
+    var html='<div class="sem-grid">';
+    PREV_CODES.forEach(function(code){
+      var codeItems=items.filter(function(p){return p.maint.code===code;});
+      var sem=calcSemaforo(codeItems);
+      var svc=CATALOG.find(function(m){return m.code===code;});
+      var details="";
+      if(sem.total>0){
+        var parts=[];
+        if(sem.ov>0)parts.push('<span style="color:#C62828;font-weight:700">'+sem.ov+' venc.</span>');
+        if(sem.urg>0)parts.push('<span style="color:#E65100">'+sem.urg+' urg.</span>');
+        if(sem.sn>0)parts.push('<span style="color:#1565C0">'+sem.sn+' próx.</span>');
+        if(sem.ok>0)parts.push('<span style="color:#2E7D32">'+sem.ok+' ok</span>');
+        details=parts.join(' · ');
+      }
+      html+='<div class="sem-card sem-'+sem.color+'" title="'+esc((svc&&svc.service)||code)+'">'
+        +'<div class="sem-dot sem-dot-'+sem.dot+'"></div>'
+        +'<div class="sem-code">'+code+'</div>'
+        +'<div class="sem-count" style="color:'+(sem.color==="rojo"?"#C62828":sem.color==="naranja"?"#E65100":sem.color==="amarillo"?"#F9A825":sem.color==="verde"?"#2E7D32":"#94A3B8")+'">'+sem.total+'</div>'
+        +'<div class="sem-label">'+esc((svc&&svc.service)||"")+' · '+sem.label+'</div>'
+        +(details?'<div class="sem-detail" style="margin-top:4px">'+details+'</div>':"")
+        +'</div>';
+    });
+    html+='</div>';
+    return html;
+  }
+
+  // ── MODO MULTI-PATIO (admin/regional sin filtro) ────
+  var isMultiPatio=(!currentPatio&&currentUser.todos_patios&&patiosCache.length>1);
+  var semaforoWrap=document.getElementById("dash-semaforo-wrap");
+  var semaforoPatios=document.getElementById("dash-semaforo-patios");
+  var semaforoServicios=document.getElementById("dash-semaforo-servicios");
+  var patioLabel=document.getElementById("dash-patio-label");
+
+  if(isMultiPatio){
+    // Show patio-level semaphore
+    semaforoWrap.style.display="block";
+    var patioHtml="";
+    patiosCache.forEach(function(patio){
+      var cc=patio.compound_code.replace(/^0+/,"");
+      var patioItems=pendingCache.filter(function(p){
+        var pcc=String(p.compoundCode||"").replace(/^0+/,"");
+        return pcc===cc||pcc===patio.compound_code||
+          (p.compoundDescr&&p.compoundDescr.toLowerCase().indexOf((patio.nombre||"").toLowerCase().substring(0,4))>=0);
+      });
+      var sem=calcSemaforo(patioItems);
+      var borderColor=sem.color==="rojo"?"#C62828":sem.color==="naranja"?"#E65100":sem.color==="amarillo"?"#F9A825":sem.color==="verde"?"#2E7D32":"#94A3B8";
+      patioHtml+='<div class="patio-block" style="border-left-color:'+borderColor+'">'
+        +'<div class="patio-block-title">'
+        +'<div class="sem-dot sem-dot-'+sem.dot+'" style="width:14px;height:14px;flex-shrink:0;"></div>'
+        +'<span style="font-size:15px;font-weight:800;color:var(--text)">'+esc(patio.nombre)+'</span>'
+        +'<span style="font-size:11px;color:var(--text3);margin-left:4px">'+esc(patio.compound_code)+'</span>'
+        +'<span class="badge" style="margin-left:auto;background:'+(sem.color==="verde"?"#E8F5E9":sem.color==="amarillo"?"#FFF8E1":sem.color==="naranja"?"#FFF3E0":sem.color==="rojo"?"#FFEBEE":"var(--bg2)")+';color:'+borderColor+'">'+sem.label+' — '+patioItems.length+' pendientes</span>'
+        +'</div>'
+        +renderSemaforoServicios(patioItems,patio.nombre)
+        +'</div>';
+    });
+    semaforoPatios.innerHTML=patioHtml||'<div class="empty">Sin datos de stock importados</div>';
+    semaforoServicios.innerHTML=""; // don't repeat below
+    patioLabel.textContent="(Todos los patios)";
+  } else {
+    // Single patio view
+    semaforoWrap.style.display="none";
+    semaforoServicios.innerHTML=renderSemaforoServicios(pendingCache, currentPatio?currentPatio.nombre:"");
+    patioLabel.textContent=currentPatio?"— "+currentPatio.nombre:"";
+  }
+
+  // ── URGENTES ────────────────────────────────────────
   var top5=pendingCache.filter(function(p){return p.urgency==="overdue"||p.urgency==="urgent";}).slice(0,8);
   document.getElementById("dash-urgent").innerHTML=top5.length?top5.map(function(p){
     var days=p.daysToDue<0?"-"+Math.abs(p.daysToDue)+"d":"+"+p.daysToDue+"d";
-    return'<tr><td style="font-family:monospace;font-size:11px">'+esc(p.vin.slice(-8))+'</td><td>'+p.maint.code+'</td><td style="font-weight:700;color:'+URGCOLOR[p.urgency]+'">'+days+'</td><td><span class="badge b-'+p.urgency+'">'+URGLBL[p.urgency]+'</span></td></tr>';
+    return'<tr><td style="font-family:monospace;font-size:11px">'+esc(p.vin.slice(-8))+'</td>'
+      +'<td><b style="color:var(--gold)">'+p.maint.code+'</b></td>'
+      +'<td style="font-weight:700;color:'+URGCOLOR[p.urgency]+'">'+days+'</td>'
+      +'<td><span class="badge b-'+p.urgency+'">'+URGLBL[p.urgency]+'</span></td></tr>';
   }).join(""):'<tr><td colspan="4"><div class="empty" style="padding:20px">Sin urgentes ✅</div></td></tr>';
+
   document.getElementById("dash-daños").innerHTML=daños.slice(0,6).map(function(d){
-    return'<tr><td style="font-family:monospace;font-size:11px">'+esc((d.vin||"").slice(-8))+'</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.descripcion||"")+'</td><td><span class="badge b-'+('pendiente'===d.estado?'pending':'inprog')+'">'+esc(d.estado)+'</span></td></tr>';
+    return'<tr><td style="font-family:monospace;font-size:11px">'+esc((d.vin||"").slice(-8))+'</td>'
+      +'<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">'+esc(d.tipo_daño||d.descripcion||"—")+'</td>'
+      +'<td><span class="badge b-'+('pendiente'===d.estado?'pending':'inprog')+'">'+esc(d.estado)+'</span></td></tr>';
   }).join("")||'<tr><td colspan="3"><div class="empty" style="padding:20px">Sin daños activos ✅</div></td></tr>';
 }
 
