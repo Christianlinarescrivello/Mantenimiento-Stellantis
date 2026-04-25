@@ -190,7 +190,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v3.3.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.0.0</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -242,8 +242,14 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v3.3.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.0.0</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
+    <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
+      <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
+      <select id="top-patio-sel" onchange="onTopPatioChange()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:6px;font-size:11px;font-family:'Barlow',sans-serif;outline:none;cursor:pointer;">
+        <option value="ALL">Todos los patios</option>
+      </select>
+    </div>
     <button class="topbar-quick-btn supervisor-only" id="top-import-btn" onclick="showPage('stock')">📦 Importar archivos</button>
     <button class="theme-btn" onclick="toggleTheme()" id="theme-btn" title="Cambiar tema">🌙</button>
     <button class="logout-btn" onclick="doLogout()">Salir</button>
@@ -268,7 +274,8 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="nav-section supervisor-only">Config</div>
     <div class="nav-item" onclick="showPage('deposito')" id="nav-deposito"><span class="icon">🏭</span> Stock Depósito</div>
     <div class="nav-item supervisor-only" onclick="showPage('stock')" id="nav-stock"><span class="icon">📦</span> Importar Stock</div>
-    <div class="nav-item supervisor-only" onclick="showPage('usuarios')" id="nav-usuarios"><span class="icon">👥</span> Usuarios</div>
+    <div class="nav-item admin-only supervisor-only" onclick="showPage('usuarios')" id="nav-usuarios"><span class="icon">👥</span> Usuarios</div>
+    <div class="nav-item admin-only supervisor-only" onclick="showPage('patios')" id="nav-patios"><span class="icon">🗺️</span> Patios / OBT</div>
   </div>
 
   <div class="main">
@@ -573,11 +580,22 @@ tbody td{padding:9px 12px;color:var(--text);}
     <!-- USUARIOS -->
     <div class="page" id="page-usuarios">
       <div class="page-title">Gestión de Usuarios</div>
-      <div class="page-sub">Administrá el acceso al sistema</div>
+      <div class="page-sub">Alta, edición y asignación de roles y patios</div>
       <div style="margin-bottom:14px"><button class="btn btn-primary" onclick="openUsuarioModal()">+ Nuevo usuario</button></div>
       <div class="card"><div class="tbl-wrap"><table>
-        <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Activo</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Patio</th><th>Activo</th><th>Acciones</th></tr></thead>
         <tbody id="usr-tbody"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- PATIOS / OBT -->
+    <div class="page" id="page-patios">
+      <div class="page-title">🗺️ Patios y Configuración OBT</div>
+      <div class="page-sub">Gestioná los patios de Stellantis y su integración con el WebService OBT</div>
+      <div style="margin-bottom:14px"><button class="btn btn-primary" onclick="openPatioModal()">+ Agregar patio</button></div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>Patio</th><th>Compound</th><th>Descripción</th><th>OBT Activo</th><th>Usuario WS</th><th>URL WS</th><th>Acciones</th></tr></thead>
+        <tbody id="patios-tbody"></tbody>
       </table></div></div>
     </div>
 
@@ -760,25 +778,76 @@ tbody td{padding:9px 12px;color:var(--text);}
 
 <!-- Usuario -->
 <div class="modal-overlay" id="modal-usuario">
-  <div class="modal" style="max-width:440px">
+  <div class="modal" style="max-width:480px">
     <div class="modal-head"><h3 id="usr-modal-title">👤 Nuevo usuario</h3><button class="modal-close" onclick="closeModal('modal-usuario')">×</button></div>
     <div class="modal-body">
       <input type="hidden" id="usr-id">
       <div class="field"><label>Nombre completo *</label><input type="text" id="usr-nombre" placeholder="Nombre y apellido"></div>
-      <div class="field"><label>Email *</label><input type="email" id="usr-email" placeholder="email@cordoba.com"></div>
+      <div class="field"><label>Email *</label><input type="email" id="usr-email" placeholder="email@stellantis.com"></div>
       <div class="field"><label>Contraseña *</label>
         <div style="position:relative">
           <input type="password" id="usr-pass" placeholder="Contraseña" style="width:100%;padding-right:44px">
           <button class="eye-btn" onclick="togglePass('usr-pass',this)" type="button" style="color:var(--text3)">👁</button>
         </div>
       </div>
-      <div class="field"><label>Rol</label>
-        <select id="usr-rol"><option value="operario">Operario</option><option value="supervisor">Supervisor</option></select>
+      <div class="field-row">
+        <div class="field"><label>Rol *</label>
+          <select id="usr-rol" onchange="onUsrRolChange()">
+            <option value="operario">Operario</option>
+            <option value="supervisor_patio">Supervisor de Patio</option>
+            <option value="supervisor_regional">Supervisor Regional</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div class="field" id="usr-patio-wrap">
+          <label>Patio asignado *</label>
+          <select id="usr-patio">
+            <option value="">Seleccionar patio...</option>
+          </select>
+        </div>
+      </div>
+      <div id="usr-todos-wrap" style="display:none;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text2);padding:10px;background:var(--bg2);border-radius:8px;">
+          <input type="checkbox" id="usr-todos-patios" style="width:16px;height:16px;accent-color:var(--blue);">
+          Ver todos los patios (Supervisor Regional / Admin)
+        </label>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('modal-usuario')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveUsuario()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PATIO -->
+<div class="modal-overlay" id="modal-patio">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head"><h3 id="patio-modal-title">🗺️ Agregar patio</h3><button class="modal-close" onclick="closeModal('modal-patio')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="patio-id">
+      <div class="field-row">
+        <div class="field"><label>Nombre del patio *</label><input type="text" id="patio-nombre" placeholder="Ej: Córdoba, Buenos Aires"></div>
+        <div class="field"><label>Compound Code *</label><input type="text" id="patio-compound" placeholder="Ej: 00034"></div>
+      </div>
+      <div class="field"><label>Compound Descripción</label><input type="text" id="patio-descr" placeholder="Ej: Cordoba"></div>
+      <div style="padding:12px 14px;background:var(--bg2);border-radius:8px;margin-top:8px;border:1px solid var(--border);">
+        <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;color:var(--text);margin-bottom:12px;">
+          <input type="checkbox" id="patio-obt" onchange="onPatioObtChange()" style="width:18px;height:18px;accent-color:var(--blue);">
+          <span><b>Integración OBT activa</b> — este patio usa el WebService OBT</span>
+        </label>
+        <div id="patio-obt-config" style="display:none;">
+          <div class="field"><label>URL WebService OBT</label><input type="text" id="patio-ws-url" placeholder="http://ip:puerto/tralocWS/services/TralocWsApp"></div>
+          <div class="field-row">
+            <div class="field"><label>Usuario WS</label><input type="text" id="patio-ws-user" placeholder="Ej: F34766C"></div>
+            <div class="field"><label>Contraseña WS</label><input type="password" id="patio-ws-pass" placeholder="Contraseña"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-patio')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePatio()">Guardar patio</button>
     </div>
   </div>
 </div>
@@ -965,6 +1034,17 @@ var SB_URL = "https://hdxphbwxwwcdbewxmwxl.supabase.co";
 var SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkeHBoYnd4d3djZGJld3htd3hsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MTY4ODksImV4cCI6MjA5MjM5Mjg4OX0._NDuvtirjunZT3Pr7w6yY8bOTOaRa7Okw4jrHE3B9dc";
 // OBT via Supabase Edge Function → relay local → OBT SOAP
 var OBT_PROXY_URL = "https://hdxphbwxwwcdbewxmwxl.supabase.co/functions/v1/rapid-task";
+// ROLES
+var ROL_ADMIN="admin";
+var ROL_SUP_REGIONAL="supervisor_regional";
+var ROL_SUP_PATIO="supervisor_patio";
+var ROL_OPERARIO="operario";
+var ROL_SUPERVISOR="supervisor"; // legacy
+// Patio activo (se setea al login)
+var currentPatio=null; // {id, nombre, compound_code, obt_activo, ...}
+var patiosCache=[]; // todos los patios (para admin/regional)
+var catalogoCache=[];
+var chartInstances={};
 var OBT_PROXY_TIMEOUT_MS = 45000;
 // WS directo (fallback / referencia IT — no se usa con el proxy activo)
 var WS_URL = "http://172.20.60.93:9086/tralocWS/services/TralocWsApp";
@@ -986,7 +1066,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v3.3.0";
+var APP_VERSION="v4.0.0";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 
 // ══════════════════════════════════════════════════════
@@ -1120,51 +1200,28 @@ async function logWsIntegrationFallback(entry){
   return null;
 }
 async function callWS(vin,cc,code,op){
+  // ══ WS INTEGRATION DESACTIVADA TEMPORALMENTE ══
+  // La integración OBT vía proxy está comentada hasta que esté disponible por patio.
+  // Cada operación queda registrada en el historial y genera Excel para aplicar manualmente.
+  /*
   var ccPad=String(cc||"").padStart(5,"0");
-  var payload={
-    vin:String(vin||"").trim().toUpperCase(),
-    compound_code:ccPad,
-    block_code:String(code||"").trim().toUpperCase(),
-    operation:String(op||"").trim().toUpperCase(),
+  var payload={vin:vin,compound_code:ccPad,block_code:code,operation:op,
     executed_by:currentUser&&currentUser.id?currentUser.id:null,
     executed_by_name:currentUser&&currentUser.nombre?currentUser.nombre:null,
-    app_version:APP_VERSION
-  };
-  var controller=typeof AbortController!=="undefined"?new AbortController():null;
-  var timer=controller?setTimeout(function(){try{controller.abort();}catch(e){}},OBT_PROXY_TIMEOUT_MS):null;
-  try{
-    var r=await fetch(OBT_PROXY_URL,{
-      method:"POST",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY},
-      body:JSON.stringify(payload),
-      signal:controller?controller.signal:undefined
-    });
-    if(timer)clearTimeout(timer);
-    var txt=await r.text();
-    var data=null;
-    try{data=txt?JSON.parse(txt):null;}catch(e){data={success:false,error_message:txt||("HTTP "+r.status),response_xml:txt||null};}
-    if(!r.ok){data=data||{};data.success=false;if(!data.error_message)data.error_message="HTTP "+r.status;}
-    var result=parseWsProxyResponse(data,payload.vin,ccPad,payload.block_code,payload.operation);
-    if(!result.reference_id){
-      result.reference_id=await logWsIntegrationFallback({
-        executed_by:payload.executed_by,vin:result.vin,compound_code:result.compound_code,
-        block_code:result.block_code,operation:result.operation,success:result.success,
-        success_flag:result.success_flag,error_code:result.error_code,error_message:result.error_message,
-        request_xml:result.request_xml,response_xml:result.response_xml,source:result.source||"frontend_proxy_no_reference"
-      });
-    }
-    return result;
-  }catch(e){
-    if(timer)clearTimeout(timer);
-    var err=(e&&e.name==="AbortError")?"Timeout llamando al proxy HTTPS OBT":((e&&e.message)||"No se pudo conectar al proxy HTTPS OBT");
-    var ref=await logWsIntegrationFallback({
-      executed_by:payload.executed_by,vin:payload.vin,compound_code:ccPad,
-      block_code:payload.block_code,operation:payload.operation,
-      success:false,success_flag:null,error_code:"PROXY_FETCH_ERROR",error_message:err,
-      request_xml:null,response_xml:null,source:"frontend_proxy_error"
-    });
-    return{success:false,success_flag:null,error_code:"PROXY_FETCH_ERROR",error_message:err,request_xml:null,response_xml:null,reference_id:ref};
-  }
+    app_version:APP_VERSION};
+  // ... fetch OBT_PROXY_URL ...
+  */
+  // Por ahora siempre retorna success:false para que se genere el Excel
+  await logWsIntegrationFallback({
+    executed_by:currentUser?currentUser.id:null,
+    vin:String(vin||""),compound_code:String(cc||"").padStart(5,"0"),
+    block_code:String(code||""),operation:String(op||""),
+    success:false,success_flag:null,
+    error_code:"WS_DESACTIVADO",
+    error_message:"Integración OBT desactivada — usar Excel manual",
+    request_xml:null,response_xml:null,source:"ws_desactivado"
+  });
+  return{success:false,error_code:"WS_DESACTIVADO",error_message:"WS desactivado — aplicar en OBT manualmente"};
 }
 
 // ══════════════════════════════════════════════════════
@@ -1216,14 +1273,38 @@ async function doLogin(){
     localStorage.removeItem("saved_pass");
   }
   document.getElementById("login-screen").style.display="none";
-  if(currentUser.rol==="operario"){
-    // Operario gets dedicated view
+  // Load patios
+  try{
+    var pdata=await sbGet("patios","select=*&order=nombre");
+    patiosCache=Array.isArray(pdata)?pdata:[];
+  }catch(e){patiosCache=[];}
+  // Detect current patio
+  var isAdmin=currentUser.rol===ROL_ADMIN;
+  var isRegional=currentUser.rol===ROL_SUP_REGIONAL;
+  var isOperario=currentUser.rol===ROL_OPERARIO;
+  if(currentUser.patio_id&&!currentUser.todos_patios){
+    currentPatio=patiosCache.find(function(p){return p.id===currentUser.patio_id;})||null;
+  } else if(!currentUser.todos_patios&&patiosCache.length){
+    currentPatio=patiosCache[0];
+  }
+  if(isOperario){
     document.getElementById("app-operario").style.display="block";
-    document.getElementById("op-user").textContent=currentUser.nombre;
+    document.getElementById("op-user").textContent=currentUser.nombre+(currentPatio?" · "+currentPatio.nombre:"");
     initAppOperario();
   } else {
     document.getElementById("app").style.display="block";
     document.getElementById("top-user").textContent=currentUser.nombre+" ("+currentUser.rol+")";
+    // Hide elements by role
+    var isSup=isAdmin||isRegional||currentUser.rol===ROL_SUP_PATIO||currentUser.rol===ROL_SUPERVISOR;
+    if(!isAdmin){
+      document.querySelectorAll(".admin-only").forEach(function(el){el.style.display="none";});
+    }
+    if(!isAdmin&&!isRegional){
+      document.querySelectorAll(".regional-only").forEach(function(el){el.style.display="none";});
+    }
+    if(isOperario){
+      document.querySelectorAll(".supervisor-only").forEach(function(el){el.style.display="none";});
+    }
     initApp();
   }
 }
@@ -1254,8 +1335,25 @@ async function initApp(){
   document.getElementById("kpi-desde").value=from.toISOString().slice(0,10);
   document.getElementById("hist-hasta").value=now.toISOString().slice(0,10);
   document.getElementById("hist-desde").value=from.toISOString().slice(0,10);
+  // Load patios if not loaded yet
+  if(!patiosCache.length){
+    try{var pd=await sbGet("patios","select=*&order=nombre");patiosCache=Array.isArray(pd)?pd:[];}catch(e){}
+  }
+  initTopPatioSelector();
+  await loadCatalogo();
   await loadStock();
   await loadOperarios();
+  // Add OBT Excel button to topbar if not present
+  var tb=document.querySelector(".topbar");
+  if(tb&&!document.getElementById("btn-obt-excel")){
+    var xbtn=document.createElement("button");
+    xbtn.id="btn-obt-excel";
+    xbtn.title="Descargar Excel con operaciones OBT del día";
+    xbtn.innerHTML="📋 OBT Excel";
+    xbtn.style.cssText="background:rgba(200,164,74,0.2);border:1px solid var(--gold);color:var(--gold);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;";
+    xbtn.onclick=exportObtDiario;
+    tb.insertBefore(xbtn,tb.querySelector(".theme-btn"));
+  }
   renderDashboard();
   renderPreventivo();
 }
@@ -1265,8 +1363,30 @@ async function initApp(){
 // ══════════════════════════════════════════════════════
 async function loadStock(){
   try{
-    var data=await sbGet("stock","compound=ilike.*ordoba*&select=*&limit=5000");
-    stockCache=Array.isArray(data)?data:[];
+    // Filter stock by current patio compound_code, or all if admin/regional
+    var stockFilter="select=*&limit=10000";
+    if(currentPatio&&!currentUser.todos_patios){
+      var cc=currentPatio.compound_code.replace(/^0+/,"");
+      stockFilter="compound_code=eq."+currentPatio.compound_code+"&select=*&limit=10000";
+      // Also try without leading zeros
+      var data1=await sbGet("stock",stockFilter);
+      var data2=await sbGet("stock","compound_code=eq."+cc+"&select=*&limit=5000");
+      var data3=await sbGet("stock","compound=ilike.*"+currentPatio.compound_descr+"*&select=*&limit=5000");
+      var combined=[].concat(
+        Array.isArray(data1)?data1:[],
+        Array.isArray(data2)?data2:[],
+        Array.isArray(data3)?data3:[]
+      );
+      // deduplicate by vin
+      var seen={};
+      stockCache=combined.filter(function(r){
+        var v=(r.vin||r.VIN||"").toUpperCase();
+        if(!v||seen[v])return false;seen[v]=true;return true;
+      });
+    } else {
+      var data=await sbGet("stock",stockFilter);
+      stockCache=Array.isArray(data)?data:[];
+    }
     // Load historial for all patios to get the most recent unblock_date per VIN+code
     var hist=[];
     try{
@@ -2885,12 +3005,327 @@ async function generarPDFResp(){
   setTimeout(function(){window.print();},300);
 }
 
+// ══════════════════════════════════════════════════════
+// MULTI-PATIO — ROLES Y GESTIÓN DE PATIOS
+// ══════════════════════════════════════════════════════
+function isAdmin(){return currentUser&&(currentUser.rol===ROL_ADMIN);}
+function isRegional(){return currentUser&&(currentUser.rol===ROL_SUP_REGIONAL||currentUser.todos_patios);}
+function isSupervisor(){return currentUser&&(isAdmin()||isRegional()||currentUser.rol===ROL_SUP_PATIO||currentUser.rol===ROL_SUPERVISOR||currentUser.rol==="supervisor");}
+
+function getPatioFilter(){
+  // Returns a compound_code filter string for Supabase queries
+  if(!currentPatio||currentUser.todos_patios)return null; // no filter = all patios
+  return currentPatio.compound_code;
+}
+
+function initTopPatioSelector(){
+  var isAdminOrRegional=isAdmin()||isRegional();
+  var wrap=document.getElementById("top-patio-wrap");
+  if(!wrap)return;
+  wrap.style.display=isAdminOrRegional?"flex":"none";
+  if(!isAdminOrRegional)return;
+  var sel=document.getElementById("top-patio-sel");
+  if(!sel)return;
+  var html='<option value="ALL">Todos los patios</option>';
+  patiosCache.forEach(function(p){html+='<option value="'+p.id+'"'+(currentPatio&&currentPatio.id===p.id?' selected':'')+'>'+esc(p.nombre)+'</option>';});
+  sel.innerHTML=html;
+}
+
+async function onTopPatioChange(){
+  var sel=document.getElementById("top-patio-sel");
+  if(!sel)return;
+  var val=sel.value;
+  if(val==="ALL"){currentPatio=null;}
+  else{currentPatio=patiosCache.find(function(p){return p.id===val;})||null;}
+  // Reload everything for new patio
+  await loadStock();
+  var activePage=document.querySelector(".page.active");
+  if(activePage){
+    var name=activePage.id.replace("page-","");
+    showPage(name);
+  } else {
+    renderDashboard();
+  }
+}
+
+// ── PATIOS CRUD ────────────────────────────────────────
+async function renderPatios(){
+  var data=[];
+  try{data=await sbGet("patios","select=*&order=nombre");}catch(e){}
+  if(!Array.isArray(data))data=[];
+  patiosCache=data;
+  document.getElementById("patios-tbody").innerHTML=data.map(function(p){
+    var obtBadge=p.obt_activo
+      ?'<span class="badge b-done">✅ Activo</span>'
+      :'<span class="badge b-ko">❌ Inactivo</span>';
+    return'<tr>'
+      +'<td style="font-weight:700;color:var(--gold)">'+esc(p.nombre)+'</td>'
+      +'<td style="font-family:monospace;font-size:11px">'+esc(p.compound_code)+'</td>'
+      +'<td style="font-size:11px">'+esc(p.compound_descr||"—")+'</td>'
+      +'<td>'+obtBadge+'</td>'
+      +'<td style="font-size:11px">'+esc(p.obt_ws_user||"—")+'</td>'
+      +'<td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.obt_ws_url||"—")+'</td>'
+      +'<td class="btn-row"><button class="btn btn-ghost btn-sm" onclick="editPatio(\''+p.id+'\')">Editar</button></td>'
+      +'</tr>';
+  }).join("")||'<tr><td colspan="7"><div class="empty"><div class="empty-icon">🗺️</div>No hay patios cargados</div></td></tr>';
+}
+
+function openPatioModal(id){
+  document.getElementById("patio-modal-title").textContent=id?"✏️ Editar patio":"🗺️ Agregar patio";
+  document.getElementById("patio-id").value=id||"";
+  if(!id){
+    ["patio-nombre","patio-compound","patio-descr","patio-ws-url","patio-ws-user","patio-ws-pass"].forEach(function(i){document.getElementById(i).value="";});
+    document.getElementById("patio-obt").checked=false;
+    document.getElementById("patio-obt-config").style.display="none";
+  } else {
+    var p=patiosCache.find(function(x){return x.id===id;});
+    if(p){
+      document.getElementById("patio-nombre").value=p.nombre||"";
+      document.getElementById("patio-compound").value=p.compound_code||"";
+      document.getElementById("patio-descr").value=p.compound_descr||"";
+      document.getElementById("patio-obt").checked=!!p.obt_activo;
+      document.getElementById("patio-obt-config").style.display=p.obt_activo?"block":"none";
+      document.getElementById("patio-ws-url").value=p.obt_ws_url||"";
+      document.getElementById("patio-ws-user").value=p.obt_ws_user||"";
+      document.getElementById("patio-ws-pass").value=p.obt_ws_pass||"";
+    }
+  }
+  openModal("modal-patio");
+}
+function editPatio(id){openPatioModal(id);}
+function onPatioObtChange(){
+  var checked=document.getElementById("patio-obt").checked;
+  document.getElementById("patio-obt-config").style.display=checked?"block":"none";
+}
+async function savePatio(){
+  var id=document.getElementById("patio-id").value;
+  var nombre=document.getElementById("patio-nombre").value.trim();
+  var compound=document.getElementById("patio-compound").value.trim();
+  if(!nombre||!compound){showToast("Nombre y compound son obligatorios","error");return;}
+  var obtActivo=document.getElementById("patio-obt").checked;
+  var rec={nombre:nombre,compound_code:compound,compound_descr:document.getElementById("patio-descr").value||null,
+    obt_activo:obtActivo,
+    obt_ws_url:obtActivo?document.getElementById("patio-ws-url").value||null:null,
+    obt_ws_user:document.getElementById("patio-ws-user").value||null,
+    obt_ws_pass:document.getElementById("patio-ws-pass").value||null};
+  try{
+    if(id)await sbPatch("patios",id,rec);
+    else await sbPost("patios",rec);
+    closeModal("modal-patio");
+    await renderPatios();
+    initTopPatioSelector();
+    showToast("Patio guardado","success");
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+
+// ── USUARIOS UPDATED ───────────────────────────────────
+function onUsrRolChange(){
+  var rol=document.getElementById("usr-rol").value;
+  var isAdminOrRegional=rol===ROL_ADMIN||rol===ROL_SUP_REGIONAL;
+  var patioWrap=document.getElementById("usr-patio-wrap");
+  var todosWrap=document.getElementById("usr-todos-wrap");
+  if(patioWrap)patioWrap.style.display=isAdminOrRegional?"none":"block";
+  if(todosWrap)todosWrap.style.display=isAdminOrRegional?"block":"none";
+  if(isAdminOrRegional){
+    var chk=document.getElementById("usr-todos-patios");
+    if(chk)chk.checked=true;
+  }
+}
+
+async function renderUsuarios(){
+  var data=[];
+  try{data=await sbGet("usuarios","select=*,patio:patio_id(nombre)&order=nombre");}catch(e){}
+  if(!Array.isArray(data))data=[];
+  var ROL_LABELS={admin:"👑 Admin",supervisor_regional:"🌍 Sup. Regional",supervisor_patio:"🏭 Sup. Patio",supervisor:"🏭 Supervisor",operario:"🔧 Operario"};
+  document.getElementById("usr-tbody").innerHTML=data.map(function(u){
+    var rolLabel=ROL_LABELS[u.rol]||u.rol||"—";
+    var patioLabel=u.todos_patios?'<span style="color:var(--gold);font-size:11px">Todos los patios</span>':u.patio?esc(u.patio.nombre):"<span style='color:var(--text3);font-size:11px'>Sin asignar</span>";
+    return'<tr>'
+      +'<td style="font-weight:600">'+esc(u.nombre)+'</td>'
+      +'<td style="font-size:11px">'+esc(u.email)+'</td>'
+      +'<td><span class="badge '+(u.rol===ROL_ADMIN?"b-inprog":u.rol===ROL_SUP_REGIONAL?"b-soon":u.rol===ROL_SUP_PATIO||u.rol==="supervisor"?"b-ok":"b-pending")+'">'+rolLabel+'</span></td>'
+      +'<td style="font-size:11px">'+patioLabel+'</td>'
+      +'<td><span class="badge '+(u.activo?"b-done":"b-ko")+'">'+(u.activo?"Activo":"Inactivo")+'</span></td>'
+      +'<td class="btn-row">'
+      +'<button class="btn btn-ghost btn-sm" onclick="editUsuario(\''+u.id+'\',\''+esc(u.nombre)+'\',\''+esc(u.email)+'\',\''+esc(u.rol||"")+'\',\''+esc(u.patio_id||"")+'\','+!!u.todos_patios+')">Editar</button>'
+      +'<button class="btn btn-ghost btn-sm" style="color:#C62828" onclick="toggleUsuario(\''+u.id+'\','+(u.activo?"false":"true")+')">'+( u.activo?"Desactivar":"Activar")+'</button>'
+      +'</td></tr>';
+  }).join("")||'<tr><td colspan="6"><div class="empty">Sin usuarios</div></td></tr>';
+}
+
+function openUsuarioModal(){
+  document.getElementById("usr-modal-title").textContent="👤 Nuevo usuario";
+  document.getElementById("usr-id").value="";
+  ["usr-nombre","usr-email","usr-pass"].forEach(function(id){document.getElementById(id).value="";});
+  document.getElementById("usr-rol").value="operario";
+  document.getElementById("usr-patio-wrap").style.display="block";
+  document.getElementById("usr-todos-wrap").style.display="none";
+  // Populate patio select
+  var ps=document.getElementById("usr-patio");
+  if(ps){var html='<option value="">Seleccionar patio...</option>';patiosCache.forEach(function(p){html+='<option value="'+p.id+'">'+esc(p.nombre)+'</option>';});ps.innerHTML=html;}
+  openModal("modal-usuario");
+}
+
+function editUsuario(id,nombre,email,rol,patioId,todosPatios){
+  document.getElementById("usr-modal-title").textContent="✏️ Editar usuario";
+  document.getElementById("usr-id").value=id;
+  document.getElementById("usr-nombre").value=nombre;
+  document.getElementById("usr-email").value=email;
+  document.getElementById("usr-pass").value="";
+  document.getElementById("usr-rol").value=rol;
+  var isAdminOrRegional=rol===ROL_ADMIN||rol===ROL_SUP_REGIONAL;
+  document.getElementById("usr-patio-wrap").style.display=isAdminOrRegional?"none":"block";
+  document.getElementById("usr-todos-wrap").style.display=isAdminOrRegional?"block":"none";
+  var chk=document.getElementById("usr-todos-patios");if(chk)chk.checked=todosPatios;
+  // Populate and set patio
+  var ps=document.getElementById("usr-patio");
+  if(ps){
+    var html='<option value="">Seleccionar patio...</option>';
+    patiosCache.forEach(function(p){html+='<option value="'+p.id+'"'+(p.id===patioId?' selected':'')+'>'+esc(p.nombre)+'</option>';});
+    ps.innerHTML=html;
+  }
+  openModal("modal-usuario");
+}
+
+async function saveUsuario(){
+  var id=document.getElementById("usr-id").value;
+  var nombre=document.getElementById("usr-nombre").value.trim();
+  var email=document.getElementById("usr-email").value.trim();
+  var pass=document.getElementById("usr-pass").value;
+  var rol=document.getElementById("usr-rol").value;
+  var patioEl=document.getElementById("usr-patio");
+  var patioId=patioEl?patioEl.value||null:null;
+  var todosChk=document.getElementById("usr-todos-patios");
+  var todosPatios=todosChk?todosChk.checked:false;
+  if(!nombre||!email){showToast("Nombre y email son obligatorios","error");return;}
+  var rec={nombre:nombre,email:email,rol:rol,patio_id:todosPatios?null:patioId,todos_patios:todosPatios,activo:true};
+  if(pass)rec.password=pass;
+  try{
+    if(id)await sbPatch("usuarios",id,rec);
+    else{if(!pass){showToast("Contraseña obligatoria","error");return;}await sbPost("usuarios",rec);}
+    closeModal("modal-usuario");renderUsuarios();loadOperarios();showToast("Usuario guardado","success");
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+
+// ── FOTO EN STOCK NEUMÁTICOS ───────────────────────────
+// Already handled in openAjusteNeumModal — adding foto fields there
+function openAjusteNeumModalConFoto(tipo){
+  openAjusteNeumModal(tipo);
+  // Add foto field dynamically if not present
+  var mb=document.querySelector("#modal-ajuste-neum .modal-body");
+  if(mb&&!document.getElementById("an-foto-wrap")){
+    var div=document.createElement("div");
+    div.id="an-foto-wrap";
+    div.className="field";
+    div.innerHTML='<label>Foto del neumático (opcional)</label>'
+      +'<div class="photo-placeholder" onclick="document.getElementById(\'an-foto-input\').click()">📷 Agregar foto</div>'
+      +'<input type="file" id="an-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,\'an-foto-prev\')">'
+      +'<img id="an-foto-prev" class="photo-preview">';
+    mb.appendChild(div);
+  } else if(document.getElementById("an-foto-prev")){
+    document.getElementById("an-foto-prev").style.display="none";
+    document.getElementById("an-foto-prev").src="";
+  }
+}
+
+// Override openAjusteNeumModal buttons to use foto version
+function openAjusteNeumModal(tipo){
+  document.getElementById("an-tipo").value=tipo;
+  document.getElementById("ajuste-neum-title").textContent=tipo==="ok"?"➕ Agregar neumáticos OK al depósito":"➕ Registrar neumáticos KO";
+  document.getElementById("an-cantidad").value=1;
+  document.getElementById("an-obs").value="";
+  document.getElementById("an-vin-wrap").style.display=tipo==="ko"?"block":"none";
+  document.getElementById("an-vin-search").value="";
+  document.getElementById("an-vin").innerHTML='<option value="">Seleccionar VIN...</option>';
+  // Build catalogo select
+  var html='<option value="">Seleccionar diseño...</option>';
+  var byV={};
+  catalogoCache.forEach(function(n){if(!byV[n.vehiculo])byV[n.vehiculo]=[];byV[n.vehiculo].push(n);});
+  Object.keys(byV).sort().forEach(function(v){
+    html+='<optgroup label="'+esc(v)+'">';
+    byV[v].forEach(function(n){html+='<option value="'+n.id+'">'+esc(n.modelo+" — "+n.medida+(n.codigo_parte?" ["+n.codigo_parte+"]":""))+'</option>';});
+    html+='</optgroup>';
+  });
+  document.getElementById("an-catalogo").innerHTML=html;
+  // Add foto field
+  var mb=document.querySelector("#modal-ajuste-neum .modal-body");
+  if(mb&&!document.getElementById("an-foto-wrap")){
+    var div=document.createElement("div");
+    div.id="an-foto-wrap";div.className="field";
+    div.innerHTML='<label>Foto del neumático (opcional)</label>'
+      +'<div class="photo-placeholder" onclick="document.getElementById(\'an-foto-input\').click()">📷 Agregar foto</div>'
+      +'<input type="file" id="an-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this,\'an-foto-prev\')">'
+      +'<img id="an-foto-prev" class="photo-preview">';
+    mb.appendChild(div);
+  } else {
+    var prev=document.getElementById("an-foto-prev");
+    if(prev){prev.style.display="none";prev.src="";}
+  }
+  openModal("modal-ajuste-neum");
+}
+
+async function saveAjusteNeum(){
+  var tipo=document.getElementById("an-tipo").value;
+  var catId=document.getElementById("an-catalogo").value;
+  var cant=parseInt(document.getElementById("an-cantidad").value)||1;
+  var obs=document.getElementById("an-obs").value;
+  var vin=tipo==="ko"?document.getElementById("an-vin").value:"";
+  if(!catId){showToast("Seleccioná un diseño","error");return;}
+  if(tipo==="ko"&&!vin){showToast("Seleccioná el VIN para el KO","error");return;}
+  // Upload foto
+  var fotoUrl=null;
+  var fotoFile=document.getElementById("an-foto-input")?document.getElementById("an-foto-input").files[0]:null;
+  if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","neumaticos-stock/"+uuid()+"-"+fotoFile.name).catch(function(){return null;});
+  try{
+    if(tipo==="ok"){
+      var existing=await sbGet("stock_neumaticos","catalogo_id=eq."+catId+"&select=*").catch(function(){return[];});
+      if(Array.isArray(existing)&&existing.length){
+        var upd={cantidad_ok:(existing[0].cantidad_ok||0)+cant,updated_at:new Date().toISOString()};
+        if(fotoUrl)upd.foto_ok_url=fotoUrl;
+        await sbPatch("stock_neumaticos",existing[0].id,upd);
+      } else {
+        await sbPost("stock_neumaticos",{catalogo_id:catId,cantidad_ok:cant,cantidad_ko:0,foto_ok_url:fotoUrl});
+      }
+      showToast(cant+" neumático(s) OK agregado(s)","success");
+    } else {
+      for(var i=0;i<cant;i++){
+        await sbPost("neumaticos_ko",{catalogo_id:catId,vin:vin||null,estado:"ko",observaciones:obs||null,foto_url:fotoUrl,registrado_por:currentUser.nombre});
+      }
+      showToast(cant+" neumático(s) KO registrado(s)","success");
+    }
+    closeModal("modal-ajuste-neum");renderDepNeumaticos();
+  }catch(e){showToast("Error: "+e.message,"error");}
+}
+
+// ── AUTO EXCEL DIARIO ──────────────────────────────────
+// Genera Excel automáticamente con las operaciones del día para aplicar en OBT
+var pendingObtOperations=[];
+
+function addObtOperation(vin,code,op,cc,fecha){
+  pendingObtOperations.push({
+    VIN:vin,"Código":code,"Operación":op==="B"?"BLOQUEO":"DESBLOQUEO",
+    Compound:String(cc||"00034").padStart(5,"0"),
+    Fecha:fecha||new Date().toISOString().slice(0,10),
+    "Estado":"PENDIENTE — Aplicar en OBT Gate In",
+    Operario:currentUser?currentUser.nombre:"—",
+    Patio:currentPatio?currentPatio.nombre:"—"
+  });
+}
+
+function exportObtDiario(){
+  if(!pendingObtOperations.length){showToast("No hay operaciones pendientes para hoy","info");return;}
+  var ws=XLSX.utils.json_to_sheet(pendingObtOperations);
+  ws["!cols"]=[{wch:20},{wch:8},{wch:14},{wch:10},{wch:12},{wch:40},{wch:18},{wch:18}];
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"OBT_"+new Date().toISOString().slice(0,10));
+  XLSX.writeFile(wb,"OBT_Manual_"+new Date().toISOString().slice(0,10)+".xlsx");
+  showToast("Excel generado — "+pendingObtOperations.length+" operaciones","success");
+}
+
 function showOpView(){
-  // Show operario view overlay for supervisor too
   document.getElementById("app-operario").style.display="block";
   document.getElementById("app").style.display="none";
-  document.getElementById("op-user").textContent=currentUser.nombre+" (supervisor)";
-  // Add back button for supervisor
+  document.getElementById("op-user").textContent=currentUser.nombre+" ("+(currentPatio?currentPatio.nombre:"supervisor")+")";
   var existing=document.getElementById("op-back-btn");
   if(!existing){
     var btn=document.createElement("button");
@@ -2900,11 +3335,41 @@ function showOpView(){
     btn.onclick=function(){
       document.getElementById("app-operario").style.display="none";
       document.getElementById("app").style.display="block";
-      document.getElementById("op-back-btn").remove();
+      var b=document.getElementById("op-back-btn");if(b)b.remove();
     };
     document.body.appendChild(btn);
   }
   initAppOperario();
+}
+
+function showPage(name){
+  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
+  document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active");});
+  var pg=document.getElementById("page-"+name);if(pg)pg.classList.add("active");
+  var ni=document.getElementById("nav-"+name);if(ni)ni.classList.add("active");
+  if(name==="dashboard")renderDashboard();
+  if(name==="preventivo")renderPreventivo();
+  if(name==="planificador")renderPlanificador();
+  if(name==="daños")renderDaños();
+  if(name==="gomas"){buildNeumSelect();renderGomas();}
+  if(name==="historial")renderHistorial();
+  if(name==="kpis")renderKPIs();
+  if(name==="resp"){
+    var now=new Date();
+    var rd=document.getElementById("resp-desde");var rh=document.getElementById("resp-hasta");
+    if(rd&&!rd.value){var f=new Date(now);f.setDate(f.getDate()-30);rd.value=f.toISOString().slice(0,10);}
+    if(rh&&!rh.value)rh.value=now.toISOString().slice(0,10);
+    renderResp();
+  }
+  if(name==="stock"){}
+  if(name==="deposito"){depTab("neumaticos");}
+  if(name==="usuarios"){renderUsuarios();}
+  if(name==="patios"){renderPatios();}
+  if(name==="wslog"){
+    var el=document.getElementById("wslog-desde");
+    if(el&&!el.value)el.value=new Date().toISOString().slice(0,10);
+    renderWsLog();
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -3055,34 +3520,7 @@ async function exportWsLog(){
   XLSX.writeFile(wb,"WS_Log_"+new Date().toISOString().slice(0,10)+".xlsx");
 }
 
-function showPage(name){
-  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
-  document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active");});
-  document.getElementById("page-"+name).classList.add("active");
-  var ni=document.getElementById("nav-"+name);if(ni)ni.classList.add("active");
-  if(name==="dashboard")renderDashboard();
-  if(name==="preventivo")renderPreventivo();
-  if(name==="planificador")renderPlanificador();
-  if(name==="daños")renderDaños();
-  if(name==="gomas")renderGomas();
-  if(name==="kpis")renderKPIs();
-  if(name==="historial")renderHistorial();
-  if(name==="usuarios")renderUsuarios();
-  if(name==="wslog"){
-    // Set default date to today if empty
-    var el=document.getElementById("wslog-desde");
-    if(el&&!el.value)el.value=new Date().toISOString().slice(0,10);
-    renderWsLog();
-  }
-  if(name==="deposito"){depTab("neumaticos");}
-  if(name==="resp"){
-    var now=new Date();
-    var rd=document.getElementById("resp-desde");var rh=document.getElementById("resp-hasta");
-    if(rd&&!rd.value){var f=new Date(now);f.setDate(f.getDate()-30);rd.value=f.toISOString().slice(0,10);}
-    if(rh&&!rh.value)rh.value=now.toISOString().slice(0,10);
-    renderResp();
-  }
-}
+
 
 // ══════════════════════════════════════════════════════
 // STARTUP
@@ -3616,26 +4054,27 @@ async function saveChecklist(){
   if(savedId){
     try{await sbPatch("checklist_registros",savedId,{ws_block_ok:blockOk,ws_unblock_ok:unblockOk});}catch(e){}
   }
-  // SIEMPRE guardar en historial como completado — el WS es independiente de si la tarea está hecha
-  // Si el WS falló, queda marcado como ws_pendiente para exportar manualmente a OBT
+  // SIEMPRE guardar en historial como completado
+  var patioCC=currentPatio?currentPatio.compound_code:"00034";
+  var patioDescr=currentPatio?currentPatio.nombre:"Cordoba";
   try{
     await sbUpsert("bloqueos_historial",{
       vin:vin,block_code:code,block_date:fecha,
-      unblock_date:fecha, // siempre marcamos como desbloqueado — la tarea está hecha
-      is_active:false,    // la tarea está completa independientemente del WS
-      compound_code:"00034",compound_descr:"Cordoba",
-      source_file:"checklist_"+(blockOk&&unblockOk?"ws_ok":"ws_pendiente")+"_"+currentUser.nombre,
+      unblock_date:fecha,is_active:false,
+      compound_code:patioCC,compound_descr:patioDescr,
+      source_file:"checklist_ws_pendiente_"+currentUser.nombre,
       imported_at:new Date().toISOString()
     },"vin,block_code");
   }catch(e){}
+  // Agregar a lista de operaciones OBT pendientes del día
+  addObtOperation(vin,code,"B",patioCC,fecha);
+  addObtOperation(vin,code,"U",patioCC,fecha);
   btn.textContent="✅ Completado";
-  // Show Excel export button if WS failed
-  if(!blockOk||!unblockOk){
-    wsDiv.innerHTML+='<div style="margin-top:8px;padding:10px 12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);">'
-      +'<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">La tarea quedó registrada como completada. El WS falló — aplicar manualmente en OBT:</div>'
-      +'<button class="btn btn-gold btn-sm" onclick="exportWsPendiente()">⬇ Descargar Excel para OBT manual</button>'
-      +'</div>';
-  }
+  // Always show Excel button (WS desactivado)
+  wsDiv.innerHTML+='<div style="margin-top:8px;padding:10px 12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">✅ Tarea registrada. Aplicar en OBT manualmente:</div>'
+    +'<button class="btn btn-gold btn-sm" onclick="exportObtDiario()">⬇ Excel OBT del día ('+pendingObtOperations.length+' ops)</button>'
+    +'</div>';
   setTimeout(function(){
     closeModal("modal-checklist");
     var msg=saved?"✅ "+code+" registrado como completado"+(blockOk&&unblockOk?" — OBT OK":" — aplicar en OBT manualmente"):"Error al guardar";
