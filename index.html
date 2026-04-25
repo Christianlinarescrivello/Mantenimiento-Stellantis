@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.2.7</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.2.8</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.7</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.8</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1094,8 +1094,9 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.2.7";
+var APP_VERSION="v4.2.8";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
+var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
 // ══════════════════════════════════════════════════════
 // HELPERS
@@ -1443,8 +1444,9 @@ async function loadStock(){
 }
 
 function computePending(rows, hist){
-  // Build index: for each VIN+code, get the most recent unblock_date from historial (any patio)
+  // Build index: for each VIN+code, get the most recent unblock_date
   var lastDone={};
+  // First from historial DB
   if(hist&&hist.length){
     hist.forEach(function(r){
       if(!r.unblock_date)return;
@@ -1454,6 +1456,11 @@ function computePending(rows, hist){
       if(!lastDone[key]||ud>lastDone[key])lastDone[key]=ud;
     });
   }
+  // Override with session completions (these are guaranteed fresh)
+  Object.keys(completedThisSession).forEach(function(key){
+    var ud=pdate(completedThisSession[key]);
+    if(ud)lastDone[key]=ud; // always override — session is most recent
+  });
   var result=[];var today=new Date();
   for(var j=0;j<rows.length;j++){
     var v=rows[j];
@@ -4325,6 +4332,8 @@ async function saveChecklist(){
   }catch(e){console.error("historial save error",e);}
   addObtOperation(vin,code,"B",patioCC,fecha);
   addObtOperation(vin,code,"U",patioCC,fecha);
+  // Mark as done in session memory immediately — don't wait for DB round-trip
+  completedThisSession[vin.toUpperCase()+"__"+code.toUpperCase()]=fecha;
   btn.textContent="✅ Completado";
   wsDiv.innerHTML='<div style="padding:12px 14px;background:#E8F5E9;border-radius:8px;border:1px solid #A5D6A7;">'
     +'<div style="font-size:13px;font-weight:700;color:#2E7D32;margin-bottom:6px;">✅ '+code+' registrado correctamente</div>'
