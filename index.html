@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.2.6</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.2.7</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.6</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.7</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1094,7 +1094,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.2.6";
+var APP_VERSION="v4.2.7";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 
 // ══════════════════════════════════════════════════════
@@ -1393,6 +1393,13 @@ async function initApp(){
 // ══════════════════════════════════════════════════════
 // STOCK & COMPUTE
 // ══════════════════════════════════════════════════════
+async function loadCatalogo(){
+  try{
+    var data=await sbGet("neumaticos_catalogo","select=*&activo=eq.true&order=vehiculo,modelo");
+    catalogoCache=Array.isArray(data)?data:[];
+  }catch(e){catalogoCache=[];}
+}
+
 async function loadStock(){
   try{
     // Filter stock by current patio compound_code, or all if admin/regional
