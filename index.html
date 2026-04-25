@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.2.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.2.1</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.2.1</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1094,7 +1094,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.2.0";
+var APP_VERSION="v4.2.1";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 
 // ══════════════════════════════════════════════════════
@@ -3537,23 +3537,27 @@ function exportObtDiario(){
   showToast("Excel generado — "+pendingObtOperations.length+" operaciones","success");
 }
 
+function opVolverAlPanel(){
+  document.getElementById("app-operario").style.display="none";
+  document.getElementById("app").style.display="block";
+  var b=document.getElementById("op-back-btn-inline");
+  if(b)b.style.display="none";
+}
+
 function showOpView(){
   document.getElementById("app-operario").style.display="block";
   document.getElementById("app").style.display="none";
-  document.getElementById("op-user").textContent=currentUser.nombre+" ("+(currentPatio?currentPatio.nombre:"supervisor")+")";
-  var existing=document.getElementById("op-back-btn");
-  if(!existing){
-    var btn=document.createElement("button");
-    btn.id="op-back-btn";
-    btn.textContent="← Volver al panel";
-    btn.style.cssText="position:fixed;top:14px;right:80px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:white;padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;z-index:200;";
-    btn.onclick=function(){
-      document.getElementById("app-operario").style.display="none";
-      document.getElementById("app").style.display="block";
-      var b=document.getElementById("op-back-btn");if(b)b.remove();
-    };
-    document.body.appendChild(btn);
-  }
+  var isSup=isSupervisor()&&currentUser.rol!==ROL_OPERARIO;
+  // Show inline back button for supervisors
+  var backBtn=document.getElementById("op-back-btn-inline");
+  if(backBtn)backBtn.style.display=isSup?"inline-flex":"none";
+  // Update role label
+  var roleLabel=document.getElementById("op-role-label");
+  if(roleLabel)roleLabel.textContent=isSup?"SUPERVISOR":"OPERARIO";
+  // Update username
+  document.getElementById("op-user").textContent=currentUser.nombre+(currentPatio?" · "+currentPatio.nombre:"");
+  // Remove any old floating back button
+  var old=document.getElementById("op-back-btn");if(old)old.remove();
   initAppOperario();
 }
 
@@ -3757,13 +3761,15 @@ async function exportWsLog(){
 ══════════════════════════════════════════════════════ -->
 <div id="app-operario" style="display:none;min-height:100vh;">
   <!-- Topbar operario -->
-  <div style="background:#0D1F3C;height:56px;display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,0.4);">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:#C8A44A;letter-spacing:3px;">STELLANTIS</div>
-    <div style="width:1px;height:24px;background:rgba(255,255,255,0.15)"></div>
-    <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">OPERARIO</span>
-    <span style="font-size:12px;color:white;font-weight:600;margin-left:auto" id="op-user">—</span>
-    <button onclick="toggleTheme()" id="op-theme-btn" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;padding:5px 10px;border-radius:6px;font-size:14px;cursor:pointer;">🌙</button>
-    <button onclick="doLogout()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;">Salir</button>
+  <div style="background:#0D1F3C;height:56px;display:flex;align-items:center;padding:0 16px;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,0.4);">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:#C8A44A;letter-spacing:3px;flex-shrink:0;">STELLANTIS</div>
+    <div style="width:1px;height:24px;background:rgba(255,255,255,0.15);flex-shrink:0;"></div>
+    <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px;flex-shrink:0;" id="op-role-label">OPERARIO</span>
+    <!-- Back button for supervisor (inline, no overlap) -->
+    <button id="op-back-btn-inline" onclick="opVolverAlPanel()" style="display:none;background:rgba(200,164,74,0.2);border:1px solid #C8A44A;color:#C8A44A;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;flex-shrink:0;">← Panel</button>
+    <span style="font-size:11px;color:white;font-weight:600;margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;" id="op-user">—</span>
+    <button onclick="toggleTheme()" id="op-theme-btn" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;padding:5px 8px;border-radius:6px;font-size:14px;cursor:pointer;flex-shrink:0;">🌙</button>
+    <button onclick="doLogout()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;flex-shrink:0;">Salir</button>
   </div>
   <!-- Bottom nav móvil -->
   <div style="position:fixed;bottom:0;left:0;right:0;background:#0D1F3C;border-top:1px solid rgba(255,255,255,0.1);display:flex;z-index:100;" id="op-bottom-nav">
@@ -3782,14 +3788,17 @@ async function exportWsLog(){
     <!-- TAB: TAREAS -->
     <div id="op-tab-tareas" class="op-tab">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px;">Tareas Pendientes</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Todas las unidades de Córdoba que necesitan mantenimiento</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;" id="op-tareas-sub">Todas las unidades que necesitan mantenimiento</div>
       <!-- Filtros -->
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
-        <input type="text" id="op-search" placeholder="🔍 VIN o modelo..." oninput="opRenderTareas()" style="flex:1;min-width:150px;padding:8px 12px;border-radius:8px;border:1.5px solid var(--input-border);background:var(--input-bg);color:var(--input-color);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
-        <select id="op-filter-code" onchange="opRenderTareas()" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--input-border);background:var(--input-bg);color:var(--input-color);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
+        <select id="op-filter-patio" onchange="opRenderTareas()" style="display:none;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
+          <option value="ALL">Todos los patios</option>
+        </select>
+        <input type="text" id="op-search" placeholder="🔍 VIN o modelo..." oninput="opRenderTareas()" style="flex:1;min-width:150px;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
+        <select id="op-filter-code" onchange="opRenderTareas()" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
           <option value="ALL">Todos los servicios</option>
         </select>
-        <select id="op-filter-urg" onchange="opRenderTareas()" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--input-border);background:var(--input-bg);color:var(--input-color);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
+        <select id="op-filter-urg" onchange="opRenderTareas()" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
           <option value="ALL">Toda urgencia</option>
           <option value="overdue">Vencidos</option>
           <option value="urgent">Urgentes ≤15d</option>
@@ -3981,7 +3990,6 @@ var CODES_CON_NEUMÁTICOS=["M90","AN1","CAF","FLU"];
 // ══════════════════════════════════════════════════════
 async function initAppOperario(){
   initTheme();
-  // sync theme btn
   var ob=document.getElementById("op-theme-btn");
   if(ob)ob.textContent=document.documentElement.getAttribute("data-theme")==="dark"?"🌙":"☀️";
   document.getElementById("op-fecha-hoy").textContent=new Date().toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
@@ -3989,6 +3997,21 @@ async function initAppOperario(){
   var html='<option value="ALL">Todos los servicios</option>';
   CATALOG.forEach(function(m){if(m.days)html+='<option value="'+m.code+'">'+m.code+' — '+m.service+'</option>';});
   document.getElementById("op-filter-code").innerHTML=html;
+  // Patio filter — only for admin/regional
+  var patioSel=document.getElementById("op-filter-patio");
+  var canFilterPatio=currentUser&&(currentUser.todos_patios||isAdmin()||isRegional());
+  if(patioSel){
+    patioSel.style.display=canFilterPatio?"block":"none";
+    if(canFilterPatio){
+      if(!patiosCache.length){try{var pd=await sbGet("patios","select=*&order=nombre");patiosCache=Array.isArray(pd)?pd:[];}catch(e){}}
+      var phtml='<option value="ALL">Todos los patios</option>';
+      patiosCache.forEach(function(p){phtml+='<option value="'+p.compound_code+'"'+(currentPatio&&currentPatio.compound_code===p.compound_code?' selected':'')+'>'+esc(p.nombre)+'</option>';});
+      patioSel.innerHTML=phtml;
+    }
+  }
+  // Update subtitle
+  var sub=document.getElementById("op-tareas-sub");
+  if(sub)sub.textContent=currentPatio&&!canFilterPatio?"Patio: "+currentPatio.nombre:"Todas las unidades con mantenimiento pendiente";
   await loadStock();
   opShowTab("tareas");
 }
@@ -4014,22 +4037,34 @@ function opRenderTareas(){
   var search=(document.getElementById("op-search").value||"").toLowerCase();
   var codeF=document.getElementById("op-filter-code").value;
   var urgF=document.getElementById("op-filter-urg").value;
+  var patioSelEl=document.getElementById("op-filter-patio");
+  var patioF=patioSelEl?patioSelEl.value:"ALL";
+  var showPatio=currentUser&&(currentUser.todos_patios||isAdmin()||isRegional());
   var filtered=pendingCache.filter(function(p){
     if(codeF!=="ALL"&&p.maint.code!==codeF)return false;
     if(urgF!=="ALL"&&p.urgency!==urgF)return false;
     if(search&&p.vin.toLowerCase().indexOf(search)<0&&p.modelDescr.toLowerCase().indexOf(search)<0)return false;
+    if(patioF!=="ALL"){
+      var pcc=String(p.compoundCode||"").replace(/^0+/,"");
+      var fcc=patioF.replace(/^0+/,"");
+      if(pcc!==fcc)return false;
+    }
     return true;
   });
-  document.getElementById("op-tareas-count").textContent=filtered.length+" tareas · "+pendingCache.filter(function(p){return p.urgency==="overdue";}).length+" vencidas · "+pendingCache.filter(function(p){return p.urgency==="urgent";}).length+" urgentes";
+  document.getElementById("op-tareas-count").textContent=filtered.length+" tareas · "+filtered.filter(function(p){return p.urgency==="overdue";}).length+" vencidas · "+filtered.filter(function(p){return p.urgency==="urgent";}).length+" urgentes";
   var urgColors={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
   var urgBg={overdue:"rgba(198,40,40,0.08)",urgent:"rgba(230,81,0,0.06)",soon:"rgba(21,101,192,0.06)",ok:"rgba(46,125,50,0.04)"};
   var html=filtered.slice(0,100).map(function(p){
     var days=p.daysToDue<0?"VENCIDO "+Math.abs(p.daysToDue)+"d":p.daysToDue===0?"HOY":p.daysToDue+"d";
+    // Find patio name for this compound
+    var patioName="";
+    if(showPatio&&p.compoundDescr){patioName=p.compoundDescr;}
     return'<div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;border-left:4px solid '+urgColors[p.urgency]+';box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;">'
       +'<div style="flex:1;min-width:0;">'
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">'
       +'<span style="font-family:monospace;font-size:11px;color:var(--gold);font-weight:700">'+esc(p.vin)+'</span>'
       +'<span style="background:'+urgBg[p.urgency]+';color:'+urgColors[p.urgency]+';font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;border:1px solid '+urgColors[p.urgency]+'40">'+days+'</span>'
+      +(patioName?'<span style="background:rgba(26,60,110,0.1);color:var(--blue);font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;">'+esc(patioName)+'</span>':"")
       +'</div>'
       +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+p.maint.code+' <span style="font-weight:400;color:var(--text2)">'+p.maint.service+'</span></div>'
       +'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+esc(p.modelDescr)+' · Box: '+esc(p.boxatura)+'</div>'
