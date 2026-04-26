@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.5.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.5.2</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.2</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -307,10 +307,18 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div class="page-sub" id="dash-date"></div>
       <!-- KPI Stats row -->
       <div class="stats-row" id="dash-stats"></div>
-      <!-- LO QUE HICIMOS HOY -->
+      <!-- LO QUE HICIMOS HOY + SEMANA -->
       <div style="margin-bottom:24px;">
-        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;" id="dash-hecho-title">✅ Lo que hicimos hoy</div>
+        <!-- Toggle día / semana -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;" id="dash-hecho-title">✅ Lo que hicimos hoy</div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="setHechoView('dia')" id="btn-hecho-dia" class="btn btn-primary btn-sm" style="font-size:10px;padding:3px 10px;">📅 Hoy</button>
+            <button onclick="setHechoView('semana')" id="btn-hecho-semana" class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 10px;">📆 7 días</button>
+          </div>
+        </div>
         <div id="dash-hecho-hoy"></div>
+        <div id="dash-hecho-semana" style="display:none;"></div>
       </div>
       <!-- PENDIENTES DE OBT -->
       <div style="margin-bottom:24px;" id="dash-obt-wrap">
@@ -1189,7 +1197,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.5.0";
+var APP_VERSION="v4.5.2";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1666,6 +1674,16 @@ async function renderDashboard(){
 
   // Render "hecho hoy" section
   renderHechoHoy();
+  // Reset weekly cache so it reloads fresh next time
+  var wSem=document.getElementById("dash-hecho-semana");
+  if(wSem){wSem.dataset.loaded="";wSem.style.display="none";}
+  var wDia=document.getElementById("dash-hecho-hoy");
+  if(wDia)wDia.style.display="block";
+  var bDia=document.getElementById("btn-hecho-dia");
+  var bSem=document.getElementById("btn-hecho-semana");
+  if(bDia){bDia.className="btn btn-primary btn-sm";bDia.style.fontSize="10px";bDia.style.padding="3px 10px";}
+  if(bSem){bSem.className="btn btn-ghost btn-sm";bSem.style.fontSize="10px";bSem.style.padding="3px 10px";}
+  _hechoView="dia";
   // Render pendientes OBT
   renderPendientesOBT();
 
@@ -4197,6 +4215,8 @@ function exportObtDiario(){
 function opVolverAlPanel(){
   document.getElementById("app-operario").style.display="none";
   document.getElementById("app").style.display="block";
+  // Restore data info bar
+  updateDataInfoBar();
   var b=document.getElementById("op-back-btn-inline");
   if(b)b.style.display="none";
 }
@@ -4338,6 +4358,115 @@ async function renderHechoHoy(){
   wrap.innerHTML=html;
 }
 
+// ── HECHO HOY / SEMANA TOGGLE ────────────────────────
+var _hechoView="dia";
+function setHechoView(v){
+  _hechoView=v;
+  var bDia=document.getElementById("btn-hecho-dia");
+  var bSem=document.getElementById("btn-hecho-semana");
+  var wDia=document.getElementById("dash-hecho-hoy");
+  var wSem=document.getElementById("dash-hecho-semana");
+  if(bDia)bDia.className=v==="dia"?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";
+  if(bSem)bSem.className=v==="semana"?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";
+  bDia.style.fontSize="10px";bDia.style.padding="3px 10px";
+  bSem.style.fontSize="10px";bSem.style.padding="3px 10px";
+  if(wDia)wDia.style.display=v==="dia"?"block":"none";
+  if(wSem)wSem.style.display=v==="semana"?"block":"none";
+  if(v==="semana"&&wSem&&!wSem.dataset.loaded){
+    renderHechoSemana();
+  }
+  var titleEl=document.getElementById("dash-hecho-title");
+  if(titleEl)titleEl.textContent=v==="dia"?"✅ Lo que hicimos hoy":"📆 Acumulado últimos 7 días";
+}
+
+async function renderHechoSemana(){
+  var wrap=document.getElementById("dash-hecho-semana");
+  if(!wrap)return;
+  wrap.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Cargando semana...</div>';
+  var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
+  var hoy=new Date().toISOString().slice(0,10);
+  var desde=new Date();desde.setDate(desde.getDate()-6);
+  var desdeStr=desde.toISOString().slice(0,10);
+
+  // SOURCE 1: historial bloqueos últimos 7 días
+  var historial=[];
+  try{
+    var h=await sbGet("bloqueos_historial",
+      "select=vin,block_code,unblock_date,compound_code,compound_descr&is_active=eq.false&unblock_date=gte."+desdeStr+"&unblock_date=lte."+hoy+"&limit=5000");
+    if(Array.isArray(h))historial=h.filter(function(r){return PREV_CODES.indexOf(r.block_code)>=0;});
+  }catch(e){}
+
+  // SOURCE 2: checklist_registros portal últimos 7 días
+  var portal=[];
+  try{
+    var p=await sbGet("checklist_registros",
+      "select=vin,maint_code,fecha&fecha=gte."+desdeStr+"&fecha=lte."+hoy);
+    if(Array.isArray(p))portal=p.filter(function(r){return PREV_CODES.indexOf(r.maint_code)>=0;});
+  }catch(e){}
+
+  // Merge — deduplicate by VIN+code
+  var merged={};
+  historial.forEach(function(r){
+    var key=(r.vin||"").toUpperCase()+"__"+(r.block_code||"");
+    if(!merged[key])merged[key]={vin:r.vin,code:r.block_code,compound_code:r.compound_code,compound_descr:r.compound_descr,date:r.unblock_date};
+  });
+  portal.forEach(function(r){
+    var key=(r.vin||"").toUpperCase()+"__"+(r.maint_code||"");
+    if(!merged[key]){
+      var stockRow=stockCache.find(function(s){return(s.vin||"").toUpperCase()===(r.vin||"").toUpperCase();});
+      merged[key]={vin:r.vin,code:r.maint_code,compound_code:stockRow?stockRow.compound_code:"",date:r.fecha};
+    }
+  });
+  var data=Object.values(merged);
+
+  if(!data.length){
+    wrap.innerHTML='<div style="background:var(--card);border-radius:12px;padding:20px 24px;border:1px solid var(--border);text-align:center;color:var(--text3);font-size:13px;">Sin actividad en los últimos 7 días</div>';
+    wrap.dataset.loaded="1";return;
+  }
+
+  // Group by patio
+  var byPatio={};
+  data.forEach(function(r){
+    var cc=String(r.compound_code||"").replace(/^0+/,"");
+    var patio=patiosCache.find(function(p){return p.compound_code.replace(/^0+/,"")=== cc;})||{nombre:r.compound_descr||cc||"Sin patio"};
+    var key=patio.nombre;
+    if(!byPatio[key])byPatio[key]={nombre:key,total:0,byCod:{}};
+    byPatio[key].total++;
+    byPatio[key].byCod[r.code]=(byPatio[key].byCod[r.code]||0)+1;
+  });
+
+  // Build grid — same style as hoy cards but in blue/indigo
+  var totalSemana=data.length;
+  var html='<div style="margin-bottom:8px;font-size:11px;color:var(--text3);">'+
+    desdeStr.split("-").reverse().join("/")+' → '+hoy.split("-").reverse().join("/")+" · <b style='color:var(--blue)'>"+totalSemana+" servicios totales</b></div>"
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">';
+
+  Object.values(byPatio).forEach(function(patio){
+    html+='<div style="background:var(--card);border-radius:12px;padding:18px 20px;border:1px solid var(--border);box-shadow:var(--shadow);border-top:4px solid #1565C0;">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+      +'<div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">'+esc(patio.nombre)+'</div>'
+      +'<div style="font-size:32px;font-weight:900;color:#1565C0;line-height:1;">'+patio.total+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);">servicios en 7 días</div>'
+      +'</div>'
+      +'<div style="width:52px;height:52px;border-radius:50%;background:#E3F2FD;display:flex;align-items:center;justify-content:center;font-size:24px;">📆</div>'
+      +'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:5px;">';
+    PREV_CODES.forEach(function(code){
+      var cnt=patio.byCod[code]||0;
+      if(!cnt)return;
+      html+='<div style="background:#E3F2FD;border:1px solid #90CAF9;border-radius:7px;padding:4px 8px;text-align:center;min-width:40px;">'
+        +'<div style="font-size:15px;font-weight:900;color:#1565C0;">'+cnt+'</div>'
+        +'<div style="font-size:8px;font-weight:700;color:#1565C0;text-transform:uppercase;">'+code+'</div>'
+        +'</div>';
+    });
+    html+='</div></div>';
+  });
+  html+='</div>';
+  wrap.innerHTML=html;
+  wrap.dataset.loaded="1";
+}
+
 // ── PENDIENTES DE OBT (Dashboard) ───────────────────
 async function renderPendientesOBT(){
   var list=document.getElementById("dash-obt-list");
@@ -4414,6 +4543,9 @@ async function forzarCierreOBT(vin, code, fecha, cc){
 function showOpView(){
   document.getElementById("app-operario").style.display="block";
   document.getElementById("app").style.display="none";
+  // Hide data info bar in operario view (it overlaps bottom nav)
+  var dib=document.getElementById("data-info-bar");
+  if(dib)dib.style.display="none";
   var isSup=isSupervisor()&&currentUser.rol!==ROL_OPERARIO;
   // Show inline back button for supervisors
   var backBtn=document.getElementById("op-back-btn-inline");
@@ -4957,11 +5089,11 @@ function opShowTab(tab){
     }
   });
   if(tab==="tareas")opRenderTareas();
-  if(tab==="danos")opRenderDanos();
-  if(tab==="gomas")opRenderGomas();
-  if(tab==="lavados")opRenderLavados();
-  if(tab==="stock")opRenderStock();
-  if(tab==="mihoy")opRenderMiDia();
+  else if(tab==="danos")opRenderDanos();
+  else if(tab==="gomas")opRenderGomas();
+  else if(tab==="lavados")opRenderLavados();
+  else if(tab==="stock")opRenderStock();
+  else if(tab==="mihoy")opRenderMiDia();
 }
 
 // ══════════════════════════════════════════════════════
