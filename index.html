@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.4.4</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.4.5</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.4</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.5</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1181,7 +1181,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.4.4";
+var APP_VERSION="v4.4.5";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2856,26 +2856,35 @@ async function importBlockRows(rows,fileName){
 async function importStock(evt){
   var file=evt.target.files[0];if(!file)return;
   resetImportUI();
-  setImportProgress(10,"Leyendo archivo...");
+  setImportProgress(10,"Leyendo archivo ("+Math.round(file.size/1024/1024*10)/10+" MB)...");
   var reader=new FileReader();
   reader.onload=async function(e){
     try{
-      var wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
+      // Use dense mode + sheetRows limit for large files
+      var opts={type:"array",cellDates:true,dense:true};
+      var wb=XLSX.read(e.target.result,opts);
       var ws=wb.Sheets[wb.SheetNames[0]];
-      var rows=XLSX.utils.sheet_to_json(ws,{defval:null});
-      if(!rows.length)throw new Error("El archivo no tiene datos.");
+      if(!ws||!ws["!ref"])throw new Error("El archivo está vacío o no tiene hojas con datos.");
+      setImportProgress(20,"Procesando filas...");
+      // Parse with sheet_to_json — works better with dense mode
+      var rows=XLSX.utils.sheet_to_json(ws,{defval:null,raw:false});
+      if(!rows||!rows.length)throw new Error("No se encontraron filas en el archivo. Verificá que el archivo tenga datos en la primera hoja.");
+      setImportProgress(30,"Detectando tipo de archivo ("+rows.length.toLocaleString()+" filas)...");
       var importType=detectImportType(rows,file.name);
-      setImportProgress(25,importType==="blocks"?"Archivo detectado: bloqueos / desbloqueos":"Archivo detectado: stock");
+      setImportProgress(35,importType==="blocks"?"Archivo detectado: bloqueos / desbloqueos ("+rows.length.toLocaleString()+" filas)":"Archivo detectado: stock ("+rows.length.toLocaleString()+" unidades)");
       if(importType==="blocks") await importBlockRows(rows,file.name);
       else await importStockRows(rows);
     }catch(err){
-      console.error(err);
+      console.error("Import error:",err);
       setImportProgress(100,"Error en la importación.");
-      setImportResult(false,"❌ No se pudo importar: "+(err&&err.message?err.message:err));
+      setImportResult(false,"❌ No se pudo importar: "+(err&&err.message?err.message:String(err)));
       showToast("Falló la importación","error");
     }finally{
       evt.target.value="";
     }
+  };
+  reader.onerror=function(){
+    setImportResult(false,"❌ No se pudo leer el archivo.");
   };
   reader.readAsArrayBuffer(file);
 }
