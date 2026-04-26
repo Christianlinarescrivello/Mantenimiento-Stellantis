@@ -210,8 +210,8 @@ tbody td{padding:9px 12px;color:var(--text);}
   <div class="login-box">
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
-      <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.4.8</span></div>
+      <div class="sub">Portal de Mantenimiento Stellantis</div>
+      <div class="login-version">Build <span id="login-version-code">v4.4.9</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -262,8 +262,8 @@ tbody td{padding:9px 12px;color:var(--text);}
   <div class="topbar">
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
-    <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.8</span></div>
+    <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.9</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1181,7 +1181,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.4.8";
+var APP_VERSION="v4.4.9";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2857,14 +2857,27 @@ async function importBlockRows(rows,fileName){
 
   if(!records.length)throw new Error("No se pudieron consolidar bloqueos válidos para importar.");
 
-  setImportProgress(55,"Subiendo bloqueos consolidados: "+records.length+" registros únicos...");
+  setImportProgress(55,"Guardando "+records.length+" registros en Supabase...");
   var upserted=0;
   try{
-    for(var i=0;i<records.length;i+=1000){
-      var batch=records.slice(i,i+1000);
-      await sbUpsert("bloqueos_historial",batch,"vin,block_code");
-      upserted+=batch.length;
-      setImportProgress(55+Math.round((upserted/records.length)*40),"Guardando bloqueos: "+upserted+" / "+records.length+"...");
+    // Try fast RPC upsert first (single call)
+    var rpcResp=await fetch(SB_URL+"/rest/v1/rpc/upsert_bloqueos",{
+      method:"POST",
+      headers:Object.assign({},sbH(),{"Content-Type":"application/json"}),
+      body:JSON.stringify({data:records})
+    });
+    if(rpcResp.ok){
+      var rpcResult=await rpcResp.json();
+      upserted=typeof rpcResult==="number"?rpcResult:records.length;
+      setImportProgress(95,"Guardado via RPC: "+upserted+" registros");
+    } else {
+      // Fallback: batch upsert
+      for(var i=0;i<records.length;i+=1000){
+        var batch=records.slice(i,i+1000);
+        await sbUpsert("bloqueos_historial",batch,"vin,block_code");
+        upserted+=batch.length;
+        setImportProgress(55+Math.round((upserted/records.length)*40),"Guardando: "+upserted+" / "+records.length+"...");
+      }
     }
   }catch(err){
     var msg=(err&&err.message?err.message:String(err||""));
@@ -4214,19 +4227,23 @@ function fmtShort(d){
 async function renderHechoHoy(){
   var hoy=new Date().toISOString().slice(0,10);
   var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
-  // Load today's completions from historial + session
+  // Load recent completions — today AND last 7 days from historial
   var data=[];
   try{
-    var h=await sbGet("bloqueos_historial","select=vin,block_code,unblock_date,compound_code,compound_descr&unblock_date=eq."+hoy+"&is_active=eq.false");
+    // Get most recent unblock_date in historial
+    var maxDate=await sbGet("bloqueos_historial","select=unblock_date&order=unblock_date.desc&limit=1&is_active=eq.false&unblock_date=not.is.null");
+    var refDate=hoy;
+    if(Array.isArray(maxDate)&&maxDate.length&&maxDate[0].unblock_date){
+      refDate=maxDate[0].unblock_date.slice(0,10);
+    }
+    var h=await sbGet("bloqueos_historial","select=vin,block_code,unblock_date,compound_code,compound_descr&unblock_date=eq."+refDate+"&is_active=eq.false");
     if(Array.isArray(h))data=h.filter(function(r){return PREV_CODES.indexOf(r.block_code)>=0;});
   }catch(e){}
-  // Add session completions
+  // Add session completions (always today)
   Object.keys(completedThisSession).forEach(function(k){
-    if(completedThisSession[k]===hoy){
-      var parts=k.split("__");
-      if(PREV_CODES.indexOf(parts[1])>=0){
-        data.push({vin:parts[0],block_code:parts[1],unblock_date:hoy,compound_code:currentPatio?currentPatio.compound_code:"00034"});
-      }
+    var parts=k.split("__");
+    if(PREV_CODES.indexOf(parts[1])>=0){
+      data.push({vin:parts[0],block_code:parts[1],unblock_date:completedThisSession[k],compound_code:currentPatio?currentPatio.compound_code:"00034"});
     }
   });
   // Deduplicate
@@ -4234,6 +4251,13 @@ async function renderHechoHoy(){
   data=data.filter(function(r){var k=(r.vin||"")+"__"+(r.block_code||"");if(seen[k])return false;seen[k]=true;return true;});
   var wrap=document.getElementById("dash-hecho-hoy");
   if(!wrap)return;
+  // Find the reference date to show
+  var refDateShow=data.length&&data[0].unblock_date?data[0].unblock_date.slice(0,10):hoy;
+  var isToday=refDateShow===hoy;
+  var dateLabel=isToday?"hoy":refDateShow;
+  // Update title
+  var titleEl=document.getElementById("dash-hecho-title");
+  if(titleEl)titleEl.textContent="✅ Lo que hicimos "+dateLabel+" — "+data.length+" servicio"+(data.length!==1?"s":"")+" completado"+(data.length!==1?"s":"");
   if(!data.length){
     wrap.innerHTML='<div style="background:var(--card);border-radius:12px;padding:20px 24px;border:1px solid var(--border);text-align:center;color:var(--text3);font-size:13px;">Todavía no se registraron actividades hoy</div>';
     return;
@@ -4256,7 +4280,7 @@ async function renderHechoHoy(){
       +'<div>'
       +'<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">'+esc(patio.nombre)+'</div>'
       +'<div style="font-size:32px;font-weight:900;color:#2E7D32;line-height:1;">'+patio.total+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);">servicios realizados hoy</div>'
+      +'<div style="font-size:11px;color:var(--text3);">servicios — '+esc(dateLabel)+'</div>'
       +'</div>'
       +'<div style="width:56px;height:56px;border-radius:50%;background:#E8F5E9;display:flex;align-items:center;justify-content:center;font-size:26px;">✅</div>'
       +'</div>'
@@ -4273,9 +4297,6 @@ async function renderHechoHoy(){
   });
   html+='</div>';
   wrap.innerHTML=html;
-  // Update section title with total
-  var titleEl=document.getElementById("dash-hecho-title");
-  if(titleEl)titleEl.textContent="✅ Lo que hicimos hoy — "+total+" servicio"+(total!==1?"s":"")+" completado"+(total!==1?"s":"");
 }
 
 function showOpView(){
