@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.5.2</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.5.3</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.2</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.3</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -307,18 +307,13 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div class="page-sub" id="dash-date"></div>
       <!-- KPI Stats row -->
       <div class="stats-row" id="dash-stats"></div>
-      <!-- LO QUE HICIMOS HOY + SEMANA -->
+      <!-- LO QUE HICIMOS HOY + ÚLTIMOS 7 DÍAS -->
       <div style="margin-bottom:24px;">
-        <!-- Toggle día / semana -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;" id="dash-hecho-title">✅ Lo que hicimos hoy</div>
-          <div style="display:flex;gap:6px;">
-            <button onclick="setHechoView('dia')" id="btn-hecho-dia" class="btn btn-primary btn-sm" style="font-size:10px;padding:3px 10px;">📅 Hoy</button>
-            <button onclick="setHechoView('semana')" id="btn-hecho-semana" class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 10px;">📆 7 días</button>
-          </div>
-        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;" id="dash-hecho-title">✅ Lo que hicimos hoy</div>
         <div id="dash-hecho-hoy"></div>
-        <div id="dash-hecho-semana" style="display:none;"></div>
+        <!-- Separador semana -->
+        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-top:20px;margin-bottom:12px;" id="dash-semana-title">📆 Acumulado últimos 7 días</div>
+        <div id="dash-hecho-semana"></div>
       </div>
       <!-- PENDIENTES DE OBT -->
       <div style="margin-bottom:24px;" id="dash-obt-wrap">
@@ -755,7 +750,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="modal-head"><h3>🔴 Registrar Daño (C30)</h3><button class="modal-close" onclick="closeModal('modal-daño')">×</button></div>
     <div class="modal-body">
       <div class="field-row">
-        <div class="field"><label>VIN *</label><input type="text" id="d-vin" placeholder="Ingresá el VIN" oninput="lookupVin('d-vin','d-modelo','d-box')"></div>
+        <div class="field"><label>VIN *</label><input type="text" id="d-vin" placeholder="Últimos 5 dígitos del VIN..." oninput="lookupVin('d-vin','d-modelo','d-box')" style="font-family:monospace;text-transform:uppercase;"></div>
         <div class="field"><label>Boxatura</label><input type="text" id="d-box" readonly style="opacity:.7"></div>
       </div>
       <div class="field"><label>Modelo</label><input type="text" id="d-modelo" readonly style="opacity:.7"></div>
@@ -796,7 +791,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="modal-head"><h3>🟡 Registrar Goma Pinchada (C37)</h3><button class="modal-close" onclick="closeModal('modal-goma')">×</button></div>
     <div class="modal-body">
       <div class="field-row">
-        <div class="field"><label>VIN *</label><input type="text" id="g-vin" placeholder="Ingresá el VIN" oninput="lookupVin('g-vin','g-modelo','g-box')"></div>
+        <div class="field"><label>VIN *</label><input type="text" id="g-vin" placeholder="Últimos 5 dígitos del VIN..." oninput="lookupVin('g-vin','g-modelo','g-box')" style="font-family:monospace;text-transform:uppercase;"></div>
         <div class="field"><label>Boxatura</label><input type="text" id="g-box" readonly style="opacity:.7"></div>
       </div>
       <div class="field"><label>Modelo</label><input type="text" id="g-modelo" readonly style="opacity:.7"></div>
@@ -1197,7 +1192,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.5.2";
+var APP_VERSION="v4.5.3";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1619,12 +1614,77 @@ function computePending(rows, hist){
 }
 
 function lookupVin(vinId,modelId,boxId){
-  var vin=document.getElementById(vinId).value.trim().toUpperCase();
-  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin;});
-  if(v){
-    document.getElementById(modelId).value=v.model_descr||v["Model Descr"]||"";
-    document.getElementById(boxId).value=v.boxatura||v["Boxatura"]||"";
+  var val=document.getElementById(vinId).value.trim().toUpperCase();
+  // If 17 chars = full VIN, autofill directly
+  if(val.length===17){
+    var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===val;});
+    if(v){
+      if(modelId)document.getElementById(modelId).value=v.model_descr||v["Model Descr"]||"";
+      if(boxId)document.getElementById(boxId).value=v.boxatura||v["Boxatura"]||"";
+    }
+    hideVinDropdown(vinId);
+    return;
   }
+  // If 3-5 chars: search last N digits
+  if(val.length>=3){
+    var matches=stockCache.filter(function(r){
+      return(r.vin||r.VIN||"").toUpperCase().endsWith(val);
+    }).slice(0,8);
+    if(matches.length===1){
+      // Auto-select if unique match
+      document.getElementById(vinId).value=matches[0].vin||matches[0].VIN;
+      if(modelId)document.getElementById(modelId).value=matches[0].model_descr||matches[0]["Model Descr"]||"";
+      if(boxId)document.getElementById(boxId).value=matches[0].boxatura||matches[0]["Boxatura"]||"";
+      hideVinDropdown(vinId);
+    } else if(matches.length>1){
+      showVinDropdown(vinId,modelId,boxId,matches);
+    } else {
+      hideVinDropdown(vinId);
+    }
+  } else {
+    hideVinDropdown(vinId);
+  }
+}
+
+function showVinDropdown(vinId,modelId,boxId,matches){
+  var dropId="vdrop-"+vinId;
+  var existing=document.getElementById(dropId);
+  if(existing)existing.remove();
+  var inp=document.getElementById(vinId);
+  var rect=inp.getBoundingClientRect();
+  var drop=document.createElement("div");
+  drop.id=dropId;
+  drop.style.cssText="position:fixed;z-index:9999;background:var(--card);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:200px;overflow-y:auto;min-width:320px;";
+  drop.style.left=rect.left+"px";
+  drop.style.top=(rect.bottom+4)+"px";
+  drop.style.width=Math.max(rect.width,320)+"px";
+  matches.forEach(function(v){
+    var item=document.createElement("div");
+    item.style.cssText="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12px;";
+    item.innerHTML='<b style="color:var(--gold);font-family:monospace;">'+esc(v.vin||v.VIN)+'</b>'
+      +' <span style="color:var(--text3);">'+esc(v.model_descr||v["Model Descr"]||"")+'</span>'
+      +(v.boxatura||v["Boxatura"]?' <span style="color:var(--text3);font-size:10px;">· Box: '+esc(v.boxatura||v["Boxatura"])+'</span>':"");
+    item.onmouseover=function(){this.style.background="var(--bg2)";};
+    item.onmouseout=function(){this.style.background="";};
+    item.onclick=function(){
+      document.getElementById(vinId).value=v.vin||v.VIN;
+      if(modelId)document.getElementById(modelId).value=v.model_descr||v["Model Descr"]||"";
+      if(boxId)document.getElementById(boxId).value=v.boxatura||v["Boxatura"]||"";
+      drop.remove();
+    };
+    drop.appendChild(item);
+  });
+  document.body.appendChild(drop);
+  // Close on outside click
+  setTimeout(function(){
+    document.addEventListener("click",function closeD(e){
+      if(!drop.contains(e.target)&&e.target!==inp){drop.remove();document.removeEventListener("click",closeD);}
+    });
+  },100);
+}
+
+function hideVinDropdown(vinId){
+  var d=document.getElementById("vdrop-"+vinId);if(d)d.remove();
 }
 
 async function loadOperarios(){
@@ -1672,18 +1732,9 @@ async function renderDashboard(){
     return'<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+';font-size:'+fontSize+'">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';
   }).join("");
 
-  // Render "hecho hoy" section
+  // Render "hecho hoy" + semana always
   renderHechoHoy();
-  // Reset weekly cache so it reloads fresh next time
-  var wSem=document.getElementById("dash-hecho-semana");
-  if(wSem){wSem.dataset.loaded="";wSem.style.display="none";}
-  var wDia=document.getElementById("dash-hecho-hoy");
-  if(wDia)wDia.style.display="block";
-  var bDia=document.getElementById("btn-hecho-dia");
-  var bSem=document.getElementById("btn-hecho-semana");
-  if(bDia){bDia.className="btn btn-primary btn-sm";bDia.style.fontSize="10px";bDia.style.padding="3px 10px";}
-  if(bSem){bSem.className="btn btn-ghost btn-sm";bSem.style.fontSize="10px";bSem.style.padding="3px 10px";}
-  _hechoView="dia";
+  renderHechoSemana();
   // Render pendientes OBT
   renderPendientesOBT();
 
@@ -4421,7 +4472,7 @@ async function renderHechoSemana(){
 
   if(!data.length){
     wrap.innerHTML='<div style="background:var(--card);border-radius:12px;padding:20px 24px;border:1px solid var(--border);text-align:center;color:var(--text3);font-size:13px;">Sin actividad en los últimos 7 días</div>';
-    wrap.dataset.loaded="1";return;
+    return;
   }
 
   // Group by patio
@@ -4464,7 +4515,6 @@ async function renderHechoSemana(){
   });
   html+='</div>';
   wrap.innerHTML=html;
-  wrap.dataset.loaded="1";
 }
 
 // ── PENDIENTES DE OBT (Dashboard) ───────────────────
@@ -5011,7 +5061,7 @@ async function exportWsLog(){
     <div class="modal-body">
       <div class="field">
         <label>VIN *</label>
-        <input type="text" id="lav-vin" placeholder="Ingresá el VIN" oninput="opAutofillVin('lav-vin','lav-info')" style="font-family:monospace;font-size:14px;text-transform:uppercase;">
+        <input type="text" id="lav-vin" placeholder="Últimos 5 dígitos del VIN..." oninput="lookupVin('lav-vin',null,null)"  style="font-family:monospace;text-transform:uppercase;" style="font-family:monospace;font-size:14px;text-transform:uppercase;">
       </div>
       <div id="lav-info" style="display:none;background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:12px;border:1px solid var(--border);font-size:12px;"></div>
       <div class="field">
@@ -5117,7 +5167,13 @@ function opRenderTareas(){
     }
     return true;
   });
-  document.getElementById("op-tareas-count").textContent=filtered.length+" tareas · "+filtered.filter(function(p){return p.urgency==="overdue";}).length+" vencidas · "+filtered.filter(function(p){return p.urgency==="urgent";}).length+" urgentes";
+  // Sort: overdue first (most overdue = most negative daysToDue), then urgent, soon, ok
+  var urgOrder={overdue:0,urgent:1,soon:2,ok:3};
+  filtered.sort(function(a,b){
+    var uDiff=urgOrder[a.urgency]-urgOrder[b.urgency];
+    if(uDiff!==0)return uDiff;
+    return a.daysToDue-b.daysToDue; // within same group: most overdue first
+  });
   var urgColors={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
   var urgBg={overdue:"rgba(198,40,40,0.08)",urgent:"rgba(230,81,0,0.06)",soon:"rgba(21,101,192,0.06)",ok:"rgba(46,125,50,0.04)"};
   var html=filtered.slice(0,100).map(function(p){
@@ -5495,39 +5551,66 @@ function opDepTab(tab){
   document.getElementById("op-dep-neum").style.display=tab==="neumaticos"?"block":"none";
   document.getElementById("op-dep-mat").style.display=tab==="materiales"?"block":"none";
   var n=document.getElementById("op-dep-tab-neum"),m=document.getElementById("op-dep-tab-mat");
-  if(n){n.className=tab==="neumaticos"?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";}
-  if(m){m.className=tab==="materiales"?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";}
+  if(n)n.className=tab==="neumaticos"?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";
+  if(m)m.className=tab==="materiales"?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";
   if(tab==="neumaticos")opRenderDepNeum();
   if(tab==="materiales")opRenderDepMat();
 }
 
-async function opRenderStock(){opDepTab("neumaticos");}
+async function opRenderStock(){
+  // Reuse supervisor renderDepNeumaticos — same cards with photos
+  opDepTab("neumaticos");
+}
 
 async function opRenderDepNeum(){
+  // Render same card grid as supervisor (reuse renderDepNeumaticos into op-dep-neum-list)
   var list=document.getElementById("op-dep-neum-list");
   var cnt=document.getElementById("op-dep-neum-count");
   if(!list)return;
   list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Cargando...</div>';
   var data=[];
-  try{data=await sbGet("stock_neumaticos","select=*,catalogo:catalogo_id(vehiculo,modelo,medida)");}catch(e){}
+  try{
+    data=await sbGet("stock_neumaticos","select=*,catalogo:catalogo_id(id,vehiculo,modelo,medida,llanta,codigo_parte)&order=catalogo_id");
+  }catch(e){}
   if(!Array.isArray(data))data=[];
   var total=data.reduce(function(s,r){return s+(r.cantidad_ok||0);},0);
   if(cnt)cnt.textContent=data.length+" diseños · "+total+" unidades OK en stock";
   if(!data.length){list.innerHTML='<div class="empty"><div class="empty-icon">📦</div>Sin stock cargado</div>';return;}
-  list.innerHTML=data.map(function(r){
+  var html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;">';
+  data.forEach(function(r){
     var cat=r.catalogo||{};
-    return'<div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;">'
-      +'<div>'
-      +'<div style="font-size:12px;font-weight:700;color:var(--text);">'+esc(cat.vehiculo||"—")+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);">'+esc(cat.modelo||"")+(cat.medida?" · "+esc(cat.medida):"")+'</div>'
-      +'</div>'
-      +'<div style="text-align:right;">'
-      +'<div style="font-size:20px;font-weight:900;color:#2E7D32;">'+(r.cantidad_ok||0)+'</div>'
+    var okColor=r.cantidad_ok>0?"#2E7D32":"#C62828";
+    var imgUrl=r.foto_ok_url||r.foto_ko_url||"";
+    html+='<div style="background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);">';
+    if(imgUrl){
+      html+='<div style="height:130px;overflow:hidden;background:#f0f0f0;">'
+        +'<img src="'+esc(imgUrl)+'" style="width:100%;height:100%;object-fit:cover;">'
+        +'</div>';
+    } else {
+      html+='<div style="height:80px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:32px;">🔵</div>';
+    }
+    html+='<div style="padding:12px;">'
+      +'<div style="font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;margin-bottom:2px;">'+esc(cat.vehiculo||"—")+'</div>'
+      +'<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px;line-height:1.3;">'+esc(cat.modelo||"—")+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">'+esc(cat.medida||"")+'</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;">'
+      +'<div style="text-align:center;">'
+      +'<div style="font-size:22px;font-weight:900;color:'+okColor+';">'+(r.cantidad_ok||0)+'</div>'
       +'<div style="font-size:9px;color:var(--text3);">OK</div>'
-      +(r.cantidad_ko?'<div style="font-size:14px;font-weight:700;color:#C62828;">'+(r.cantidad_ko||0)+' KO</div>':"")
       +'</div>'
-      +'</div>';
-  }).join("");
+      +(r.cantidad_ko?'<div style="text-align:center;">'
+        +'<div style="font-size:22px;font-weight:900;color:#C62828;">'+(r.cantidad_ko||0)+'</div>'
+        +'<div style="font-size:9px;color:var(--text3);">KO</div>'
+        +'</div>':"")
+      +'<div style="display:flex;flex-direction:column;gap:4px;">'
+      +'<button onclick="openAjusteNeumModal(\'ok\')" style="background:#2E7D32;color:white;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;">+OK</button>'
+      +'<button onclick="openAjusteNeumModal(\'ko\')" style="background:#C62828;color:white;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;">+KO</button>'
+      +'</div>'
+      +'</div>'
+      +'</div></div>';
+  });
+  html+='</div>';
+  list.innerHTML=html;
 }
 
 async function opRenderDepMat(){
