@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.5.6</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.5.7</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.6</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.7</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1193,7 +1193,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.5.6";
+var APP_VERSION="v4.5.7";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2618,7 +2618,7 @@ function filtrarGomaNeumLista(){
   if(!lista)return;
   var filtered=catalogoCache.filter(function(n){
     if(!q)return true;
-    var haystack=(n.vehiculo+" "+n.modelo+" "+n.medida+" "+(n.codigo_parte||"")).toLowerCase();
+    var haystack=(n.vehiculo+" "+n.modelo+" "+n.medida+" "+(n.codigo_parte||"")+" "+(n.codigo_conjunto||"")).toLowerCase();
     return haystack.indexOf(q)>=0;
   });
   if(!filtered.length){lista.innerHTML='<div style="padding:10px;color:var(--text3);font-size:11px;text-align:center;">Sin resultados</div>';return;}
@@ -3415,7 +3415,7 @@ async function renderDepCatalogo(){
     if(filtro==="activo"&&!n.activo)return false;
     if(filtro==="inactivo"&&n.activo)return false;
     if(q){
-      var h=(n.vehiculo+" "+n.modelo+" "+n.medida+" "+(n.codigo_parte||"")).toLowerCase();
+      var h=(n.vehiculo+" "+n.modelo+" "+n.medida+" "+(n.codigo_parte||"")+" "+(n.codigo_conjunto||"")).toLowerCase();
       if(h.indexOf(q)<0)return false;
     }
     return true;
@@ -3486,7 +3486,7 @@ async function renderDepNeumaticos(){
     return true;
   }).filter(function(r){
     if(!q)return true;
-    var hay=(r.cat.vehiculo+" "+r.cat.modelo+" "+r.cat.medida+" "+(r.cat.codigo_parte||"")+" "+(r.cat.llanta||"")).toLowerCase();
+    var hay=(r.cat.vehiculo+" "+r.cat.modelo+" "+r.cat.medida+" "+(r.cat.codigo_parte||"")+" "+(r.cat.llanta||"")+" "+(r.cat.codigo_conjunto||"")).toLowerCase();
     return hay.indexOf(q)>=0;
   });
   depNeumCache=filtered;
@@ -3521,6 +3521,7 @@ async function renderDepNeumaticos(){
       +fotoHtml
       +'<div style="padding:12px;">'
       +'<div style="font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;margin-bottom:2px;">'+esc(r.cat.vehiculo)+'</div>'
+      +(r.cat.codigo_conjunto?'<div style="font-family:monospace;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:2px;">'+esc(r.cat.codigo_conjunto)+'</div>':"")
       +'<div style="font-size:12px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:2px;">'+esc(r.cat.modelo)+'</div>'
       +'<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">'+esc(r.cat.medida)+(r.cat.codigo_parte?'<br><span style="font-family:monospace">'+esc(r.cat.codigo_parte)+'</span>':"")+'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">'
@@ -3624,7 +3625,7 @@ function filtrarAnCatalogo(){
   if(!lista)return;
   var filtered=catalogoCache.filter(function(n){
     if(!q)return true;
-    var haystack=(n.vehiculo+" "+n.modelo+" "+n.medida+" "+(n.codigo_parte||"")).toLowerCase();
+    var haystack=(n.vehiculo+" "+n.modelo+" "+n.medida+" "+(n.codigo_parte||"")+" "+(n.codigo_conjunto||"")).toLowerCase();
     return haystack.indexOf(q)>=0;
   });
   if(!filtered.length){
@@ -5645,7 +5646,7 @@ async function opRenderDepNeum(){
   list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Cargando...</div>';
   var data=[];
   try{
-    data=await sbGet("stock_neumaticos","select=*,catalogo:catalogo_id(id,vehiculo,modelo,medida,llanta,codigo_parte)&order=catalogo_id");
+    data=await sbGet("stock_neumaticos","select=*,catalogo:catalogo_id(id,vehiculo,modelo,medida,llanta,codigo_parte,codigo_conjunto)&order=catalogo_id");
   }catch(e){}
   if(!Array.isArray(data))data=[];
   var total=data.reduce(function(s,r){return s+(r.cantidad_ok||0);},0);
@@ -5666,6 +5667,7 @@ async function opRenderDepNeum(){
     }
     html+='<div style="padding:12px;">'
       +'<div style="font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;margin-bottom:2px;">'+esc(cat.vehiculo||"—")+'</div>'
+      +(cat.codigo_conjunto?'<div style="font-family:monospace;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:2px;">'+esc(cat.codigo_conjunto)+'</div>':"")
       +'<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px;line-height:1.3;">'+esc(cat.modelo||"—")+'</div>'
       +'<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">'+esc(cat.medida||"")+'</div>'
       +'<div style="display:flex;justify-content:space-between;align-items:center;">'
