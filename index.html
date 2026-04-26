@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.5.4</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.5.5</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,11 +263,11 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.4</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.5</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
-      <select id="top-patio-sel" onchange="onTopPatioChange()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:4px 8px;border-radius:6px;font-size:11px;font-family:'Barlow',sans-serif;outline:none;cursor:pointer;">
+      <select id="top-patio-sel" onchange="onTopPatioChange()" style="background:#1A3C6E;border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:6px;font-size:11px;font-family:'Barlow',sans-serif;outline:none;cursor:pointer;">
         <option value="ALL">Todos los patios</option>
       </select>
     </div>
@@ -1192,7 +1192,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.5.4";
+var APP_VERSION="v4.5.5";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1501,7 +1501,18 @@ async function initApp(){
     xbtn.title="Descargar Excel con operaciones OBT del día";
     xbtn.innerHTML="📋 OBT Excel";
     xbtn.style.cssText="background:rgba(200,164,74,0.2);border:1px solid var(--gold);color:var(--gold);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;";
-    xbtn.onclick=exportObtDiario;
+    xbtn.onclick=function(){
+      // Export pending tasks for selected patio - this is what operatives need to work
+      var patio=currentPatio;
+      var nombre=patio?patio.nombre:"Todos los patios";
+      var cc=patio?patio.compound_code:"ALL";
+      if(cc==="ALL"){
+        // Ask which patio
+        showToast("Seleccioná un patio específico para el Excel OBT","info");
+        return;
+      }
+      exportPatioExcel(nombre, cc);
+    };
     tb.insertBefore(xbtn,tb.querySelector(".theme-btn"));
   }
   renderDashboard();
@@ -3520,10 +3531,39 @@ async function renderDepNeumaticos(){
       +(isSup?'<div style="display:flex;gap:4px;margin-top:4px;">'
         +'<button class="btn btn-success btn-sm" style="flex:1;font-size:10px" onclick="openAjusteNeumModalPre(\'ok\',\''+r.cat.id+'\')">+OK</button>'
         +'<button class="btn btn-danger btn-sm" style="flex:1;font-size:10px" onclick="openAjusteNeumModalPre(\'ko\',\''+r.cat.id+'\')">+KO</button>'
+        +'<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:0 6px;" title="Subir foto del diseño" onclick="uploadFotoCatalogo(\''+r.cat.id+'\',this)">📷</button>'
         +'</div>':"")
       +'</div>'
       +'</div>';
   }).join("")||'<div style="grid-column:1/-1"><div class="empty"><div class="empty-icon">📦</div>Sin diseños en el catálogo</div></div>';
+}
+
+function uploadFotoCatalogo(catId, btn){
+  // Create hidden file input and trigger it
+  var inp=document.createElement("input");
+  inp.type="file";inp.accept="image/*";
+  inp.onchange=async function(){
+    var file=inp.files[0];if(!file)return;
+    btn.textContent="⏳";btn.disabled=true;
+    try{
+      var fotoUrl=await uploadPhoto(file,"fotos-mantenimiento","neumaticos-catalogo/"+catId+"-"+Date.now()+"-"+file.name);
+      // Update stock_neumaticos row
+      var existing=await sbGet("stock_neumaticos","catalogo_id=eq."+catId+"&select=id");
+      if(Array.isArray(existing)&&existing.length){
+        await sbPatch("stock_neumaticos",existing[0].id,{foto_ok_url:fotoUrl});
+      } else {
+        await sbPost("stock_neumaticos",{catalogo_id:catId,cantidad_ok:0,cantidad_ko:0,foto_ok_url:fotoUrl});
+      }
+      showToast("Foto subida correctamente","success");
+      renderDepNeumaticos();
+    }catch(e){
+      showToast("Error al subir foto: "+e.message,"error");
+      btn.textContent="📷";btn.disabled=false;
+    }
+  };
+  document.body.appendChild(inp);
+  inp.click();
+  setTimeout(function(){document.body.removeChild(inp);},5000);
 }
 
 async function showKoDetail(catalogoId, titulo){
