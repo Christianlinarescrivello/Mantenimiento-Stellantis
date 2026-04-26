@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.4.7</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.4.8</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.7</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.8</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1181,7 +1181,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.4.7";
+var APP_VERSION="v4.4.8";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1191,9 +1191,20 @@ var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 function pdate(v){
   if(!v)return null;
   if(v instanceof Date)return isNaN(v)?null:v;
+  // Excel serial number (raw:true returns numbers for dates)
+  if(typeof v==="number"&&v>1000){
+    // Excel date serial: days since 1900-01-01 (with leap year bug)
+    var d=new Date((v-25569)*86400000);
+    return isNaN(d)?null:d;
+  }
   var s=String(v).trim();
+  if(!s)return null;
+  // DD/MM/YYYY
   var m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+  // YYYY-MM-DD
+  var m2=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m2)return new Date(+m2[1],+m2[2]-1,+m2[3]);
   var d=new Date(s);return isNaN(d)?null:d;
 }
 function addDays(d,n){var r=new Date(d);r.setDate(r.getDate()+n);return r;}
@@ -2849,8 +2860,8 @@ async function importBlockRows(rows,fileName){
   setImportProgress(55,"Subiendo bloqueos consolidados: "+records.length+" registros únicos...");
   var upserted=0;
   try{
-    for(var i=0;i<records.length;i+=500){
-      var batch=records.slice(i,i+500);
+    for(var i=0;i<records.length;i+=1000){
+      var batch=records.slice(i,i+1000);
       await sbUpsert("bloqueos_historial",batch,"vin,block_code");
       upserted+=batch.length;
       setImportProgress(55+Math.round((upserted/records.length)*40),"Guardando bloqueos: "+upserted+" / "+records.length+"...");
@@ -2874,18 +2885,21 @@ async function importStock(evt){
   var reader=new FileReader();
   reader.onload=async function(e){
     try{
-      // Use dense mode + sheetRows limit for large files
-      var opts={type:"array",cellDates:true,dense:true};
+      // Detect type from filename first to optimize reading
+      var lc=file.name.toLowerCase();
+      var likelyBlocks=lc.indexOf("bloquead")>=0||lc.indexOf("block")>=0||lc.indexOf("unidad")>=0;
+      setImportProgress(15,likelyBlocks?"Detectado: archivo de bloqueos — procesando...":"Leyendo archivo...");
+      // For large files use raw:true (no date parsing) for speed, then normalize dates manually
+      var opts={type:"array",cellDates:false,raw:true,sheetStubs:false};
       var wb=XLSX.read(e.target.result,opts);
       var ws=wb.Sheets[wb.SheetNames[0]];
       if(!ws||!ws["!ref"])throw new Error("El archivo está vacío o no tiene hojas con datos.");
-      setImportProgress(20,"Procesando filas...");
-      // Parse with sheet_to_json — works better with dense mode
-      var rows=XLSX.utils.sheet_to_json(ws,{defval:null,raw:false});
-      if(!rows||!rows.length)throw new Error("No se encontraron filas en el archivo. Verificá que el archivo tenga datos en la primera hoja.");
-      setImportProgress(30,"Detectando tipo de archivo ("+rows.length.toLocaleString()+" filas)...");
+      setImportProgress(25,"Procesando filas...");
+      var rows=XLSX.utils.sheet_to_json(ws,{defval:null,raw:true});
+      if(!rows||!rows.length)throw new Error("No se encontraron filas en el archivo.");
+      setImportProgress(30,"Detectando tipo ("+rows.length.toLocaleString()+" filas)...");
       var importType=detectImportType(rows,file.name);
-      setImportProgress(35,importType==="blocks"?"Archivo detectado: bloqueos / desbloqueos ("+rows.length.toLocaleString()+" filas)":"Archivo detectado: stock ("+rows.length.toLocaleString()+" unidades)");
+      setImportProgress(35,importType==="blocks"?"Bloqueos: "+rows.length.toLocaleString()+" filas":"Stock: "+rows.length.toLocaleString()+" unidades");
       if(importType==="blocks") await importBlockRows(rows,file.name);
       else await importStockRows(rows);
     }catch(err){
