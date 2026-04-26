@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Gestión de Mantenimiento · Córdoba</div>
-      <div class="login-version">Build <span id="login-version-code">v4.4.3</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.4.4</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">MANTENIMIENTO · CÓRDOBA</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.3</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.4</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1181,7 +1181,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.4.3";
+var APP_VERSION="v4.4.4";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1430,12 +1430,19 @@ async function doLogin(){
 }
 
 function doLogout(){
+  // Clear saved session so next F5 shows login
+  localStorage.removeItem("saved_email");
+  localStorage.removeItem("saved_pass");
   currentUser=null;
   document.getElementById("app").style.display="none";
   document.getElementById("app-operario").style.display="none";
   document.getElementById("login-screen").style.display="flex";
+  document.getElementById("l-email").value="";
   document.getElementById("l-pass").value="";
+  document.getElementById("l-remember").checked=false;
   document.getElementById("login-err").style.display="none";
+  var btn=document.querySelector(".login-btn");
+  if(btn){btn.textContent="INGRESAR";btn.disabled=false;}
 }
 
 // ══════════════════════════════════════════════════════
@@ -4443,6 +4450,10 @@ async function exportWsLog(){
     document.getElementById("l-email").value=savedEmail;
     document.getElementById("l-pass").value=savedPass;
     document.getElementById("l-remember").checked=true;
+    // Show loading and auto-login
+    var btn=document.querySelector(".login-btn");
+    if(btn){btn.textContent="Iniciando...";btn.disabled=true;}
+    setTimeout(function(){doLogin();},200);
   }
 })();
 </script>
