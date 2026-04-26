@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.4.9</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.5.0</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.4.9</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.0</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -311,6 +311,14 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div style="margin-bottom:24px;">
         <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;" id="dash-hecho-title">✅ Lo que hicimos hoy</div>
         <div id="dash-hecho-hoy"></div>
+      </div>
+      <!-- PENDIENTES DE OBT -->
+      <div style="margin-bottom:24px;" id="dash-obt-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;">⏳ Pendientes de OBT <span id="dash-obt-count" style="font-size:11px;font-weight:400;color:#E65100;text-transform:none;letter-spacing:0;margin-left:6px;"></span></div>
+          <button onclick="exportObtPendienteOperario()" style="background:rgba(200,164,74,0.15);border:1px solid var(--gold);color:var(--gold);padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">📋 Excel OBT</button>
+        </div>
+        <div id="dash-obt-list"></div>
       </div>
       <!-- SEMÁFORO GLOBAL por patio (visible cuando hay múltiples patios) -->
       <div id="dash-semaforo-wrap" style="display:none;margin-bottom:20px;">
@@ -1181,7 +1189,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.4.9";
+var APP_VERSION="v4.5.0";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1658,6 +1666,8 @@ async function renderDashboard(){
 
   // Render "hecho hoy" section
   renderHechoHoy();
+  // Render pendientes OBT
+  renderPendientesOBT();
 
   // ── SEMÁFORO POR SERVICIO ────────────────────────────
   // Función que calcula el semáforo de un grupo de pendientes
@@ -4227,37 +4237,60 @@ function fmtShort(d){
 async function renderHechoHoy(){
   var hoy=new Date().toISOString().slice(0,10);
   var PREV_CODES=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
-  // Load recent completions — today AND last 7 days from historial
-  var data=[];
+
+  // SOURCE 1: checklist_registros del portal (hoy)
+  var portal=[];
   try{
-    // Get most recent unblock_date in historial
-    var maxDate=await sbGet("bloqueos_historial","select=unblock_date&order=unblock_date.desc&limit=1&is_active=eq.false&unblock_date=not.is.null");
-    var refDate=hoy;
-    if(Array.isArray(maxDate)&&maxDate.length&&maxDate[0].unblock_date){
-      refDate=maxDate[0].unblock_date.slice(0,10);
-    }
-    var h=await sbGet("bloqueos_historial","select=vin,block_code,unblock_date,compound_code,compound_descr&unblock_date=eq."+refDate+"&is_active=eq.false");
-    if(Array.isArray(h))data=h.filter(function(r){return PREV_CODES.indexOf(r.block_code)>=0;});
+    var pd=await sbGet("checklist_registros","select=vin,maint_code,fecha,patio_id&fecha=eq."+hoy);
+    if(Array.isArray(pd))portal=pd.filter(function(r){return PREV_CODES.indexOf(r.maint_code)>=0;});
   }catch(e){}
-  // Add session completions (always today)
+  // Add completedThisSession (same session, might not be in DB yet)
   Object.keys(completedThisSession).forEach(function(k){
     var parts=k.split("__");
     if(PREV_CODES.indexOf(parts[1])>=0){
-      data.push({vin:parts[0],block_code:parts[1],unblock_date:completedThisSession[k],compound_code:currentPatio?currentPatio.compound_code:"00034"});
+      portal.push({vin:parts[0],maint_code:parts[1],fecha:completedThisSession[k]});
     }
   });
-  // Deduplicate
-  var seen={};
-  data=data.filter(function(r){var k=(r.vin||"")+"__"+(r.block_code||"");if(seen[k])return false;seen[k]=true;return true;});
+
+  // SOURCE 2: bloqueos_historial con unblock_date = fecha más reciente
+  var historial=[];
+  try{
+    // Find most recent unblock_date
+    var maxD=await sbGet("bloqueos_historial","select=unblock_date&order=unblock_date.desc&limit=1&is_active=eq.false&unblock_date=not.is.null");
+    var refDate=Array.isArray(maxD)&&maxD.length?maxD[0].unblock_date.slice(0,10):hoy;
+    var hd=await sbGet("bloqueos_historial","select=vin,block_code,unblock_date,compound_code,compound_descr&unblock_date=eq."+refDate+"&is_active=eq.false");
+    if(Array.isArray(hd))historial=hd.filter(function(r){return PREV_CODES.indexOf(r.block_code)>=0;});
+  }catch(e){}
+
+  // MERGE: normalize to {vin, code, date, compound_code} and deduplicate
+  var merged={};
+  // First historial (from OBT file)
+  historial.forEach(function(r){
+    var key=(r.vin||"").toUpperCase()+"__"+(r.block_code||"");
+    merged[key]={vin:r.vin,code:r.block_code,date:r.unblock_date,compound_code:r.compound_code,compound_descr:r.compound_descr,source:"obt"};
+  });
+  // Then portal (overrides if same VIN+code, marks as "portal")
+  portal.forEach(function(r){
+    var key=(r.vin||"").toUpperCase()+"__"+(r.maint_code||"");
+    if(merged[key]){merged[key].source="ambos";}
+    else{
+      var stockRow=stockCache.find(function(s){return(s.vin||"").toUpperCase()===(r.vin||"").toUpperCase();});
+      merged[key]={vin:r.vin,code:r.maint_code,date:r.fecha||hoy,compound_code:stockRow?stockRow.compound_code:currentPatio?currentPatio.compound_code:"",source:"portal"};
+    }
+  });
+
+  var data=Object.values(merged);
   var wrap=document.getElementById("dash-hecho-hoy");
   if(!wrap)return;
-  // Find the reference date to show
-  var refDateShow=data.length&&data[0].unblock_date?data[0].unblock_date.slice(0,10):hoy;
-  var isToday=refDateShow===hoy;
-  var dateLabel=isToday?"hoy":refDateShow;
-  // Update title
+
+  // Determine date label
+  var dates=data.map(function(r){return(r.date||"").slice(0,10);}).filter(Boolean);
+  var lastDate=dates.sort().pop()||hoy;
+  var isToday=lastDate===hoy;
+  var dateLabel=isToday?"hoy":lastDate;
   var titleEl=document.getElementById("dash-hecho-title");
   if(titleEl)titleEl.textContent="✅ Lo que hicimos "+dateLabel+" — "+data.length+" servicio"+(data.length!==1?"s":"")+" completado"+(data.length!==1?"s":"");
+
   if(!data.length){
     wrap.innerHTML='<div style="background:var(--card);border-radius:12px;padding:20px 24px;border:1px solid var(--border);text-align:center;color:var(--text3);font-size:13px;">Todavía no se registraron actividades hoy</div>';
     return;
@@ -4266,37 +4299,116 @@ async function renderHechoHoy(){
   var byPatio={};
   data.forEach(function(r){
     var cc=String(r.compound_code||"").replace(/^0+/,"");
-    var patio=patiosCache.find(function(p){return p.compound_code.replace(/^0+/,"")=== cc;})||{nombre:r.compound_descr||r.compound_code||"Patio"};
+    var patio=patiosCache.find(function(p){return p.compound_code.replace(/^0+/,"")=== cc;})||{nombre:r.compound_descr||r.compound_code||"Sin patio"};
     var key=patio.nombre;
-    if(!byPatio[key])byPatio[key]={nombre:key,total:0,byCod:{}};
+    if(!byPatio[key])byPatio[key]={nombre:key,total:0,byCod:{},bySource:{portal:0,obt:0,ambos:0}};
     byPatio[key].total++;
-    byPatio[key].byCod[r.block_code]=(byPatio[key].byCod[r.block_code]||0)+1;
+    byPatio[key].byCod[r.code]=(byPatio[key].byCod[r.code]||0)+1;
+    byPatio[key].bySource[r.source]=(byPatio[key].bySource[r.source]||0)+1;
   });
-  var total=data.length;
+  var PREV_CODES_ALL=["M90","BSE","MDI","DSE","AN1","CAF","FLU","UREA"];
   var html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">';
   Object.values(byPatio).forEach(function(patio){
+    var portalN=patio.bySource.portal||0;var obtN=patio.bySource.obt||0;var ambosN=patio.bySource.ambos||0;
     html+='<div style="background:var(--card);border-radius:12px;padding:18px 20px;border:1px solid var(--border);box-shadow:var(--shadow);border-top:4px solid #2E7D32;">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
-      +'<div>'
-      +'<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">'+esc(patio.nombre)+'</div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+      +'<div><div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">'+esc(patio.nombre)+'</div>'
       +'<div style="font-size:32px;font-weight:900;color:#2E7D32;line-height:1;">'+patio.total+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);">servicios — '+esc(dateLabel)+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);">servicios — '+esc(dateLabel)+'</div>'
       +'</div>'
-      +'<div style="width:56px;height:56px;border-radius:50%;background:#E8F5E9;display:flex;align-items:center;justify-content:center;font-size:26px;">✅</div>'
+      +'<div style="width:52px;height:52px;border-radius:50%;background:#E8F5E9;display:flex;align-items:center;justify-content:center;font-size:24px;">✅</div>'
       +'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px;">';
-    PREV_CODES.forEach(function(code){
+      +'<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">';
+    PREV_CODES_ALL.forEach(function(code){
       var cnt=patio.byCod[code]||0;
-      if(cnt===0)return;
-      html+='<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;padding:5px 10px;display:flex;flex-direction:column;align-items:center;min-width:44px;">'
-        +'<div style="font-size:16px;font-weight:900;color:#2E7D32;line-height:1;">'+cnt+'</div>'
-        +'<div style="font-size:9px;font-weight:700;color:#2E7D32;text-transform:uppercase;">'+code+'</div>'
+      if(!cnt)return;
+      html+='<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:7px;padding:4px 8px;text-align:center;min-width:40px;">'
+        +'<div style="font-size:15px;font-weight:900;color:#2E7D32;">'+cnt+'</div>'
+        +'<div style="font-size:8px;font-weight:700;color:#2E7D32;text-transform:uppercase;">'+code+'</div>'
         +'</div>';
     });
-    html+='</div></div>';
+    html+='</div>'
+      +'<div style="display:flex;gap:8px;font-size:10px;color:var(--text3);border-top:1px solid var(--border);padding-top:8px;">'
+      +(portalN?'<span>🖥️ Portal: <b style="color:var(--blue)">'+portalN+'</b></span>':"")
+      +(obtN?'<span>📂 OBT: <b style="color:#2E7D32">'+obtN+'</b></span>':"")
+      +(ambosN?'<span>🔄 Ambos: <b style="color:var(--gold)">'+ambosN+'</b></span>':"")
+      +'</div></div>';
   });
   html+='</div>';
   wrap.innerHTML=html;
+}
+
+// ── PENDIENTES DE OBT (Dashboard) ───────────────────
+async function renderPendientesOBT(){
+  var list=document.getElementById("dash-obt-list");
+  var countEl=document.getElementById("dash-obt-count");
+  if(!list)return;
+  // Find checklist records NOT yet in bloqueos_historial (portal items pending OBT impact)
+  var checklist=[];
+  try{
+    // Get last 30 days from portal
+    var desde=new Date();desde.setDate(desde.getDate()-30);
+    var desdeStr=desde.toISOString().slice(0,10);
+    var c=await sbGet("checklist_registros","select=vin,maint_code,fecha,patio_id&fecha=gte."+desdeStr+"&order=fecha.desc");
+    if(Array.isArray(c))checklist=c;
+  }catch(e){}
+  // Check which ones are already in historial
+  var histKeys={};
+  try{
+    var h=await sbGet("bloqueos_historial","select=vin,block_code&is_active=eq.false&unblock_date=not.is.null");
+    if(Array.isArray(h))h.forEach(function(r){histKeys[(r.vin||"").toUpperCase()+"__"+(r.block_code||"")]=true;});
+  }catch(e){}
+  // Pendientes = en portal pero NO en historial
+  var pendientes=checklist.filter(function(r){
+    return !histKeys[(r.vin||"").toUpperCase()+"__"+(r.maint_code||"")];
+  });
+  // Dedup by vin+code keeping most recent
+  var seen={};
+  pendientes=pendientes.filter(function(r){
+    var k=(r.vin||"")+"__"+(r.maint_code||"");
+    if(seen[k])return false;seen[k]=true;return true;
+  });
+  if(countEl)countEl.textContent=pendientes.length?pendientes.length+" sin impactar en OBT":"";
+  var wrap=document.getElementById("dash-obt-wrap");
+  if(wrap)wrap.style.display=pendientes.length?"block":"none";
+  if(!pendientes.length){list.innerHTML="";return;}
+  var SVCMAP={};CATALOG.forEach(function(m){SVCMAP[m.code]=m.service;});
+  list.innerHTML='<div style="background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;">'
+    +pendientes.slice(0,20).map(function(r,i){
+      var stockRow=stockCache.find(function(s){return(s.vin||"").toUpperCase()===(r.vin||"").toUpperCase();});
+      var cc=stockRow?String(stockRow.compound_code||"").padStart(5,"0"):"";
+      return'<div style="display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);gap:12px;'+(i%2===0?"":"background:var(--bg2);")+'">'
+        +'<div style="flex:1;">'
+        +'<div style="font-family:monospace;font-size:11px;color:var(--gold);font-weight:700;">'+esc(r.vin)+'</div>'
+        +'<div style="font-size:12px;font-weight:700;color:var(--text);">'+esc(r.maint_code)+' <span style="font-weight:400;color:var(--text3);">'+esc(SVCMAP[r.maint_code]||"")+'</span></div>'
+        +'<div style="font-size:10px;color:var(--text3);">'+esc(r.fecha||"")+(cc?" · Compound: "+esc(cc):"")+'</div>'
+        +'</div>'
+        +'<button onclick="forzarCierreOBT(\''+esc(r.vin)+'\',\''+esc(r.maint_code)+'\',\''+esc(r.fecha||"")+'\',\''+esc(cc)+'\')" style="background:rgba(46,125,50,0.1);border:1px solid #2E7D32;color:#2E7D32;padding:6px 12px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">✓ Cierre forzado</button>'
+        +'</div>';
+    }).join("")
+    +(pendientes.length>20?'<div style="padding:10px 16px;font-size:11px;color:var(--text3);text-align:center;">... y '+(pendientes.length-20)+' más — exportá el Excel para ver todos</div>':"")
+    +'</div>';
+}
+
+async function forzarCierreOBT(vin, code, fecha, cc){
+  if(!confirm("¿Forzar cierre de "+code+" para "+vin+"?\nEsto registrará el servicio como completado en el historial aunque no se haya procesado en OBT."))return;
+  try{
+    await fetch(SB_URL+"/rest/v1/bloqueos_historial?vin=eq."+encodeURIComponent(vin)+"&block_code=eq."+encodeURIComponent(code),
+      {method:"DELETE",headers:Object.assign({},sbH(),{"Prefer":"return=minimal"})});
+    await sbPost("bloqueos_historial",{
+      vin:vin,block_code:code,
+      block_date:fecha,unblock_date:fecha,
+      is_active:false,
+      compound_code:cc||currentPatio?currentPatio.compound_code:"00034",
+      compound_descr:currentPatio?currentPatio.nombre:"",
+      source_file:"cierre_forzado_portal_"+currentUser.nombre,
+      imported_at:new Date().toISOString()
+    });
+    completedThisSession[vin.toUpperCase()+"__"+code.toUpperCase()]=fecha;
+    showToast("Cierre forzado: "+code+" — "+vin,"success");
+    await loadStock();
+    renderDashboard();
+  }catch(e){showToast("Error: "+e.message,"error");}
 }
 
 function showOpView(){
@@ -4532,14 +4644,23 @@ async function exportWsLog(){
   </div>
   <!-- Bottom nav móvil -->
   <div style="position:fixed;bottom:0;left:0;right:0;background:#0D1F3C;border-top:1px solid rgba(255,255,255,0.1);display:flex;z-index:100;" id="op-bottom-nav">
-    <button onclick="opShowTab('tareas')" id="op-nav-tareas" style="flex:1;padding:12px 4px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:10px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:3px;border-top:2px solid transparent;transition:all .15s;">
-      <span style="font-size:20px">🔧</span>TAREAS
+    <button onclick="opShowTab('tareas')" id="op-nav-tareas" style="flex:1;padding:10px 2px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:9px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:2px solid transparent;transition:all .15s;">
+      <span style="font-size:18px">🔧</span>TAREAS
     </button>
-    <button onclick="opShowTab('intervenciones')" id="op-nav-intervenciones" style="flex:1;padding:12px 4px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:10px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:3px;border-top:2px solid transparent;transition:all .15s;">
-      <span style="font-size:20px">📋</span>INTERVENCIONES
+    <button onclick="opShowTab('danos')" id="op-nav-danos" style="flex:1;padding:10px 2px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:9px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:2px solid transparent;transition:all .15s;">
+      <span style="font-size:18px">🔴</span>DAÑOS
     </button>
-    <button onclick="opShowTab('mihoy')" id="op-nav-mihoy" style="flex:1;padding:12px 4px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:10px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:3px;border-top:2px solid transparent;transition:all .15s;">
-      <span style="font-size:20px">📊</span>MI DÍA
+    <button onclick="opShowTab('gomas')" id="op-nav-gomas" style="flex:1;padding:10px 2px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:9px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:2px solid transparent;transition:all .15s;">
+      <span style="font-size:18px">🟡</span>GOMAS
+    </button>
+    <button onclick="opShowTab('lavados')" id="op-nav-lavados" style="flex:1;padding:10px 2px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:9px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:2px solid transparent;transition:all .15s;">
+      <span style="font-size:18px">🚿</span>LAVADOS
+    </button>
+    <button onclick="opShowTab('stock')" id="op-nav-stock" style="flex:1;padding:10px 2px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:9px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:2px solid transparent;transition:all .15s;">
+      <span style="font-size:18px">📦</span>STOCK
+    </button>
+    <button onclick="opShowTab('mihoy')" id="op-nav-mihoy" style="flex:1;padding:10px 2px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:9px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:2px solid transparent;transition:all .15s;">
+      <span style="font-size:18px">📊</span>MI DÍA
     </button>
   </div>
   <!-- Main operario -->
@@ -4548,7 +4669,6 @@ async function exportWsLog(){
     <div id="op-tab-tareas" class="op-tab">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px;">Tareas Pendientes</div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:12px;" id="op-tareas-sub">Todas las unidades que necesitan mantenimiento</div>
-      <!-- Filtros -->
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
         <select id="op-filter-patio" onchange="opRenderTareas()" style="display:none;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
           <option value="ALL">Todos los patios</option>
@@ -4570,27 +4690,78 @@ async function exportWsLog(){
       </div>
       <div id="op-tareas-list"></div>
     </div>
-    <!-- TAB: INTERVENCIONES -->
-    <div id="op-tab-intervenciones" class="op-tab" style="display:none">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px;">Intervenciones</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:20px;">Registrá daños, gomas o lavados adicionales</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px;">
-        <button onclick="opOpenDaño()" style="background:var(--card);border:none;border-radius:12px;padding:20px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:var(--shadow);border-top:4px solid #C62828;">
-          <span style="font-size:28px;">🔴</span>
-          <span style="font-size:12px;font-weight:700;color:var(--text);">Daño C30</span>
-        </button>
-        <button onclick="opOpenGoma()" style="background:var(--card);border:none;border-radius:12px;padding:20px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:var(--shadow);border-top:4px solid #E65100;">
-          <span style="font-size:28px;">🟡</span>
-          <span style="font-size:12px;font-weight:700;color:var(--text);">Goma C37</span>
-        </button>
-        <button onclick="opOpenLavado()" style="background:var(--card);border:none;border-radius:12px;padding:20px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:var(--shadow);border-top:4px solid #1565C0;">
-          <span style="font-size:28px;">🚿</span>
-          <span style="font-size:12px;font-weight:700;color:var(--text);">Lavado</span>
-        </button>
+
+    <!-- TAB: DAÑOS C30 -->
+    <div id="op-tab-danos" class="op-tab" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);">Daños C30</div>
+          <div style="font-size:12px;color:var(--text3);">Registrá y gestioná daños en unidades</div>
+        </div>
+        <button onclick="opOpenDaño()" style="background:#C62828;color:white;border:none;border-radius:10px;padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">+ Nuevo daño</button>
       </div>
-      <!-- Listado reciente de mis intervenciones hoy -->
-      <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">Mis intervenciones de hoy</div>
-      <div id="op-interv-hoy"></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <select id="op-dano-filtro" onchange="opRenderDanos()" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-family:'Barlow',sans-serif;">
+          <option value="ALL">Todos los estados</option>
+          <option value="pendiente">Pendientes</option>
+          <option value="en_reparacion">En reparación</option>
+          <option value="resuelto">Resueltos</option>
+        </select>
+        <input type="text" id="op-dano-search" placeholder="🔍 VIN..." oninput="opRenderDanos()" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-family:'Barlow',sans-serif;outline:none;">
+      </div>
+      <div id="op-danos-list"></div>
+    </div>
+
+    <!-- TAB: NEUMÁTICOS C37 -->
+    <div id="op-tab-gomas" class="op-tab" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);">Neumáticos C37</div>
+          <div style="font-size:12px;color:var(--text3);">Control de neumáticos bloqueados</div>
+        </div>
+        <button onclick="opOpenGoma()" style="background:#E65100;color:white;border:none;border-radius:10px;padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">+ Registrar</button>
+      </div>
+      <input type="text" id="op-goma-search" placeholder="🔍 VIN o modelo..." oninput="opRenderGomas()" style="width:100%;margin-bottom:12px;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-family:'Barlow',sans-serif;outline:none;box-sizing:border-box;">
+      <div id="op-gomas-list"></div>
+    </div>
+
+    <!-- TAB: LAVADOS -->
+    <div id="op-tab-lavados" class="op-tab" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);">Lavados</div>
+          <div style="font-size:12px;color:var(--text3);">Registro de lavados del día</div>
+        </div>
+        <button onclick="opOpenLavado()" style="background:#1565C0;color:white;border:none;border-radius:10px;padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">+ Registrar</button>
+      </div>
+      <div id="op-lavados-list"></div>
+    </div>
+
+    <!-- TAB: STOCK DEPÓSITO -->
+    <div id="op-tab-stock" class="op-tab" style="display:none">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px;">Stock Depósito</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Neumáticos y materiales disponibles</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button onclick="opDepTab('neumaticos')" id="op-dep-tab-neum" class="btn btn-primary btn-sm">🟡 Neumáticos</button>
+        <button onclick="opDepTab('materiales')" id="op-dep-tab-mat" class="btn btn-ghost btn-sm">🔧 Materiales</button>
+      </div>
+      <div id="op-dep-neum">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span style="font-size:12px;color:var(--text3);" id="op-dep-neum-count"></span>
+          <div style="display:flex;gap:8px;">
+            <button onclick="openAjusteNeumModal('ok')" class="btn btn-sm" style="background:#2E7D32;color:white;border:none;">+ OK</button>
+            <button onclick="openAjusteNeumModal('ko')" class="btn btn-sm" style="background:#C62828;color:white;border:none;">+ KO</button>
+          </div>
+        </div>
+        <div id="op-dep-neum-list"></div>
+      </div>
+      <div id="op-dep-mat" style="display:none">
+        <div id="op-dep-mat-list"></div>
+      </div>
+    </div>
+
+    <!-- TAB: INTERVENCIONES (legacy - kept for compat) -->
+    <div id="op-tab-intervenciones" class="op-tab" style="display:none">
     </div>
     <!-- TAB: MI DÍA -->
     <div id="op-tab-mihoy" class="op-tab" style="display:none">
@@ -4776,8 +4947,9 @@ async function initAppOperario(){
 }
 
 function opShowTab(tab){
-  ["tareas","intervenciones","mihoy"].forEach(function(t){
-    document.getElementById("op-tab-"+t).style.display=t===tab?"block":"none";
+  ["tareas","danos","gomas","lavados","stock","mihoy","intervenciones"].forEach(function(t){
+    var el=document.getElementById("op-tab-"+t);
+    if(el)el.style.display=t===tab?"block":"none";
     var btn=document.getElementById("op-nav-"+t);
     if(btn){
       btn.style.color=t===tab?"#C8A44A":"rgba(255,255,255,0.5)";
@@ -4785,7 +4957,10 @@ function opShowTab(tab){
     }
   });
   if(tab==="tareas")opRenderTareas();
-  if(tab==="intervenciones")opRenderIntervHoy();
+  if(tab==="danos")opRenderDanos();
+  if(tab==="gomas")opRenderGomas();
+  if(tab==="lavados")opRenderLavados();
+  if(tab==="stock")opRenderStock();
   if(tab==="mihoy")opRenderMiDia();
 }
 
@@ -5093,7 +5268,155 @@ async function saveChecklist(){
 }
 
 // ══════════════════════════════════════════════════════
-// OPERARIO: INTERVENCIONES
+// OPERARIO: DAÑOS C30
+async function opRenderDanos(){
+  var filtro=document.getElementById("op-dano-filtro")?document.getElementById("op-dano-filtro").value:"ALL";
+  var q=(document.getElementById("op-dano-search")?document.getElementById("op-dano-search").value||"":"").toLowerCase();
+  var list=document.getElementById("op-danos-list");
+  if(!list)return;
+  list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Cargando...</div>';
+  var data=[];
+  try{
+    var filter="select=*&order=created_at.desc";
+    if(currentPatio&&!currentUser.todos_patios)filter+="&compound_code=eq."+currentPatio.compound_code;
+    data=await sbGet("daños",filter);
+    if(!Array.isArray(data))data=[];
+  }catch(e){data=[];}
+  var filtered=data.filter(function(d){
+    if(filtro!=="ALL"&&d.estado!==filtro)return false;
+    if(q&&(d.vin||"").toLowerCase().indexOf(q)<0&&(d.model_descr||"").toLowerCase().indexOf(q)<0)return false;
+    return true;
+  });
+  if(!filtered.length){list.innerHTML='<div class="empty"><div class="empty-icon">✅</div>Sin daños registrados</div>';return;}
+  var estadoColor={pendiente:"#E65100",en_reparacion:"#1565C0",resuelto:"#2E7D32"};
+  list.innerHTML=filtered.map(function(d){
+    var c=estadoColor[d.estado]||"#718096";
+    return'<div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;border-left:4px solid '+c+';box-shadow:var(--shadow);">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+      +'<div style="flex:1;">'
+      +'<div style="font-family:monospace;font-size:11px;color:var(--gold);font-weight:700;margin-bottom:3px;">'+esc(d.vin)+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+esc(d.tipo_daño||"—")+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);">'+esc(d.ubicacion||"")+(d.model_descr?" · "+esc(d.model_descr):"")+'</div>'
+      +'</div>'
+      +'<span style="background:'+c+'20;color:'+c+';font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid '+c+'40;white-space:nowrap;">'+esc(d.estado||"")+'</span>'
+      +'</div>'
+      +(d.descripcion?'<div style="font-size:11px;color:var(--text2);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">'+esc(d.descripcion)+'</div>':"")
+      +'</div>';
+  }).join("");
+}
+
+// OPERARIO: GOMAS C37
+async function opRenderGomas(){
+  var q=(document.getElementById("op-goma-search")?document.getElementById("op-goma-search").value||"":"").toLowerCase();
+  var list=document.getElementById("op-gomas-list");
+  if(!list)return;
+  list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Cargando...</div>';
+  var data=[];
+  try{
+    var filter="select=*&order=created_at.desc";
+    if(currentPatio&&!currentUser.todos_patios)filter+="&compound_code=eq."+currentPatio.compound_code;
+    data=await sbGet("gomas",filter);
+    if(!Array.isArray(data))data=[];
+  }catch(e){data=[];}
+  var filtered=q?data.filter(function(g){return(g.vin||"").toLowerCase().indexOf(q)>=0||(g.model_descr||"").toLowerCase().indexOf(q)>=0;}):data;
+  if(!filtered.length){list.innerHTML='<div class="empty"><div class="empty-icon">🟡</div>Sin neumáticos registrados</div>';return;}
+  list.innerHTML=filtered.map(function(g){
+    var esKo=g.estado_stock==="ko";
+    var c=esKo?"#C62828":"#2E7D32";
+    return'<div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;border-left:4px solid '+c+';box-shadow:var(--shadow);">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+      +'<div style="flex:1;">'
+      +'<div style="font-family:monospace;font-size:11px;color:var(--gold);font-weight:700;margin-bottom:3px;">'+esc(g.vin)+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+esc(g.modelo_neumático||"—")+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);">'+esc(g.posicion||"")+(g.model_descr?" · "+esc(g.model_descr):"")+'</div>'
+      +'</div>'
+      +'<span style="background:'+c+'20;color:'+c+';font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid '+c+'40;">'+(esKo?"KO":"OK")+'</span>'
+      +'</div>'
+      +'</div>';
+  }).join("");
+}
+
+// OPERARIO: LAVADOS
+async function opRenderLavados(){
+  var list=document.getElementById("op-lavados-list");
+  if(!list)return;
+  list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Cargando...</div>';
+  var hoy=new Date().toISOString().slice(0,10);
+  var data=[];
+  try{
+    var filter="select=*&order=created_at.desc&limit=100";
+    data=await sbGet("lavados",filter);
+    if(!Array.isArray(data))data=[];
+  }catch(e){data=[];}
+  if(!data.length){list.innerHTML='<div class="empty"><div class="empty-icon">🚿</div>Sin lavados registrados hoy</div>';return;}
+  list.innerHTML=data.map(function(l){
+    return'<div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;border-left:4px solid #1565C0;box-shadow:var(--shadow);">'
+      +'<div style="font-family:monospace;font-size:11px;color:var(--gold);font-weight:700;">'+esc(l.vin)+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+esc(l.tipo||"Lavado")+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);">'+esc(l.model_descr||"")+(l.boxatura?" · Box: "+esc(l.boxatura):"")+'</div>'
+      +'</div>';
+  }).join("");
+}
+
+// OPERARIO: STOCK DEPÓSITO
+function opDepTab(tab){
+  document.getElementById("op-dep-neum").style.display=tab==="neumaticos"?"block":"none";
+  document.getElementById("op-dep-mat").style.display=tab==="materiales"?"block":"none";
+  var n=document.getElementById("op-dep-tab-neum"),m=document.getElementById("op-dep-tab-mat");
+  if(n){n.className=tab==="neumaticos"?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";}
+  if(m){m.className=tab==="materiales"?"btn btn-primary btn-sm":"btn btn-ghost btn-sm";}
+  if(tab==="neumaticos")opRenderDepNeum();
+  if(tab==="materiales")opRenderDepMat();
+}
+
+async function opRenderStock(){opDepTab("neumaticos");}
+
+async function opRenderDepNeum(){
+  var list=document.getElementById("op-dep-neum-list");
+  var cnt=document.getElementById("op-dep-neum-count");
+  if(!list)return;
+  list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Cargando...</div>';
+  var data=[];
+  try{data=await sbGet("stock_neumaticos","select=*,catalogo:catalogo_id(vehiculo,modelo,medida)");}catch(e){}
+  if(!Array.isArray(data))data=[];
+  var total=data.reduce(function(s,r){return s+(r.cantidad_ok||0);},0);
+  if(cnt)cnt.textContent=data.length+" diseños · "+total+" unidades OK en stock";
+  if(!data.length){list.innerHTML='<div class="empty"><div class="empty-icon">📦</div>Sin stock cargado</div>';return;}
+  list.innerHTML=data.map(function(r){
+    var cat=r.catalogo||{};
+    return'<div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;">'
+      +'<div>'
+      +'<div style="font-size:12px;font-weight:700;color:var(--text);">'+esc(cat.vehiculo||"—")+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);">'+esc(cat.modelo||"")+(cat.medida?" · "+esc(cat.medida):"")+'</div>'
+      +'</div>'
+      +'<div style="text-align:right;">'
+      +'<div style="font-size:20px;font-weight:900;color:#2E7D32;">'+(r.cantidad_ok||0)+'</div>'
+      +'<div style="font-size:9px;color:var(--text3);">OK</div>'
+      +(r.cantidad_ko?'<div style="font-size:14px;font-weight:700;color:#C62828;">'+(r.cantidad_ko||0)+' KO</div>':"")
+      +'</div>'
+      +'</div>';
+  }).join("");
+}
+
+async function opRenderDepMat(){
+  var list=document.getElementById("op-dep-mat-list");
+  if(!list)return;
+  list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Cargando...</div>';
+  var data=[];
+  try{data=await sbGet("stock_materiales","select=*&order=nombre");}catch(e){}
+  if(!Array.isArray(data))data=[];
+  if(!data.length){list.innerHTML='<div class="empty"><div class="empty-icon">🔧</div>Sin materiales cargados</div>';return;}
+  list.innerHTML=data.map(function(m){
+    var ok=m.cantidad_ok>=m.cantidad_minima;
+    return'<div style="background:var(--card);border-radius:12px;padding:12px 16px;margin-bottom:8px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--text);">'+esc(m.nombre)+'</div>'
+      +'<div style="font-size:18px;font-weight:900;color:'+(ok?"#2E7D32":"#C62828")+';">'+(m.cantidad_ok||0)+' <span style="font-size:10px;color:var(--text3);">'+esc(m.unidad||"")+'</span></div>'
+      +'</div>';
+  }).join("");
+}
+
+// OPERARIO: INTERVENCIONES (legacy)
+
 // ══════════════════════════════════════════════════════
 function opAutofillVin(inputId,infoId){
   var vin=document.getElementById(inputId).value.trim().toUpperCase();
