@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.5.3</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.5.4</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.3</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.4</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1192,7 +1192,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.5.3";
+var APP_VERSION="v4.5.4";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1807,7 +1807,11 @@ async function renderDashboard(){
         +'<div class="sem-dot sem-dot-'+sem.dot+'" style="width:14px;height:14px;flex-shrink:0;"></div>'
         +'<span style="font-size:15px;font-weight:800;color:var(--text)">'+esc(patio.nombre)+'</span>'
         +'<span style="font-size:11px;color:var(--text3);margin-left:4px">'+esc(patio.compound_code)+'</span>'
-        +'<span class="badge" style="background:'+(sem.color==="verde"?"#E8F5E9":sem.color==="amarillo"?"#FFF8E1":sem.color==="naranja"?"#FFF3E0":sem.color==="rojo"?"#FFEBEE":"var(--bg2)")+';color:'+borderColor+'">'+sem.label+' — '+patioItems.length+' pendientes</span>'
+        +'<span class="badge" style="background:'+(sem.color==="verde"?"#E8F5E9":sem.color==="amarillo"?"#FFF8E1":sem.color==="naranja"?"#FFF3E0":sem.color==="rojo"?"#FFEBEE":"var(--bg2)")+';color:'+borderColor+'">'
+        +(sem.color==="rojo"||sem.color==="naranja"
+          ? sem.label+' — '+(sem.ov+sem.urg)+' venc.+urg. · '+patioItems.length+' pendientes'
+          : sem.label+' — '+patioItems.length+' pendientes')
+        +'</span>'
         +'<button onclick="exportPatioExcel(\''+esc(patio.nombre)+'\',\''+esc(patio.compound_code)+'\')" style="margin-left:8px;background:rgba(200,164,74,0.15);border:1px solid var(--gold);color:var(--gold);padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:\'Barlow\',sans-serif;white-space:nowrap;">⬇ Excel</button>'
         +'</div>'
         +renderSemaforoServicios(patioItems,patio.nombre)
@@ -3169,63 +3173,69 @@ function exportPatioExcel(patioNombre, compoundCode){
   var venc=items.filter(function(p){return p.urgency==="overdue";}).length;
   var urg=items.filter(function(p){return p.urgency==="urgent";}).length;
   var urgColors={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
+  // Sort: by maint_code, then daysToDue (most overdue first), then boxatura
+  items=items.slice().sort(function(a,b){
+    if(a.maint.code!==b.maint.code)return a.maint.code<b.maint.code?-1:1;
+    if(a.daysToDue!==b.daysToDue)return a.daysToDue-b.daysToDue;
+    return(a.boxatura||"").localeCompare(b.boxatura||"");
+  });
   var headers=["VIN","Modelo","Boxatura","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado"];
   var rows=items.map(function(p,i){
     return xlsRow([
-      {__val:p.vin,__bold:true,__color:"#1A3C6E"},p.modelDescr,p.boxatura,
+      {__val:p.vin,__bold:true,__color:"#1A3C6E"},
+      p.modelDescr,p.boxatura,
       {__val:p.maint.code,__bold:true},p.maint.service,
       fmt(p.refDate),fmt(p.dueDate),
-      {__val:p.daysToDue,__color:urgColors[p.urgency],__bold:p.urgency==="overdue"},
-      {__val:p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK",__color:urgColors[p.urgency],__bold:true}
+      {__val:p.daysToDue,__color:urgColors[p.urgency]||"#4A5568",__bold:p.urgency==="overdue"},
+      {__val:p.urgency==="overdue"?"VENCIDO":p.urgency==="urgent"?"URGENTE":p.urgency==="soon"?"PRÓXIMO":"OK",__color:urgColors[p.urgency]||"#2E7D32",__bold:p.urgency!=="ok"}
     ],i%2===0,p.urgency);
   }).join("");
-  var html='<html><head><meta charset="UTF-8"></head><body><table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
-    +xlsHeader("Mantenimiento Preventivo — "+patioNombre+" ("+compoundCode+")",items.length+" pendientes · "+venc+" vencidos · "+urg+" urgentes",headers.length)
+  var html='<html><head><meta charset="UTF-8"></head><body>'
+    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Mantenimiento Preventivo — "+patioNombre+" ("+compoundCode+")",
+      items.length+" pendientes · "+venc+" vencidos · "+urg+" urgentes · Orden: Servicio / Días / Boxatura",headers.length)
     +xlsColHeader(headers)+rows+'</table></body></html>';
-  styledXlsxDownload(html,"Mantenimiento_"+patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10));
+  styledXlsxDownload(html,"Pendientes_"+patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10));
   showToast("Excel generado — "+items.length+" pendientes de "+patioNombre,"success");
 }
 
-// ── EXPORT OBT PENDIENTE (operario view) ─────────────
 async function exportObtPendienteOperario(){
   var hoy=new Date().toISOString().slice(0,10);
   var data=[];
   try{data=await sbGet("checklist_registros","fecha=eq."+hoy+"&select=*&order=created_at.desc");}catch(e){}
   if(!Array.isArray(data))data=[];
-  // Also include session operations not yet in DB
   var sessionRows=Object.keys(completedThisSession).map(function(k){
     var parts=k.split("__");
     return{vin:parts[0],maint_code:parts[1],fecha:completedThisSession[k]};
   }).filter(function(r){return r.fecha===hoy;});
-  // Merge, deduplicate
   var seen={};
   var allOps=[].concat(data,sessionRows).filter(function(r){
     var k=(r.vin||"")+"__"+(r.maint_code||"");
     if(seen[k])return false;seen[k]=true;return true;
   });
+  allOps.sort(function(a,b){
+    if(a.maint_code!==b.maint_code)return(a.maint_code||"").localeCompare(b.maint_code||"");
+    return(a.vin||"").localeCompare(b.vin||"");
+  });
   if(!allOps.length){showToast("No hay mantenimientos del día","info");return;}
   var now=new Date();
   var SVCMAP={};CATALOG.forEach(function(m){SVCMAP[m.code]=m.service;});
+  var patio=currentPatio?currentPatio.nombre:"Todos los patios";
+  var headers=["VIN","Código","Servicio","Compound","Fecha","Operación","Operario"];
   var rows=[];
-  allOps.forEach(function(r){
+  allOps.forEach(function(r,i){
     var stockRow=stockCache.find(function(s){return(s.vin||s.VIN||"").toUpperCase()===(r.vin||"").toUpperCase();});
     var cc=stockRow?String(stockRow.compound_code||"00034").padStart(5,"0"):currentPatio?currentPatio.compound_code:"00034";
-    rows.push([r.vin,r.maint_code,SVCMAP[r.maint_code]||"",r.fecha,cc,"BLOQUEO (B)",currentUser?currentUser.nombre:"—"]);
-    rows.push([r.vin,r.maint_code,SVCMAP[r.maint_code]||"",r.fecha,cc,"DESBLOQUEO (U)",currentUser?currentUser.nombre:"—"]);
+    var op=currentUser?currentUser.nombre:"—";
+    rows.push(xlsRow([{__val:r.vin,__bold:true,__color:"#1A3C6E"},{__val:r.maint_code,__bold:true},SVCMAP[r.maint_code]||"",cc,r.fecha||hoy,{__val:"BLOQUEO (B)",__color:"#C62828",__bold:true},op],i%2===0));
+    rows.push(xlsRow([{__val:r.vin,__bold:true,__color:"#1A3C6E"},{__val:r.maint_code,__bold:true},SVCMAP[r.maint_code]||"",cc,r.fecha||hoy,{__val:"DESBLOQUEO (U)",__color:"#2E7D32",__bold:true},op],true));
   });
-  var aoa=[
-    ["STELLANTIS ARGENTINA — OPERACIONES OBT DEL DÍA"],
-    ["Patio: "+(currentPatio?currentPatio.nombre:"Todos")+" · "+allOps.length+" servicios realizados · Aplicar B y U en OBT Gate In"],
-    ["Generado: "+now.toLocaleDateString("es-AR")+" "+now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
-    [],
-    ["VIN","Código","Servicio","Fecha","Compound","Operación","Operario"],
-  ].concat(rows);
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:20},{wch:8},{wch:24},{wch:12},{wch:10},{wch:16},{wch:20}];
-  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:6}},{s:{r:2,c:0},e:{r:2,c:6}}];
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"OBT_"+hoy);
-  XLSX.writeFile(wb,"OBT_Del_Dia_"+hoy+".xlsx");
-  showToast("Excel OBT generado — "+allOps.length+" servicios ("+rows.length+" operaciones)","success");
+  var html='<html><head><meta charset="UTF-8"></head><body>'
+    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Operaciones OBT del Día — "+patio,allOps.length+" servicios · Aplicar BLOQUEO (B) y DESBLOQUEO (U) en OBT Gate In · "+hoy,headers.length)
+    +xlsColHeader(headers)+rows.join('')+'</table></body></html>';
+  styledXlsxDownload(html,"OBT_"+patio.replace(/\s/g,"_")+"_"+hoy);
+  showToast("Excel OBT generado — "+allOps.length+" servicios","success");
 }
 
 async function exportHistorial(){
@@ -3272,20 +3282,23 @@ async function exportHistorial(){
       Importado:r.imported_at?fmt(pdate(r.imported_at)):""
     };
   });
-  var ws=XLSX.utils.json_to_sheet(rows);
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Historial");
-  XLSX.writeFile(wb,"Historial_Bloqueos_"+new Date().toISOString().slice(0,10)+".xlsx");
+  var headers=["VIN","Código","Fecha Bloqueo","Fecha Desbloqueo","Estado","Días Abierto","Compound","Archivo"];
+  var hrows=rows.map(function(r,i){
+    return xlsRow([
+      {__val:r.VIN,__bold:true,__color:"#1A3C6E"},r.Código,r.Fecha_Bloqueo,r.Fecha_Desbloqueo,
+      {__val:r.Estado,__color:r.Estado==="ACTIVO"?"#C62828":"#2E7D32",__bold:true},
+      r.Dias_Abierto,r.Compound,r.Archivo
+    ],i%2===0);
+  }).join("");
+  var now2=new Date();
+  var html2='<html><head><meta charset="UTF-8"></head><body>'
+    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Historial de Bloqueos",rows.length+" registros",headers.length)
+    +xlsColHeader(headers)+hrows+'</table></body></html>';
+  styledXlsxDownload(html2,"Historial_Bloqueos_"+now2.toISOString().slice(0,10));
 }
 
-async function exportKPIs(){
-  var wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(pendingCache.map(function(p){return{VIN:p.vin,Modelo:p.modelDescr,Boxatura:p.boxatura,Código:p.maint.code,Servicio:p.maint.service,Vencimiento:fmt(p.dueDate),Días:p.daysToDue,Estado:URGLBL[p.urgency]};})),"Preventivo");
-  var daños=await sbGet("daños","select=*");
-  if(Array.isArray(daños))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(daños.map(function(d){return{VIN:d.vin,Descripcion:d.descripcion,Ubicacion:d.ubicacion,Estado:d.estado,Facturado:d.facturado?"Si":"No"};})),"Daños C30");
-  var gomas=await sbGet("gomas","select=*");
-  if(Array.isArray(gomas))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(gomas.map(function(g){return{VIN:g.vin,Neumático:g.modelo_neumático,Posicion:g.posicion,Estado:g.estado_stock};})),"Gomas C37");
-  XLSX.writeFile(wb,"KPI_Mantenimiento_"+new Date().toISOString().slice(0,10)+".xlsx");
-}
+async function exportKPIs(){return exportKPIsExcel();}
 
 // ══════════════════════════════════════════════════════
 // REGISTRAR MANTENIMIENTO REALIZADO
@@ -4783,9 +4796,25 @@ function copyWsXml(){
 async function exportWsLog(){
   var data=[];try{data=await sbGet("ws_log","select=*&order=created_at.desc&limit=2000");}catch(e){}
   if(!Array.isArray(data))data=[];
-  var ws=XLSX.utils.json_to_sheet(data.map(function(r){return{"Fecha":r.created_at?new Date(r.created_at).toLocaleString("es-AR"):"","VIN":r.vin,"Código":r.block_code,"Operación":r.operation==="B"?"Bloqueo":"Desbloqueo","Compound":r.compound_code,"Resultado":r.success?"OK":"FALLÓ","Error":r.error_msg||"","Usuario":r.usuario,"XML Enviado":r.xml_enviado||"","Respuesta":r.respuesta_raw||""};}));
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"WS Log");
-  XLSX.writeFile(wb,"WS_Log_"+new Date().toISOString().slice(0,10)+".xlsx");
+  var headers=["Fecha","VIN","Código","Operación","Compound","Resultado","Error","Usuario"];
+  var rows=data.map(function(r,i){
+    var ok=r.success;
+    return xlsRow([
+      r.created_at?new Date(r.created_at).toLocaleString("es-AR"):"",
+      {__val:r.vin,__bold:true,__color:"#1A3C6E"},
+      {__val:r.block_code,__bold:true},
+      r.operation==="B"?"Bloqueo":"Desbloqueo",
+      r.compound_code,
+      {__val:ok?"OK":"FALLÓ",__color:ok?"#2E7D32":"#C62828",__bold:true},
+      r.error_msg||"",r.usuario||""
+    ],i%2===0);
+  }).join("");
+  var now=new Date();
+  var html='<html><head><meta charset="UTF-8"></head><body>'
+    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Log WebService OBT",data.length+" operaciones · últimas 2000",headers.length)
+    +xlsColHeader(headers)+rows+'</table></body></html>';
+  styledXlsxDownload(html,"WS_Log_"+now.toISOString().slice(0,10));
 }
 
 
