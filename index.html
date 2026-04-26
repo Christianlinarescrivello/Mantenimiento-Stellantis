@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.5.5</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.5.6</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.5</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.6</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -541,13 +541,14 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div id="dep-neum">
         <div class="stats-row" id="dep-neum-stats"></div>
         <div class="filters">
+          <input type="text" id="dep-neum-search" placeholder="🔍 Buscar por modelo, rodado, medida, código..." oninput="renderDepNeumaticos()" style="flex:1;min-width:200px;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-family:'Barlow',sans-serif;outline:none;">
           <select id="dep-neum-filtro" onchange="renderDepNeumaticos()">
             <option value="ALL">Todos los diseños</option>
             <option value="ok">Con stock OK</option>
             <option value="ko">Con KO pendientes</option>
             <option value="sin_stock">Sin stock</option>
           </select>
-          <div class="supervisor-only" style="display:flex;gap:8px;margin-left:auto;">
+          <div class="supervisor-only" style="display:flex;gap:8px;">
             <button class="btn btn-success btn-sm" onclick="openAjusteNeumModal('ok')">+ Agregar OK</button>
             <button class="btn btn-danger btn-sm" onclick="openAjusteNeumModal('ko')">+ Agregar KO</button>
           </div>
@@ -1192,7 +1193,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.5.5";
+var APP_VERSION="v4.5.6";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -3453,6 +3454,7 @@ async function toggleCatalogoActivo(id, nuevoEstado){
 // ── NEUMÁTICOS ──────────────────────────────────────
 async function renderDepNeumaticos(){
   var filtro=document.getElementById("dep-neum-filtro")?document.getElementById("dep-neum-filtro").value:"ALL";
+  var q=(document.getElementById("dep-neum-search")?document.getElementById("dep-neum-search").value||"":"").toLowerCase().trim();
   // Load stock per catalogo
   var stockRows=[];
   try{stockRows=await sbGet("stock_neumaticos","select=*,catalogo:catalogo_id(id,vehiculo,modelo,medida,llanta,codigo_parte)");}catch(e){}
@@ -3482,6 +3484,10 @@ async function renderDepNeumaticos(){
     if(filtro==="ko")return r.ko>0||r.solicitado>0;
     if(filtro==="sin_stock")return r.ok===0&&r.ko===0&&r.solicitado===0;
     return true;
+  }).filter(function(r){
+    if(!q)return true;
+    var hay=(r.cat.vehiculo+" "+r.cat.modelo+" "+r.cat.medida+" "+(r.cat.codigo_parte||"")+" "+(r.cat.llanta||"")).toLowerCase();
+    return hay.indexOf(q)>=0;
   });
   depNeumCache=filtered;
   // Stats
