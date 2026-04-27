@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.6.5</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.6.6</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.6.5</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.6.6</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1193,7 +1193,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.6.5";
+var APP_VERSION="v4.6.6";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2074,12 +2074,12 @@ async function renderGomas(){
         model_descr:v.model_descr||v["Model Descr"]||"—",
         boxatura:v.boxatura||v["Boxatura"]||"—",
         compound_code:String(v.compound_code||v["Compound Code"]||"").padStart(5,"0"),
-        modelo_neumático:"",posicion:"",observaciones:"",estado_stock:"ko"};
+        modelo_neumatico:"",posicion:"",observaciones:"",estado_stock:"ko"};
     });
   }
   var allRows=[].concat(dbGomas).concat(stockC37);
   if(search)allRows=allRows.filter(function(g){return(g.vin||"").toLowerCase().indexOf(search)>=0;});
-  if(modelo!=="ALL")allRows=allRows.filter(function(g){return(g.modelo_neumático||"").indexOf(modelo)>=0;});
+  if(modelo!=="ALL")allRows=allRows.filter(function(g){return(g.modelo_neumatico||"").indexOf(modelo)>=0;});
   document.getElementById("goma-ok-count").textContent=allRows.filter(function(g){return g.estado_stock==="ok";}).length;
   document.getElementById("goma-ko-count").textContent=allRows.filter(function(g){return g.estado_stock==="ko";}).length;
   var POS={delantera_izq:"Del. Izq",delantera_der:"Del. Der",trasera_izq:"Tras. Izq",trasera_der:"Tras. Der",auxilio:"Auxilio"};
@@ -2114,7 +2114,7 @@ async function renderGomas(){
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc(g.vin)+'</td>'
       +'<td style="font-size:11px">'+esc(g.model_descr||"—")+'</td>'
       +'<td style="font-size:11px">'+esc(g.boxatura||"—")+'</td>'
-      +'<td style="font-size:11px">'+esc(g.modelo_neumático||"—")+( g.posicion?'<br><span style="color:var(--text3);font-size:10px;">'+esc(POS[g.posicion]||g.posicion)+'</span>':"")+'</td>'
+      +'<td style="font-size:11px">'+esc(g.modelo_neumatico||"—")+( g.posicion?'<br><span style="color:var(--text3);font-size:10px;">'+esc(POS[g.posicion]||g.posicion)+'</span>':"")+'</td>'
       +'<td>'+designSel+'</td>'
       +'<td><span class="badge '+("ok"===g.estado_stock?"b-stok":"b-ko")+">"+(g.estado_stock==="ok"?"OK":"KO")+'</span></td>'
       +'<td>'+wsH+'</td>'
@@ -2143,14 +2143,14 @@ async function asignarDisenoGoma(vin, catId, compoundCode){
   // Create or update goma record for this VIN
   var existing=await sbGet("gomas","vin=eq."+encodeURIComponent(vin)+"&select=id");
   if(Array.isArray(existing)&&existing.length){
-    await sbPatch("gomas",existing[0].id,{catalogo_id:catId,modelo_neumático:cat.modelo+" "+cat.medida,updated_at:new Date().toISOString()});
+    await sbPatch("gomas",existing[0].id,{catalogo_id:catId,modelo_neumatico:cat.modelo+" "+cat.medida,updated_at:new Date().toISOString()});
   } else {
     var stockRow=stockCache.find(function(s){return(s.vin||s.VIN||"").toUpperCase()===vin;});
     await sbPost("gomas",{
       vin:vin,model_descr:stockRow?stockRow.model_descr||stockRow["Model Descr"]:"",
       boxatura:stockRow?stockRow.boxatura||stockRow["Boxatura"]:"",
       compound_code:compoundCode,
-      catalogo_id:catId,modelo_neumático:cat.modelo+" "+cat.medida,
+      catalogo_id:catId,modelo_neumatico:cat.modelo+" "+cat.medida,
       estado_stock:"ko",registrado_por:currentUser?currentUser.nombre:"—"
     });
   }
@@ -2162,7 +2162,7 @@ async function asignarDisenoGomaExisting(gomaId, catId){
   if(!catId)return;
   var cat=catalogoCache.find(function(n){return n.id===catId;});
   if(!cat)return;
-  await sbPatch("gomas",gomaId,{catalogo_id:catId,modelo_neumático:cat.modelo+" "+cat.medida,updated_at:new Date().toISOString()});
+  await sbPatch("gomas",gomaId,{catalogo_id:catId,modelo_neumatico:cat.modelo+" "+cat.medida,updated_at:new Date().toISOString()});
   showToast("Diseño actualizado: "+cat.modelo,"success");
 }
 
@@ -2814,7 +2814,7 @@ async function saveGoma(){
     model_descr:document.getElementById("g-modelo").value||null,
     compound:v?v.compound:"Cordoba",compound_code:cc,
     boxatura:document.getElementById("g-box").value||null,
-    modelo_neumático:neuma,
+    modelo_neumatico:neuma,
     catalogo_id:catId||null,
     posicion:document.getElementById("g-posicion").value||null,
     observaciones:document.getElementById("g-obs").value||null,
@@ -2965,7 +2965,7 @@ async function importStockRows(rows){
     if(Array.isArray(existingGomas))existingGomas.forEach(function(g){existingGVins[(g.vin||"").toUpperCase()]=true;});
     var newGomas=c37rows.filter(function(r){return!existingGVins[(r.vin||"").toUpperCase()];}).map(function(r){
       return{vin:r.vin,model_descr:r.model_descr,compound:r.compound,compound_code:r.compound_code,
-        boxatura:r.boxatura,estado_stock:"ko",
+        boxatura:r.boxatura,modelo_neumatico:"",estado_stock:"ko",
         registrado_por:"Importación automática",ws_bloqueo_ok:false};
     });
     if(newGomas.length){
@@ -3237,7 +3237,7 @@ async function exportGomas(){
     var esKo=g.estado_stock==="ko";
     return xlsRow([
       {__val:g.vin,__bold:true,__color:"#1A3C6E"},g.model_descr,g.boxatura,g.compound_code,
-      g.modelo_neumático,g.posicion,
+      g.modelo_neumatico,g.posicion,
       {__val:esKo?"KO":"OK",__color:esKo?"#C62828":"#2E7D32",__bold:true},
       g.observaciones,
       g.created_at?new Date(g.created_at).toLocaleDateString("es-AR"):""
@@ -5691,7 +5691,7 @@ async function opRenderGomas(){
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
       +'<div style="flex:1;">'
       +'<div style="font-family:monospace;font-size:11px;color:var(--gold);font-weight:700;margin-bottom:3px;">'+esc(g.vin)+'</div>'
-      +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+esc(g.modelo_neumático||"—")+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+esc(g.modelo_neumatico||"—")+'</div>'
       +'<div style="font-size:11px;color:var(--text3);">'+esc(g.posicion||"")+(g.model_descr?" · "+esc(g.model_descr):"")+'</div>'
       +'</div>'
       +'<span style="background:'+c+'20;color:'+c+';font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid '+c+'40;">'+(esKo?"KO":"OK")+'</span>'
