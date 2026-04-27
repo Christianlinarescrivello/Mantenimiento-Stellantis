@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.6.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.6.1</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.6.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.6.1</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1193,7 +1193,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.6.0";
+var APP_VERSION="v4.6.1";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1855,7 +1855,7 @@ async function renderDashboard(){
 
   document.getElementById("dash-daños").innerHTML=daños.slice(0,6).map(function(d){
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc((d.vin||"").slice(-8))+'</td>'
-      +'<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">'+esc(d.tipo_daño||d.descripcion||"—")+'</td>'
+      +'<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">'+esc(d.tipo_dano||d.descripcion||d.descripcion||"—")+'</td>'
       +'<td><span class="badge b-'+('pendiente'===d.estado?'pending':'inprog')+'">'+esc(d.estado)+'</span></td></tr>';
   }).join("")||'<tr><td colspan="3"><div class="empty" style="padding:20px">Sin daños activos ✅</div></td></tr>';
 }
@@ -2014,7 +2014,7 @@ async function renderDaños(){
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc(d.vin)+'</td>'
       +'<td style="font-size:11px">'+esc(d.model_descr||"—")+'</td>'
       +'<td style="font-size:11px">'+esc(d.boxatura||"—")+'</td>'
-      +'<td style="max-width:160px;font-size:11px">'+esc(d.descripcion||"—")+'</td>'
+      +'<td style="max-width:160px;font-size:11px">'+esc(d.tipo_dano||d.descripcion||"—")+'</td>'
       +'<td style="font-size:11px">'+esc(d.ubicacion||"—")+'</td>'
       +'<td>'+factB+'</td>'
       +'<td><span class="badge '+estadoClass+'">'+esc(d.estado)+'</span></td>'
@@ -2773,10 +2773,13 @@ async function saveDaño(){
   var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","daños/"+uuid()+"-"+fotoFile.name);
   var wsOk=false;try{var r=await callWS(vin,cc,"C30","B");wsOk=r.success;}catch(e){}
   await sbPost("danos",{vin:vin.toUpperCase(),model_descr:document.getElementById("d-modelo").value||null,
-    compound:v?v.compound:"Cordoba",compound_code:cc,boxatura:document.getElementById("d-box").value||null,
+    compound:v?v.compound||v["Compound Descr"]:"",compound_code:cc,
+    boxatura:document.getElementById("d-box").value||null,
     descripcion:desc,ubicacion:document.getElementById("d-ubic").value||null,
     facturado:document.getElementById("d-fact").value==="true",foto_url:fotoUrl,
-    estado:"pendiente",registrado_por:currentUser.id,ws_bloqueo_ok:wsOk});
+    estado:"pendiente",
+    registrado_por:currentUser?currentUser.nombre:"—",
+    ws_bloqueo_ok:wsOk});
   closeModal("modal-daño");renderDaños();
   showToast(wsOk?"Daño registrado y C30 bloqueado":"Daño registrado (verificar WS C30)","success");
 }
@@ -2802,7 +2805,7 @@ async function saveGoma(){
     posicion:document.getElementById("g-posicion").value||null,
     observaciones:document.getElementById("g-obs").value||null,
     estado_stock:"ko",foto_url:fotoUrl,
-    registrado_por:currentUser.id,ws_bloqueo_ok:wsOk});
+    registrado_por:currentUser?currentUser.nombre:"—",ws_bloqueo_ok:wsOk});
   // Handle stock
   if(catId&&stockDisponible>0){
     // Use one from stock: -1 OK, add KO record
@@ -3160,7 +3163,7 @@ async function exportDaños(){
   var rows=data.map(function(d,i){
     return xlsRow([
       {__val:d.vin,__bold:true,__color:"#1A3C6E"},d.model_descr,d.boxatura,d.compound_code,
-      d.tipo_daño,d.ubicacion,d.responsabilidad,d.operario_responsable,
+      d.tipo_dano||d.descripcion,d.ubicacion,d.responsabilidad,d.operario_responsable,
       d.facturado?"Sí":"No",
       {__val:d.estado,__color:estadoColor[d.estado]||"#1A1A2E",__bold:true},
       d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):""
@@ -4030,7 +4033,7 @@ async function renderResp(){
     var rc=RCLS[d.responsabilidad]||"b-pending";
     var fecha=d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):"—";
     var estadoC='pendiente'===d.estado?"b-pending":"en_reparacion"===d.estado?"b-inprog":"b-done";
-    return'<tr><td style="font-family:monospace;font-size:11px;color:var(--gold)">'+esc(d.vin)+'</td><td style="font-size:11px">'+esc(d.model_descr||"—")+'</td><td style="font-size:11px">'+esc(d.boxatura||"—")+'</td><td style="font-size:11px">'+esc(d.tipo_daño||"—")+'</td><td style="font-size:11px">'+esc(d.ubicacion||"—")+'</td><td><span class="badge '+rc+'">'+esc(d.responsabilidad||"—")+'</span></td><td style="font-size:11px">'+esc(d.operario_responsable||"—")+'</td><td>'+(d.facturado?'<span class="badge b-done">Sí</span>':'<span class="badge b-ko">No</span>')+'</td><td><span class="badge '+estadoC+'">'+esc(d.estado)+'</span></td><td style="font-size:11px">'+fecha+'</td></tr>';
+    return'<tr><td style="font-family:monospace;font-size:11px;color:var(--gold)">'+esc(d.vin)+'</td><td style="font-size:11px">'+esc(d.model_descr||"—")+'</td><td style="font-size:11px">'+esc(d.boxatura||"—")+'</td><td style="font-size:11px">'+esc(d.tipo_dano||d.descripcion||"—")+'</td><td style="font-size:11px">'+esc(d.ubicacion||"—")+'</td><td><span class="badge '+rc+'">'+esc(d.responsabilidad||"—")+'</span></td><td style="font-size:11px">'+esc(d.operario_responsable||"—")+'</td><td>'+(d.facturado?'<span class="badge b-done">Sí</span>':'<span class="badge b-ko">No</span>')+'</td><td><span class="badge '+estadoC+'">'+esc(d.estado)+'</span></td><td style="font-size:11px">'+fecha+'</td></tr>';
   }).join("")||'<tr><td colspan="10"><div class="empty">Sin datos en el período seleccionado</div></td></tr>';
 }
 
@@ -4050,7 +4053,7 @@ async function generarPDFResp(){
   try{var c2=document.getElementById("chart-resp-ops");if(c2)imgOps=c2.toDataURL("image/png");}catch(e){}
   var opEntries=Object.keys(byOp).sort(function(a,b){return byOp[b]-byOp[a];});
   var tablaOpRows=opEntries.map(function(op){var opD=data.filter(function(d){return d.operario_responsable===op;});return'<tr style="background:#FAFAFA"><td style="padding:5px 8px;font-weight:700">'+esc(op)+'</td><td style="padding:5px 8px;text-align:center;font-weight:700;color:#E65100">'+opD.length+'</td><td style="padding:5px 8px;text-align:center">'+opD.filter(function(d){return d.estado==="pendiente";}).length+'</td><td style="padding:5px 8px;text-align:center">'+opD.filter(function(d){return d.estado==="resuelto";}).length+'</td><td style="padding:5px 8px;text-align:center">'+opD.filter(function(d){return d.facturado;}).length+'</td></tr>';}).join("");
-  var tablaDetalle=data.slice(0,50).map(function(d,i){var fecha=d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):"—";return'<tr style="background:'+(i%2===0?"#FAFAFA":"white")+'"><td style="padding:4px 7px;font-family:monospace;font-size:9px">'+esc(d.vin)+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.tipo_daño||"—")+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.ubicacion||"—")+'</td><td style="padding:4px 7px;font-size:10px;font-weight:700">'+esc(d.responsabilidad||"—")+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.operario_responsable||"—")+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.estado)+'</td><td style="padding:4px 7px;font-size:10px">'+(d.facturado?"Sí":"No")+'</td><td style="padding:4px 7px;font-size:10px">'+fecha+'</td></tr>';}).join("");
+  var tablaDetalle=data.slice(0,50).map(function(d,i){var fecha=d.created_at?new Date(d.created_at).toLocaleDateString("es-AR"):"—";return'<tr style="background:'+(i%2===0?"#FAFAFA":"white")+'"><td style="padding:4px 7px;font-family:monospace;font-size:9px">'+esc(d.vin)+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.tipo_dano||d.descripcion||"—")+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.ubicacion||"—")+'</td><td style="padding:4px 7px;font-size:10px;font-weight:700">'+esc(d.responsabilidad||"—")+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.operario_responsable||"—")+'</td><td style="padding:4px 7px;font-size:10px">'+esc(d.estado)+'</td><td style="padding:4px 7px;font-size:10px">'+(d.facturado?"Sí":"No")+'</td><td style="padding:4px 7px;font-size:10px">'+fecha+'</td></tr>';}).join("");
   var cfgSup=cfgSupervisor||"Supervisor Córdoba";
   var html='<div style="padding:20px 24px;">'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #6A1B9A;padding-bottom:16px;margin-bottom:20px;">'
@@ -5605,7 +5608,7 @@ async function opRenderDanos(){
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
       +'<div style="flex:1;">'
       +'<div style="font-family:monospace;font-size:11px;color:var(--gold);font-weight:700;margin-bottom:3px;">'+esc(d.vin)+'</div>'
-      +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+esc(d.tipo_daño||"—")+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+esc(d.tipo_dano||d.descripcion||"—")+'</div>'
       +'<div style="font-size:11px;color:var(--text3);">'+esc(d.ubicacion||"")+(d.model_descr?" · "+esc(d.model_descr):"")+'</div>'
       +'</div>'
       +'<span style="background:'+c+'20;color:'+c+';font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid '+c+'40;white-space:nowrap;">'+esc(d.estado||"")+'</span>'
@@ -5824,7 +5827,7 @@ async function opRenderIntervHoy(){
   daños.forEach(function(d){
     html+='<div style="background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:4px solid #C62828;box-shadow:var(--shadow);">'
       +'<span style="font-size:11px;color:var(--gold);font-family:monospace;font-weight:700">'+esc(d.vin)+'</span> · <b style="color:var(--text)">Daño C30</b>'
-      +'<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+esc(d.tipo_daño||"—")+' · '+esc(d.ubicacion||"—")+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+esc(d.tipo_dano||d.descripcion||"—")+' · '+esc(d.ubicacion||"—")+'</div>'
       +'</div>';
   });
   lavados.forEach(function(l){
