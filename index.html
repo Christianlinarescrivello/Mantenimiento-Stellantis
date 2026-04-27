@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.5.7</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.5.9</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.7</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.5.9</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -425,7 +425,7 @@ tbody td{padding:9px 12px;color:var(--text);}
           <option value="resuelto">Resuelto</option>
         </select>
         <select id="daño-facturado" onchange="renderDaños()">
-          <option value="ALL">Facturación</option>
+          <option value="ALL">Todos · Facturación</option>
           <option value="false">Sin facturar</option>
           <option value="true">Facturado</option>
         </select>
@@ -460,7 +460,7 @@ tbody td{padding:9px 12px;color:var(--text);}
         <button class="btn btn-gold btn-sm" onclick="exportGomas()">⬇ Excel</button>
       </div>
       <div class="card"><div class="tbl-wrap"><table>
-        <thead><tr><th>VIN</th><th>Modelo</th><th>Box</th><th>Neumático</th><th>Posición</th><th>Estado</th><th>WS C37</th><th>Obs.</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>VIN</th><th>Modelo</th><th>Box</th><th>Neumático registrado</th><th>Diseño catálogo</th><th>Estado</th><th>WS C37</th><th>Obs.</th><th>Acciones</th></tr></thead>
         <tbody id="goma-tbody"></tbody>
       </table></div></div>
     </div>
@@ -1193,7 +1193,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.5.7";
+var APP_VERSION="v4.5.9";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1599,6 +1599,9 @@ function computePending(rows, hist){
     var md=String(v.model_descr||v["Model Descr"]||"").toUpperCase();
     var ab=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
     var cc=String(v.compound_code||v["Compound Code"]||"00214").padStart(5,"0");
+    // Exclude units with exclusion blocks — out of service, legal hold, accident, etc.
+    var EXCLUDE_BLOCKS=["C40","LEG","A10","A31"];
+    if(ab.some(function(b){return EXCLUDE_BLOCKS.indexOf(b)>=0;}))continue;
     for(var k=0;k<CATALOG.length;k++){
       var maint=CATALOG[k];
       if(!maint.days)continue;
@@ -2068,24 +2071,37 @@ async function renderGomas(){
   var POS={delantera_izq:"Del. Izq",delantera_der:"Del. Der",trasera_izq:"Tras. Izq",trasera_der:"Tras. Der",auxilio:"Auxilio"};
   var html=allRows.map(function(g){
     if(g._fromStock){
+      // Build quick design selector from catalogoCache
+      var designOpts='<option value="">— Seleccionar diseño —</option>'
+        +catalogoCache.filter(function(n){return n.vehiculo&&n.modelo;}).map(function(n){
+          return'<option value="'+esc(n.id)+'">'+esc(n.vehiculo+" — "+n.modelo+" "+n.medida)+'</option>';
+        }).join("");
       return'<tr style="border-left:3px solid var(--gold)">'
         +'<td style="font-family:monospace;font-size:11px;font-weight:700;color:var(--gold)">'+esc(g.vin)+'</td>'
         +'<td style="font-size:11px">'+esc(g.model_descr)+'</td>'
         +'<td style="font-size:11px">'+esc(g.boxatura)+'</td>'
-        +'<td colspan="2" style="font-size:11px;color:var(--text3);font-style:italic">Sin datos cargados</td>'
+        +'<td style="font-size:11px;color:var(--text3);font-style:italic">Sin datos</td>'
+        +'<td><select onchange="asignarDisenoGoma(\''+esc(g.vin)+'\',this.value,\''+esc(g.compound_code)+'\')" style="font-size:10px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);max-width:200px;">'+designOpts+'</select></td>'
         +'<td><span class="badge b-ko">KO</span></td>'
         +'<td><span class="badge b-inprog">C37 Activo</span></td>'
         +'<td>—</td>'
-        +'<td><button class="btn btn-gold btn-sm" onclick="openGomaModalForVin(\''+esc(g.vin)+'\')">+ Cargar goma</button></td>'
+        +'<td><button class="btn btn-gold btn-sm" onclick="openGomaModalForVin(\''+esc(g.vin)+'\')">+ Registrar</button></td>'
         +'</tr>';
     }
     var wsH=g.ws_desbloqueo_ok?'<span class="badge b-done">OK</span>':g.ws_bloqueo_ok?'<span class="badge b-inprog">C37 Activo</span>':'<span style="font-size:10px;color:var(--text3)">—</span>';
     var acc=g.estado_stock==="ko"?'<button class="btn btn-success btn-sm" onclick="resolveGoma(\''+g.id+'\',\''+esc(g.vin)+'\',\''+esc(g.compound_code||"00214")+'\')" >✅ Resolver</button>':"";
+    // Design selector for existing rows
+    var curCatId=g.catalogo_id||"";
+    var designOpts2='<option value="">— Asignar diseño —</option>'
+      +catalogoCache.map(function(n){
+        return'<option value="'+esc(n.id)+'"'+(n.id===curCatId?' selected':'')+'>'+esc(n.vehiculo+" — "+n.modelo+" "+n.medida)+'</option>';
+      }).join("");
+    var designSel='<select onchange="asignarDisenoGomaExisting(\''+g.id+'\',this.value)" style="font-size:10px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);max-width:180px;">'+designOpts2+'</select>';
     return'<tr><td style="font-family:monospace;font-size:11px">'+esc(g.vin)+'</td>'
       +'<td style="font-size:11px">'+esc(g.model_descr||"—")+'</td>'
       +'<td style="font-size:11px">'+esc(g.boxatura||"—")+'</td>'
-      +'<td style="font-size:11px">'+esc(g.modelo_neumático||"—")+'</td>'
-      +'<td style="font-size:11px">'+( POS[g.posicion]||g.posicion||"—")+'</td>'
+      +'<td style="font-size:11px">'+esc(g.modelo_neumático||"—")+( g.posicion?'<br><span style="color:var(--text3);font-size:10px;">'+esc(POS[g.posicion]||g.posicion)+'</span>':"")+'</td>'
+      +'<td>'+designSel+'</td>'
       +'<td><span class="badge '+("ok"===g.estado_stock?"b-stok":"b-ko")+">"+(g.estado_stock==="ok"?"OK":"KO")+'</span></td>'
       +'<td>'+wsH+'</td>'
       +'<td style="font-size:11px;max-width:120px">'+esc(g.observaciones||"—")+'</td>'
@@ -2104,6 +2120,36 @@ async function resolveGoma(id,vin,cc){
   var wsOk=false;try{var r=await callWS(vin,cc,"C37","U");wsOk=r.success;}catch(e){}
   await sbPatch("gomas",id,{estado_stock:"ok",ws_desbloqueo_ok:wsOk,updated_at:new Date().toISOString()});
   renderGomas();showToast(wsOk?"Goma resuelta y desbloqueada":"Resuelta (verificar WS)","success");
+}
+
+async function asignarDisenoGoma(vin, catId, compoundCode){
+  if(!catId)return;
+  var cat=catalogoCache.find(function(n){return n.id===catId;});
+  if(!cat)return;
+  // Create or update goma record for this VIN
+  var existing=await sbGet("gomas","vin=eq."+encodeURIComponent(vin)+"&select=id");
+  if(Array.isArray(existing)&&existing.length){
+    await sbPatch("gomas",existing[0].id,{catalogo_id:catId,modelo_neumático:cat.modelo+" "+cat.medida,updated_at:new Date().toISOString()});
+  } else {
+    var stockRow=stockCache.find(function(s){return(s.vin||s.VIN||"").toUpperCase()===vin;});
+    await sbPost("gomas",{
+      vin:vin,model_descr:stockRow?stockRow.model_descr||stockRow["Model Descr"]:"",
+      boxatura:stockRow?stockRow.boxatura||stockRow["Boxatura"]:"",
+      compound_code:compoundCode,
+      catalogo_id:catId,modelo_neumático:cat.modelo+" "+cat.medida,
+      estado_stock:"ko",registrado_por:currentUser?currentUser.nombre:"—"
+    });
+  }
+  showToast("Diseño asignado: "+cat.modelo,"success");
+  renderGomas();
+}
+
+async function asignarDisenoGomaExisting(gomaId, catId){
+  if(!catId)return;
+  var cat=catalogoCache.find(function(n){return n.id===catId;});
+  if(!cat)return;
+  await sbPatch("gomas",gomaId,{catalogo_id:catId,modelo_neumático:cat.modelo+" "+cat.medida,updated_at:new Date().toISOString()});
+  showToast("Diseño actualizado: "+cat.modelo,"success");
 }
 
 
@@ -5639,56 +5685,51 @@ async function opRenderStock(){
 }
 
 async function opRenderDepNeum(){
-  // Render same card grid as supervisor (reuse renderDepNeumaticos into op-dep-neum-list)
   var list=document.getElementById("op-dep-neum-list");
   var cnt=document.getElementById("op-dep-neum-count");
   if(!list)return;
   list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Cargando...</div>';
-  var data=[];
-  try{
-    data=await sbGet("stock_neumaticos","select=*,catalogo:catalogo_id(id,vehiculo,modelo,medida,llanta,codigo_parte,codigo_conjunto)&order=catalogo_id");
-  }catch(e){}
-  if(!Array.isArray(data))data=[];
-  var total=data.reduce(function(s,r){return s+(r.cantidad_ok||0);},0);
-  if(cnt)cnt.textContent=data.length+" diseños · "+total+" unidades OK en stock";
-  if(!data.length){list.innerHTML='<div class="empty"><div class="empty-icon">📦</div>Sin stock cargado</div>';return;}
+  var stockData=[];
+  try{stockData=await sbGet("stock_neumaticos","select=*,catalogo:catalogo_id(id,vehiculo,modelo,medida,codigo_conjunto)");}catch(e){}
+  if(!Array.isArray(stockData))stockData=[];
+  var stockByCat={};
+  stockData.forEach(function(r){if(r.catalogo_id)stockByCat[r.catalogo_id]=r;});
+  // Show ALL catalog designs, not just those with stock rows
+  var allDesigns=catalogoCache.map(function(cat){
+    var s=stockByCat[cat.id]||{cantidad_ok:0,cantidad_ko:0,foto_ok_url:null,foto_ko_url:null};
+    return{cat:cat,ok:s.cantidad_ok||0,ko:s.cantidad_ko||0,foto:s.foto_ok_url||s.foto_ko_url||null};
+  });
+  var totalOk=allDesigns.reduce(function(a,r){return a+r.ok;},0);
+  if(cnt)cnt.textContent=allDesigns.length+" diseños · "+totalOk+" unidades OK en stock";
+  if(!allDesigns.length){list.innerHTML='<div class="empty"><div class="empty-icon">📦</div>Sin diseños en catálogo</div>';return;}
   var html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;">';
-  data.forEach(function(r){
-    var cat=r.catalogo||{};
-    var okColor=r.cantidad_ok>0?"#2E7D32":"#C62828";
-    var imgUrl=r.foto_ok_url||r.foto_ko_url||"";
+  allDesigns.forEach(function(r){
+    var okColor=r.ok>0?"#2E7D32":"#9E9E9E";
     html+='<div style="background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);">';
-    if(imgUrl){
+    if(r.foto){
       html+='<div style="height:130px;overflow:hidden;background:#f0f0f0;">'
-        +'<img src="'+esc(imgUrl)+'" style="width:100%;height:100%;object-fit:cover;">'
+        +'<img src="'+esc(r.foto)+'" style="width:100%;height:100%;object-fit:cover;">'
         +'</div>';
     } else {
       html+='<div style="height:80px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:32px;">🔵</div>';
     }
     html+='<div style="padding:12px;">'
-      +'<div style="font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;margin-bottom:2px;">'+esc(cat.vehiculo||"—")+'</div>'
-      +(cat.codigo_conjunto?'<div style="font-family:monospace;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:2px;">'+esc(cat.codigo_conjunto)+'</div>':"")
-      +'<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px;line-height:1.3;">'+esc(cat.modelo||"—")+'</div>'
-      +'<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">'+esc(cat.medida||"")+'</div>'
+      +(r.cat.codigo_conjunto?'<div style="font-family:monospace;font-size:10px;color:var(--text2);margin-bottom:2px;">'+esc(r.cat.codigo_conjunto)+'</div>':"")
+      +'<div style="font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;margin-bottom:2px;">'+esc(r.cat.vehiculo||"—")+'</div>'
+      +'<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px;line-height:1.3;">'+esc(r.cat.modelo||"—")+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">'+esc(r.cat.medida||"")+'</div>'
       +'<div style="display:flex;justify-content:space-between;align-items:center;">'
-      +'<div style="text-align:center;">'
-      +'<div style="font-size:22px;font-weight:900;color:'+okColor+';">'+(r.cantidad_ok||0)+'</div>'
-      +'<div style="font-size:9px;color:var(--text3);">OK</div>'
-      +'</div>'
-      +(r.cantidad_ko?'<div style="text-align:center;">'
-        +'<div style="font-size:22px;font-weight:900;color:#C62828;">'+(r.cantidad_ko||0)+'</div>'
-        +'<div style="font-size:9px;color:var(--text3);">KO</div>'
-        +'</div>':"")
+      +'<div style="text-align:center;"><div style="font-size:22px;font-weight:900;color:'+okColor+';">'+r.ok+'</div><div style="font-size:9px;color:var(--text3);">OK</div></div>'
+      +(r.ko>0?'<div style="text-align:center;"><div style="font-size:22px;font-weight:900;color:#C62828;">'+r.ko+'</div><div style="font-size:9px;color:var(--text3);">KO</div></div>':"")
       +'<div style="display:flex;flex-direction:column;gap:4px;">'
       +'<button onclick="openAjusteNeumModal(\'ok\')" style="background:#2E7D32;color:white;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;">+OK</button>'
       +'<button onclick="openAjusteNeumModal(\'ko\')" style="background:#C62828;color:white;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;">+KO</button>'
-      +'</div>'
-      +'</div>'
-      +'</div></div>';
+      +'</div></div></div></div>';
   });
   html+='</div>';
   list.innerHTML=html;
 }
+
 
 async function opRenderDepMat(){
   var list=document.getElementById("op-dep-mat-list");
