@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.6.3</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.6.4</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.6.3</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.6.4</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1193,7 +1193,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.6.3";
+var APP_VERSION="v4.6.4";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2937,15 +2937,52 @@ async function importStockRows(rows){
     setImportProgress(40+Math.round(((i+200)/mapped.length)*55),"Subiendo stock: "+Math.min(i+200,mapped.length)+" / "+mapped.length+"...");
   }
   await loadStock();renderDashboard();renderPreventivo();
+
+  // Auto-insert C30 units into danos table (sin descripción — pendiente de completar)
+  setImportProgress(96,"Sincronizando C30 y C37...");
+  var c30rows=mapped.filter(function(r){return r.blocks&&String(r.blocks).toUpperCase().indexOf("C30")>=0;});
+  var c37rows=mapped.filter(function(r){return r.blocks&&String(r.blocks).toUpperCase().indexOf("C37")>=0;});
+  if(c30rows.length){
+    // Load existing danos to avoid duplicates
+    var existingDanos=[];
+    try{existingDanos=await sbGet("danos","select=vin");}catch(e){}
+    var existingVins={};
+    if(Array.isArray(existingDanos))existingDanos.forEach(function(d){existingVins[(d.vin||"").toUpperCase()]=true;});
+    var newDanos=c30rows.filter(function(r){return!existingVins[(r.vin||"").toUpperCase()];}).map(function(r){
+      return{vin:r.vin,model_descr:r.model_descr,compound:r.compound,compound_code:r.compound_code,
+        boxatura:r.boxatura,estado:"pendiente",facturado:false,
+        registrado_por:"Importación automática",ws_bloqueo_ok:false};
+    });
+    if(newDanos.length){
+      for(var j=0;j<newDanos.length;j+=100)await sbPost("danos",newDanos.slice(j,j+100));
+    }
+  }
+  if(c37rows.length){
+    // Load existing gomas to avoid duplicates
+    var existingGomas=[];
+    try{existingGomas=await sbGet("gomas","select=vin");}catch(e){}
+    var existingGVins={};
+    if(Array.isArray(existingGomas))existingGomas.forEach(function(g){existingGVins[(g.vin||"").toUpperCase()]=true;});
+    var newGomas=c37rows.filter(function(r){return!existingGVins[(r.vin||"").toUpperCase()];}).map(function(r){
+      return{vin:r.vin,model_descr:r.model_descr,compound:r.compound,compound_code:r.compound_code,
+        boxatura:r.boxatura,estado_stock:"ko",
+        registrado_por:"Importación automática",ws_bloqueo_ok:false};
+    });
+    if(newGomas.length){
+      for(var j=0;j<newGomas.length;j+=100)await sbPost("gomas",newGomas.slice(j,j+100));
+    }
+  }
+
   setImportProgress(100,"Stock importado correctamente.");
-  // Count per patio
   var patioCount={};
   mapped.forEach(function(r){patioCount[r.compound_code]=(patioCount[r.compound_code]||0)+1;});
   var detail=Object.keys(patioCount).map(function(k){
     var p=patiosCache.find(function(p){return p.compound_code===k;})||{nombre:k};
     return p.nombre+": "+patioCount[k];
   }).join(" · ");
-  setImportResult(true,"✅ "+mapped.length+" unidades importadas — "+detail);
+  var c30msg=c30rows.length?" · "+c30rows.length+" C30 en danos":"";
+  var c37msg=c37rows.length?" · "+c37rows.length+" C37 en gomas":"";
+  setImportResult(true,"✅ "+mapped.length+" unidades importadas — "+detail+c30msg+c37msg);
   showToast("Stock actualizado correctamente","success");
 }
 function blockEventTimestamp(r){
