@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.6.1</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.6.3</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.6.1</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.6.3</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1193,7 +1193,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.6.1";
+var APP_VERSION="v4.6.3";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1967,6 +1967,7 @@ async function renderDaños(){
   var search=(document.getElementById("daño-search").value||"").toLowerCase();
   var estado=document.getElementById("daño-estado").value;
   var fact=document.getElementById("daño-facturado").value;
+  // Load DB daños
   var params="select=*&order=created_at.desc";
   if(estado!=="ALL"&&estado!=="sin_datos")params+="&estado=eq."+estado;
   if(fact!=="ALL")params+="&facturado=eq."+fact;
@@ -1974,18 +1975,25 @@ async function renderDaños(){
   if(!Array.isArray(dbDaños))dbDaños=[];
   var dañoByVin={};
   dbDaños.forEach(function(d){dañoByVin[(d.vin||"").toUpperCase()]=d;});
+  // Load C30 from stock — ALL patios (C30/C37 not filtered by patio)
   var stockC30=[];
   if(estado==="ALL"||estado==="sin_datos"){
-    stockC30=stockCache.filter(function(v){
+    var allStock=stockCache;
+    // If stockCache is filtered by patio, also load all patios for C30
+    if(currentPatio&&!currentUser.todos_patios){
+      try{var s=await sbGet("stock","select=vin,model_descr,boxatura,blocks,compound_code,compound&blocks=like.*C30*&limit=500");
+        if(Array.isArray(s))allStock=s;}catch(e){}
+    }
+    stockC30=allStock.filter(function(v){
       var vin=(v.vin||v.VIN||"").toUpperCase();if(!vin)return false;
-      var blocks=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
+      var blocks=String(v.blocks||v["Blocks"]||"").toUpperCase();
       return blocks.indexOf("C30")>=0&&!dañoByVin[vin];
     }).map(function(v){
       return{_fromStock:true,vin:(v.vin||v.VIN||"").toUpperCase(),
         model_descr:v.model_descr||v["Model Descr"]||"—",
         boxatura:v.boxatura||v["Boxatura"]||"—",
-        compound_code:String(v.compound_code||v["Compound Code"]||"00214").padStart(5,"0"),
-        compound:v.compound||v["Compound Descr"]||"Córdoba"};
+        compound_code:String(v.compound_code||v["Compound Code"]||"").padStart(5,"0"),
+        compound:v.compound||v["Compound Descr"]||""};
     });
   }
   var allRows=[].concat(dbDaños).concat(stockC30);
@@ -2049,17 +2057,23 @@ async function renderGomas(){
   if(!Array.isArray(dbGomas))dbGomas=[];
   var gomaByVin={};
   dbGomas.forEach(function(g){gomaByVin[(g.vin||"").toUpperCase()]=g;});
+  // Load C37 from stock — ALL patios (not filtered by current patio)
   var stockC37=[];
   if(estado==="ALL"||estado==="sin_datos"){
-    stockC37=stockCache.filter(function(v){
+    var allStock=stockCache;
+    if(currentPatio&&!currentUser.todos_patios){
+      try{var s=await sbGet("stock","select=vin,model_descr,boxatura,blocks,compound_code,compound&blocks=like.*C37*&limit=500");
+        if(Array.isArray(s))allStock=s;}catch(e){}
+    }
+    stockC37=allStock.filter(function(v){
       var vin=(v.vin||v.VIN||"").toUpperCase();if(!vin)return false;
-      var blocks=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
+      var blocks=String(v.blocks||v["Blocks"]||"").toUpperCase();
       return blocks.indexOf("C37")>=0&&!gomaByVin[vin];
     }).map(function(v){
       return{_fromStock:true,vin:(v.vin||v.VIN||"").toUpperCase(),
         model_descr:v.model_descr||v["Model Descr"]||"—",
         boxatura:v.boxatura||v["Boxatura"]||"—",
-        compound_code:String(v.compound_code||v["Compound Code"]||"00214").padStart(5,"0"),
+        compound_code:String(v.compound_code||v["Compound Code"]||"").padStart(5,"0"),
         modelo_neumático:"",posicion:"",observaciones:"",estado_stock:"ko"};
     });
   }
@@ -4728,7 +4742,7 @@ function showPage(name){
   if(name==="preventivo")renderPreventivo();
   if(name==="planificador")renderPlanificador();
   if(name==="danos")renderDaños();
-  if(name==="gomas"){buildNeumSelect();renderGomas();}
+  if(name==="gomas"){renderGomas();}
   if(name==="historial")renderHistorial();
   if(name==="kpis")renderKPIs();
   if(name==="resp"){
