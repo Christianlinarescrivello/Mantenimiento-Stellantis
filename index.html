@@ -289,6 +289,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="nav-item" onclick="showPage('gomas')" id="nav-gomas"><span class="icon">🟡</span> Neumáticos (C37)</div>
     <div class="nav-section">Reportes</div>
     <div class="nav-item supervisor-only" onclick="showPage('kpis')" id="nav-kpis"><span class="icon">📈</span> KPIs y Exportar</div>
+    <div class="nav-item supervisor-only" onclick="showPage('kpis-compound')" id="nav-kpis-compound"><span class="icon">🏆</span> KPIs Compound</div>
     <div class="nav-item supervisor-only" onclick="showPage('resp')" id="nav-resp"><span class="icon">👥</span> Responsabilidades</div>
     <div class="nav-item supervisor-only" onclick="showPage('historial')" id="nav-historial"><span class="icon">🗂️</span> Historial bloqueos</div>
     <div class="nav-item supervisor-only" onclick="showPage('wslog')" id="nav-wslog"><span class="icon">🔌</span> Log WebService</div>
@@ -484,6 +485,113 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div class="kpi-grid" id="kpi-grid"></div>
     </div>
 
+
+    <!-- KPIs COMPOUND SUPERVISOR -->
+    <div class="page" id="page-kpis-compound">
+      <div class="page-title">🏆 KPIs Compound — Córdoba</div>
+      <div class="page-sub" id="kpic-sub">Indicadores de gestión operativa del supervisor de patio</div>
+
+      <!-- BARRA DE ACCIONES -->
+      <div class="filters no-print" style="margin-bottom:20px;">
+        <button class="btn btn-primary btn-sm" onclick="renderKpisCompound()">🔄 Actualizar</button>
+        <button class="btn btn-sm" style="background:linear-gradient(135deg,#1A3C6E,#0D1F3C);color:white;border:1px solid rgba(200,164,74,0.4);" onclick="exportKpiCompoundPDF()">📄 Exportar PDF</button>
+        <span style="margin-left:auto;font-size:11px;color:var(--text3)" id="kpic-update-time"></span>
+      </div>
+
+      <!-- ══ KPI 1: CONTROL DE STOCK ══ -->
+      <div style="margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+          <div style="width:36px;height:36px;background:linear-gradient(135deg,#1A3C6E,#1E4D8C);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">📦</div>
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--text);letter-spacing:.5px;">KPI 1 — Control de Stock (Parquización)</div>
+            <div style="font-size:11px;color:var(--text3);">¿Todas las unidades con +1 día en playa tienen boxatura asignada?</div>
+          </div>
+        </div>
+        <div class="stats-row" id="kpic-stock-stats" style="margin-bottom:14px;"></div>
+        <div style="background:var(--card);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);margin-bottom:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-size:13px;font-weight:700;color:var(--text);">% Unidades parquizadas (con boxatura)</span>
+            <span id="kpic-stock-pct-label" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:#2E7D32;">—</span>
+          </div>
+          <div style="background:var(--border);border-radius:6px;height:14px;overflow:hidden;">
+            <div id="kpic-stock-bar" style="height:100%;border-radius:6px;width:0%;transition:width .8s ease;background:linear-gradient(90deg,#2E7D32,#43A047);"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--text3);">
+            <span>0%</span><span style="color:#F9A825">70%</span><span style="color:#2E7D32">100%</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-gold btn-sm no-print" onclick="exportStockSinBoxatura()" id="kpic-export-sinbox-btn">⬇ Excel — Sin Boxatura</button>
+          <span id="kpic-stock-sinbox-label" style="font-size:12px;color:var(--text3);"></span>
+        </div>
+      </div>
+
+      <!-- ══ KPI 2: MANTENIMIENTO ══ -->
+      <div style="margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+          <div style="width:36px;height:36px;background:linear-gradient(135deg,#E65100,#BF360C);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🔧</div>
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--text);letter-spacing:.5px;">KPI 2 — Mantenimiento Preventivo</div>
+            <div style="font-size:11px;color:var(--text3);">¿Estoy al día con los mantenimientos vencidos de los servicios activos?</div>
+          </div>
+        </div>
+
+        <!-- Toggle servicios -->
+        <div style="background:var(--card);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:14px;">
+          <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Servicios incluidos en el KPI:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;" id="kpic-maint-toggles"></div>
+          <div style="margin-top:10px;font-size:11px;color:var(--text3);">Los servicios desactivados no afectan el indicador (ej: MDI/CAF sin materiales)</div>
+        </div>
+
+        <div class="stats-row" id="kpic-maint-stats" style="margin-bottom:14px;"></div>
+
+        <!-- Barras por servicio -->
+        <div style="background:var(--card);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;">Detalle por servicio (solo activos)</div>
+          <div id="kpic-maint-bars"></div>
+        </div>
+      </div>
+
+      <!-- ══ KPI 3: TRANSPORTE ══ -->
+      <div style="margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+          <div style="width:36px;height:36px;background:linear-gradient(135deg,#1565C0,#0D47A1);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🚛</div>
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--text);letter-spacing:.5px;">KPI 3 — Cumplimiento de Transportes</div>
+            <div style="font-size:11px;color:var(--text3);">¿Las cargas armadas para cada ventana horaria se entregan en tiempo?</div>
+          </div>
+          <button class="btn btn-ghost btn-sm no-print" style="margin-left:auto;" onclick="openTranspKpiModal()">⚙ Editar datos</button>
+        </div>
+
+        <div class="stats-row" id="kpic-transp-stats" style="margin-bottom:14px;"></div>
+
+        <div style="background:var(--card);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);margin-bottom:12px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;">Cumplimiento por carrier — período actual</div>
+          <div id="kpic-transp-bars"></div>
+        </div>
+
+        <div style="background:rgba(200,164,74,0.06);border:1px solid rgba(200,164,74,0.2);border-radius:10px;padding:12px 16px;">
+          <div style="font-size:11px;color:var(--gold);font-weight:700;margin-bottom:4px;">ℹ️ Base de datos en desarrollo</div>
+          <div style="font-size:11px;color:var(--text2);">Los datos de transporte son de referencia hasta que la BBDD de ventanas/cargas esté integrada. Usá ⚙ Editar datos para actualizar los valores manualmente.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Modal transporte KPI -->
+    <div class="modal-overlay" id="modal-transp-kpi">
+      <div class="modal" style="max-width:480px;">
+        <div class="modal-head"><h3>⚙ Editar datos de transporte</h3><button class="modal-close" onclick="closeModal('modal-transp-kpi')">✕</button></div>
+        <div class="modal-body">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Ingresá los datos del período para actualizar el KPI de transporte.</div>
+          <div id="transp-kpi-fields"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-transp-kpi')">Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="saveTranspKpiData()">💾 Guardar</button>
+        </div>
+      </div>
+    </div>
 
     <!-- HISTORIAL BLOQUEOS -->
     <div class="page" id="page-historial">
@@ -2978,7 +3086,8 @@ async function importStockRows(rows){
       compound_code:cc,
       boxatura:r["Boxatura"]||r["boxatura"]||null,
       blocks:r["Blocks"]||r["blocks"]||null,
-      assignment_date:normalizeDateForDb(r["Assignment date"]||r["assignment_date"]||null)
+      assignment_date:normalizeDateForDb(r["Assignment date"]||r["assignment_date"]||null),
+      gate_in_date:normalizeDateForDb(r["Last Gate-In Date"]||r["Last Gate In Date"]||r["gate_in_date"]||r["Gate In Date"]||null)
     };
   }).filter(function(r){return r.vin;});
   if(!mapped.length)throw new Error("No se encontraron VIN válidos para importar.");
@@ -4846,6 +4955,7 @@ function showPage(name){
   if(name==="gomas"){renderGomas();}
   if(name==="historial")renderHistorial();
   if(name==="kpis")renderKPIs();
+  if(name==="kpis-compound")onShowKpisCompound();
   if(name==="resp"){
     var now=new Date();
     var rd=document.getElementById("resp-desde");var rh=document.getElementById("resp-hasta");
@@ -5901,9 +6011,649 @@ function opOpenLavado(){
 }
 async function saveLavado(){
   var vin=document.getElementById("lav-vin").value.trim().toUpperCase();
-  if(!vin){showToast("El VIN es obligatorio","error");return;}
-  var v=stockCache.find(function(r){return(r.vin||r.VIN||"").toUpperCase()===vin;});
-  var cc=v?String(v.compound_code||v["Compound Code"]||"34").replace(/^0+/,""):"34";
+
+// ══════════════════════════════════════════════════════
+// KPIs COMPOUND — SUPERVISOR
+// ══════════════════════════════════════════════════════
+
+// Servicios de mantenimiento disponibles con sus labels
+var KPIC_MAINT_SERVICES = [
+  {code:"M90", label:"M90", name:"Control Baterías", days:90},
+  {code:"BSE", label:"BSE", name:"Arranque Nafta", days:90},
+  {code:"MDI", label:"MDI", name:"Cambio Diesel", days:120},
+  {code:"DSE", label:"DSE", name:"Arranque Diesel", days:150},
+  {code:"AN1", label:"AN1", name:"Antigüedad", days:180},
+  {code:"CAF", label:"CAF", name:"Aceite y Filtros", days:360},
+  {code:"FLU", label:"FLU", name:"Cambio Fluidos", days:360},
+  {code:"UREA",label:"UREA",name:"Cambio Urea", days:360}
+];
+
+// Clave localStorage para config de servicios activos
+var KPIC_LS_KEY = "kpic_maint_active_v1";
+// Clave localStorage para datos de transporte
+var KPIC_TRANSP_KEY = "kpic_transp_data_v1";
+
+function kpicGetActiveServices(){
+  try{
+    var saved = localStorage.getItem(KPIC_LS_KEY);
+    if(saved){
+      var arr = JSON.parse(saved);
+      if(Array.isArray(arr)) return arr;
+    }
+  }catch(e){}
+  // Default: todos activos excepto MDI y CAF
+  return KPIC_MAINT_SERVICES.map(function(s){ return s.code; }).filter(function(c){ return c!=="MDI" && c!=="CAF"; });
+}
+
+function kpicSetActiveServices(arr){
+  try{ localStorage.setItem(KPIC_LS_KEY, JSON.stringify(arr)); }catch(e){}
+}
+
+function kpicGetTranspData(){
+  try{
+    var saved = localStorage.getItem(KPIC_TRANSP_KEY);
+    if(saved){
+      var d = JSON.parse(saved);
+      if(d) return d;
+    }
+  }catch(e){}
+  // Defaults provisorios según lo indicado
+  return {
+    periodo: "",
+    carriers:[
+      {name:"ELTA",   pct_carga:45, total_cargas:120, cumplidas:114, color:"#1565C0"},
+      {name:"CAT",    pct_carga:45, total_cargas:118, cumplidas:112, color:"#C8A44A"},
+      {name:"FURLONG",pct_carga:5,  total_cargas:14,  cumplidas:14,  color:"#2E7D32"}
+    ],
+    notas:"Datos provisorios — BBDD de ventanas en desarrollo"
+  };
+}
+
+function kpicSaveTranspData(d){
+  try{ localStorage.setItem(KPIC_TRANSP_KEY, JSON.stringify(d)); }catch(e){}
+}
+
+// ──── RENDER PRINCIPAL ──────────────────────────────────
+async function renderKpisCompound(){
+  // Timestamp
+  var now = new Date();
+  var el = document.getElementById("kpic-update-time");
+  if(el) el.textContent = "Actualizado: " + now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+  var subEl = document.getElementById("kpic-sub");
+  if(subEl) subEl.textContent = "Indicadores de gestión operativa — " + now.toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"});
+
+  renderKpicStock();
+  renderKpicMaintToggles();
+  renderKpicMaint();
+  renderKpicTransp();
+}
+
+// ──── KPI 1: STOCK / PARQUIZACIÓN ──────────────────────
+async function renderKpicStock(){
+  var statsEl = document.getElementById("kpic-stock-stats");
+  var barEl   = document.getElementById("kpic-stock-bar");
+  var pctEl   = document.getElementById("kpic-stock-pct-label");
+  var sinboxEl= document.getElementById("kpic-stock-sinbox-label");
+  if(!statsEl) return;
+
+  // Cargar stock fresco si no está en caché o actualizar
+  var stock = stockCache || [];
+  if(!stock.length){
+    try{
+      var data = await sbGet("stock","select=*&limit=15000");
+      stock = Array.isArray(data)?data:[];
+    }catch(e){ stock=[]; }
+  }
+
+  // Filtrar: solo unidades con gate_in_date ≥ 1 día atrás
+  var today = new Date();
+  today.setHours(0,0,0,0);
+  var yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate()-1);
+
+  var elegibles = stock.filter(function(r){
+    var gid = pdate(r.gate_in_date || r.assignment_date);
+    if(!gid) return false;
+    gid.setHours(0,0,0,0);
+    return gid <= yesterday;
+  });
+
+  var conBox   = elegibles.filter(function(r){ return r.boxatura && String(r.boxatura).trim() !== ""; });
+  var sinBox   = elegibles.filter(function(r){ return !r.boxatura || String(r.boxatura).trim() === ""; });
+  var total    = elegibles.length;
+  var pct      = total > 0 ? Math.round((conBox.length / total)*100) : 100;
+
+  var color    = pct>=95?"#2E7D32":pct>=80?"#F9A825":pct>=60?"#E65100":"#C62828";
+  var badge    = pct>=95?"✅ EXCELENTE":pct>=80?"🟡 BUENO":pct>=60?"🟠 ATENCIÓN":"🔴 CRÍTICO";
+
+  statsEl.innerHTML = [
+    {lbl:"Total elegibles (+1 día)",val:total,c:"var(--text)"},
+    {lbl:"Con boxatura ✅",val:conBox.length,c:"#2E7D32"},
+    {lbl:"Sin boxatura ⚠️",val:sinBox.length,c:sinBox.length>0?"#C62828":"#2E7D32"},
+    {lbl:"% Parquización",val:pct+"%",c:color}
+  ].map(function(s){
+    return '<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+';font-size:26px;">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';
+  }).join("");
+
+  if(barEl){barEl.style.width=pct+"%"; barEl.style.background="linear-gradient(90deg,"+color+","+color+"cc)";}
+  if(pctEl){pctEl.textContent=pct+"% "+badge; pctEl.style.color=color;}
+  if(sinboxEl){
+    sinboxEl.textContent = sinBox.length > 0
+      ? sinBox.length + " unidades sin boxatura — descargá el Excel para gestionarlas"
+      : "✅ Todas las unidades tienen boxatura asignada";
+    sinboxEl.style.color = sinBox.length > 0 ? "#E65100" : "#2E7D32";
+  }
+
+  // Guardar para export
+  window._kpicSinBox = sinBox;
+}
+
+// ──── EXPORT EXCEL SIN BOXATURA ─────────────────────────
+function exportStockSinBoxatura(){
+  var rows = window._kpicSinBox || [];
+  if(!rows.length){ showToast("No hay unidades sin boxatura","info"); return; }
+
+  var wb = XLSX.utils.book_new();
+  // Construir datos con formato similar a los Excels existentes
+  var now = new Date();
+  var header = [
+    ["STELLANTIS — Compound Córdoba"],
+    ["Unidades sin boxatura asignada — KPI Parquización"],
+    ["Generado: " + now.toLocaleDateString("es-AR") + " " + now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})],
+    []
+  ];
+  var cols = ["VIN","Modelo","Fecha Ingreso (Gate-In)","Fecha Asignación","Compound","Compound Code","Bloqueos","Boxatura"];
+  var data = rows.map(function(r){
+    return [
+      r.vin || "",
+      r.model_descr || "",
+      r.gate_in_date ? new Date(r.gate_in_date).toLocaleDateString("es-AR") : (r.assignment_date ? new Date(r.assignment_date).toLocaleDateString("es-AR") : ""),
+      r.assignment_date ? new Date(r.assignment_date).toLocaleDateString("es-AR") : "",
+      r.compound || "",
+      r.compound_code || "",
+      r.blocks || "",
+      r.boxatura || "(sin boxatura)"
+    ];
+  });
+  var wsData = header.concat([cols]).concat(data);
+  var ws = XLSX.utils.aoa_to_sheet(wsData);
+  // Anchos de columna
+  ws["!cols"] = [{wch:20},{wch:22},{wch:22},{wch:20},{wch:22},{wch:14},{wch:16},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, "Sin Boxatura");
+  XLSX.writeFile(wb, "StockSinBoxatura_"+now.toISOString().slice(0,10)+".xlsx");
+  showToast("Excel generado — "+rows.length+" unidades sin boxatura","success");
+}
+
+// ──── KPI 2: TOGGLES DE SERVICIOS ──────────────────────
+function renderKpicMaintToggles(){
+  var container = document.getElementById("kpic-maint-toggles");
+  if(!container) return;
+  var active = kpicGetActiveServices();
+  var html = "";
+  KPIC_MAINT_SERVICES.forEach(function(s){
+    var isOn = active.indexOf(s.code) >= 0;
+    html += '<button onclick="toggleKpicService(\''+s.code+'\')" id="kpic-toggle-'+s.code+'" style="'
+      + 'padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;'
+      + 'font-family:\'Barlow\',sans-serif;transition:all .2s;border:2px solid '
+      + (isOn?'var(--blue)':'var(--border)')+';background:'
+      + (isOn?'var(--blue)':'transparent')+';color:'
+      + (isOn?'white':'var(--text3)')+';'
+      + '">'
+      + (isOn?'✅ ':'☐ ') + s.code + '<span style="font-weight:400;opacity:.7;font-size:10px;margin-left:4px;">' + s.name + '</span>'
+      + '</button>';
+  });
+  container.innerHTML = html;
+}
+
+function toggleKpicService(code){
+  var active = kpicGetActiveServices();
+  var idx = active.indexOf(code);
+  if(idx >= 0) active.splice(idx,1);
+  else active.push(code);
+  kpicSetActiveServices(active);
+  renderKpicMaintToggles();
+  renderKpicMaint();
+}
+
+// ──── KPI 2: RENDER MANTENIMIENTO ───────────────────────
+function renderKpicMaint(){
+  var statsEl = document.getElementById("kpic-maint-stats");
+  var barsEl  = document.getElementById("kpic-maint-bars");
+  if(!statsEl || !barsEl) return;
+
+  var active = kpicGetActiveServices();
+  var pending = pendingCache || [];
+
+  // Filtrar solo servicios activos
+  var pendFiltered = pending.filter(function(p){ return active.indexOf(p.maint.code) >= 0; });
+
+  // Vencidos y urgentes de servicios activos
+  var overdue  = pendFiltered.filter(function(p){ return p.urgency==="overdue"; });
+  var urgent   = pendFiltered.filter(function(p){ return p.urgency==="urgent"; });
+  var soon     = pendFiltered.filter(function(p){ return p.urgency==="soon"; });
+  var ok       = pendFiltered.filter(function(p){ return p.urgency==="ok"; });
+
+  var totalAct = pendFiltered.length;
+  // KPI = % que NO están vencidos (overdue)
+  var alDia    = totalAct - overdue.length;
+  var pct      = totalAct > 0 ? Math.round((alDia/totalAct)*100) : 100;
+  var color    = pct>=95?"#2E7D32":pct>=80?"#F9A825":pct>=60?"#E65100":"#C62828";
+  var badge    = pct>=95?"✅ EXCELENTE":pct>=80?"🟡 BUENO":pct>=60?"🟠 ATENCIÓN":"🔴 CRÍTICO";
+
+  statsEl.innerHTML = [
+    {lbl:"Total activos (servicios ON)",val:totalAct,c:"var(--text)"},
+    {lbl:"Al día ✅",val:alDia,c:"#2E7D32"},
+    {lbl:"Vencidos 🔴",val:overdue.length,c:overdue.length>0?"#C62828":"#2E7D32"},
+    {lbl:"% Cumplimiento",val:pct+"%",c:color}
+  ].map(function(s){
+    return '<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+';font-size:26px;">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';
+  }).join("");
+
+  // Barras por servicio
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><span style="font-size:13px;font-weight:700;color:var(--text);">Cumplimiento global (servicios activos)</span><span style="font-family:\'Barlow Condensed\',sans-serif;font-size:22px;font-weight:800;color:'+color+'">'+pct+'% '+badge+'</span></div>';
+  html += '<div style="background:var(--border);border-radius:6px;height:14px;overflow:hidden;margin-bottom:20px;"><div style="height:100%;border-radius:6px;width:'+pct+'%;transition:width .8s ease;background:linear-gradient(90deg,'+color+','+color+'cc);"></div></div>';
+
+  KPIC_MAINT_SERVICES.forEach(function(s){
+    if(active.indexOf(s.code) < 0){
+      // Mostrar como desactivado
+      html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;opacity:.4;">'
+        + '<div style="width:60px;font-size:11px;font-weight:700;color:var(--text3);text-align:right;">'+s.code+'</div>'
+        + '<div style="flex:1;background:var(--border);border-radius:4px;height:8px;"></div>'
+        + '<div style="width:90px;font-size:10px;color:var(--text3);">Desactivado</div>'
+        + '</div>';
+      return;
+    }
+    var items = pending.filter(function(p){ return p.maint.code === s.code; });
+    var ov    = items.filter(function(p){ return p.urgency==="overdue"; }).length;
+    var tot   = items.length;
+    var p     = tot > 0 ? Math.round(((tot-ov)/tot)*100) : 100;
+    var c     = p>=95?"#2E7D32":p>=80?"#F9A825":p>=60?"#E65100":"#C62828";
+    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">'
+      + '<div style="width:60px;font-size:11px;font-weight:700;color:var(--text);text-align:right;">'+s.code+'</div>'
+      + '<div style="flex:1;background:var(--border);border-radius:4px;height:10px;overflow:hidden;">'
+      + '<div style="height:100%;border-radius:4px;width:'+p+'%;background:'+c+';transition:width .6s;"></div></div>'
+      + '<div style="width:90px;font-size:11px;font-weight:700;color:'+c+'">'+p+'% <span style="font-weight:400;color:var(--text3);">('+tot+' total, '+ov+' venc.)</span></div>'
+      + '</div>';
+  });
+  barsEl.innerHTML = html;
+}
+
+// ──── KPI 3: TRANSPORTE ─────────────────────────────────
+function renderKpicTransp(){
+  var statsEl = document.getElementById("kpic-transp-stats");
+  var barsEl  = document.getElementById("kpic-transp-bars");
+  if(!statsEl || !barsEl) return;
+
+  var d = kpicGetTranspData();
+  var carriers = d.carriers || [];
+
+  var totalCargas   = carriers.reduce(function(a,c){return a+c.total_cargas;},0);
+  var totalCumplidas= carriers.reduce(function(a,c){return a+c.cumplidas;},0);
+  var pctGlobal     = totalCargas>0?Math.round((totalCumplidas/totalCargas)*100):0;
+  var colorG        = pctGlobal>=95?"#2E7D32":pctGlobal>=80?"#F9A825":pctGlobal>=60?"#E65100":"#C62828";
+
+  statsEl.innerHTML = [
+    {lbl:"Total cargas período",val:totalCargas,c:"var(--text)"},
+    {lbl:"Cargas cumplidas ✅",val:totalCumplidas,c:"#2E7D32"},
+    {lbl:"Fuera de ventana ⚠️",val:totalCargas-totalCumplidas,c:(totalCargas-totalCumplidas)>0?"#E65100":"#2E7D32"},
+    {lbl:"OTD Global",val:pctGlobal+"%",c:colorG}
+  ].map(function(s){
+    return '<div class="stat" style="border-top-color:'+s.c+'"><div class="stat-val" style="color:'+s.c+';font-size:26px;">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>';
+  }).join("");
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
+    +'<span style="font-size:13px;font-weight:700;color:var(--text);">OTD Global</span>'
+    +'<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:22px;font-weight:800;color:'+colorG+'">'+pctGlobal+'%</span></div>'
+    +'<div style="background:var(--border);border-radius:6px;height:14px;overflow:hidden;margin-bottom:20px;">'
+    +'<div style="height:100%;border-radius:6px;width:'+pctGlobal+'%;background:linear-gradient(90deg,'+colorG+','+colorG+'cc);transition:width .8s;"></div></div>';
+
+  carriers.forEach(function(c){
+    var p  = c.total_cargas>0?Math.round((c.cumplidas/c.total_cargas)*100):0;
+    var cl = p>=95?"#2E7D32":p>=80?"#F9A825":p>=60?"#E65100":"#C62828";
+    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">'
+      + '<div style="width:72px;font-size:12px;font-weight:700;color:var(--text);text-align:right;">'+c.name+'</div>'
+      + '<div style="flex:1;">'
+      + '<div style="background:var(--border);border-radius:4px;height:12px;overflow:hidden;">'
+      + '<div style="height:100%;border-radius:4px;width:'+p+'%;background:'+cl+';transition:width .6s;"></div></div>'
+      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'+c.cumplidas+' / '+c.total_cargas+' cargas · '+c.pct_carga+'% del volumen</div>'
+      + '</div>'
+      + '<div style="width:60px;font-size:13px;font-weight:800;color:'+cl+'">'+p+'%</div>'
+      + '</div>';
+  });
+  barsEl.innerHTML = html;
+}
+
+// ──── MODAL TRANSPORTE ──────────────────────────────────
+function openTranspKpiModal(){
+  var d = kpicGetTranspData();
+  var html = '<div class="field"><label>Período (ej: Abril 2026)</label><input type="text" id="tkpi-periodo" value="'+esc(d.periodo||'')+'" style="width:100%"></div>';
+  (d.carriers||[]).forEach(function(c, i){
+    html += '<div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:10px;">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">🚛 '+c.name+' ('+c.pct_carga+'% del volumen)</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+      + '<div class="field"><label>Total cargas</label><input type="number" id="tkpi-total-'+i+'" value="'+c.total_cargas+'" style="width:100%"></div>'
+      + '<div class="field"><label>Cargas cumplidas</label><input type="number" id="tkpi-cumpl-'+i+'" value="'+c.cumplidas+'" style="width:100%"></div>'
+      + '</div></div>';
+  });
+  html += '<div class="field"><label>Notas</label><textarea id="tkpi-notas" style="width:100%">'+esc(d.notas||'')+'</textarea></div>';
+  document.getElementById("transp-kpi-fields").innerHTML = html;
+  openModal("modal-transp-kpi");
+}
+
+function saveTranspKpiData(){
+  var d = kpicGetTranspData();
+  d.periodo = document.getElementById("tkpi-periodo").value;
+  d.notas   = document.getElementById("tkpi-notas").value;
+  (d.carriers||[]).forEach(function(c, i){
+    var tv = parseInt(document.getElementById("tkpi-total-"+i).value)||0;
+    var cv = parseInt(document.getElementById("tkpi-cumpl-"+i).value)||0;
+    c.total_cargas = tv;
+    c.cumplidas    = Math.min(cv, tv);
+  });
+  kpicSaveTranspData(d);
+  closeModal("modal-transp-kpi");
+  renderKpicTransp();
+  showToast("Datos de transporte actualizados","success");
+}
+
+// ──── EXPORT PDF ─────────────────────────────────────────
+function exportKpiCompoundPDF(){
+  var now  = new Date();
+  var fec  = now.toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"});
+  var hora = now.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+
+  // Recolectar datos
+  var stock   = stockCache || [];
+  var today2  = new Date(); today2.setHours(0,0,0,0);
+  var yest2   = new Date(today2); yest2.setDate(yest2.getDate()-1);
+  var elegib  = stock.filter(function(r){
+    var g=pdate(r.gate_in_date||r.assignment_date); if(!g)return false;
+    g.setHours(0,0,0,0); return g<=yest2;
+  });
+  var conBox  = elegib.filter(function(r){return r.boxatura&&String(r.boxatura).trim()!=="";});
+  var sinBox  = elegib.length - conBox.length;
+  var pctS    = elegib.length>0?Math.round((conBox.length/elegib.length)*100):100;
+  var colS    = pctS>=95?"#27AE60":pctS>=80?"#F39C12":pctS>=60?"#E67E22":"#E74C3C";
+
+  var active  = kpicGetActiveServices();
+  var pending = pendingCache||[];
+  var pendAct = pending.filter(function(p){return active.indexOf(p.maint.code)>=0;});
+  var ovAct   = pendAct.filter(function(p){return p.urgency==="overdue";});
+  var pctM    = pendAct.length>0?Math.round(((pendAct.length-ovAct.length)/pendAct.length)*100):100;
+  var colM    = pctM>=95?"#27AE60":pctM>=80?"#F39C12":pctM>=60?"#E67E22":"#E74C3C";
+
+  var td2     = kpicGetTranspData();
+  var carr    = td2.carriers||[];
+  var totC    = carr.reduce(function(a,c){return a+c.total_cargas;},0);
+  var cumC    = carr.reduce(function(a,c){return a+c.cumplidas;},0);
+  var pctT    = totC>0?Math.round((cumC/totC)*100):0;
+  var colT    = pctT>=95?"#27AE60":pctT>=80?"#F39C12":pctT>=60?"#E67E22":"#E74C3C";
+
+  // Calcular barras por servicio para el PDF
+  var maintRowsHtml = "";
+  KPIC_MAINT_SERVICES.forEach(function(s){
+    var isOn = active.indexOf(s.code)>=0;
+    var items= pending.filter(function(p){return p.maint.code===s.code;});
+    var ov2  = items.filter(function(p){return p.urgency==="overdue";}).length;
+    var tot2 = items.length;
+    var p2   = tot2>0?Math.round(((tot2-ov2)/tot2)*100):100;
+    var c2   = p2>=95?"#27AE60":p2>=80?"#F39C12":p2>=60?"#E67E22":"#E74C3C";
+    if(!isOn){
+      maintRowsHtml += '<tr><td style="padding:6px 10px;font-weight:700;color:#999;border-right:1px solid #eee;">'+s.code+'</td>'
+        +'<td style="padding:6px 10px;color:#999;font-size:11px;">'+s.name+'</td>'
+        +'<td style="padding:6px 10px;color:#999;font-size:11px;">Desactivado</td>'
+        +'<td style="padding:6px 10px;" colspan="2"><span style="background:#eee;color:#999;padding:2px 8px;border-radius:10px;font-size:10px;">EXCLUIDO</span></td></tr>';
+      return;
+    }
+    maintRowsHtml += '<tr><td style="padding:6px 10px;font-weight:700;border-right:1px solid #eee;">'+s.code+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;color:#555;">'+s.name+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;color:#555;">'+tot2+' unidades</td>'
+      +'<td style="padding:6px 10px;">'
+      +'<div style="background:#eee;border-radius:4px;height:8px;width:120px;overflow:hidden;">'
+      +'<div style="height:100%;width:'+p2+'%;background:'+c2+';border-radius:4px;"></div></div></td>'
+      +'<td style="padding:6px 10px;font-weight:800;color:'+c2+'">'+p2+'%</td></tr>';
+  });
+
+  // Filas transportistas
+  var transpRowsHtml = "";
+  carr.forEach(function(c){
+    var p3   = c.total_cargas>0?Math.round((c.cumplidas/c.total_cargas)*100):0;
+    var c3   = p3>=95?"#27AE60":p3>=80?"#F39C12":p3>=60?"#E67E22":"#E74C3C";
+    transpRowsHtml += '<tr><td style="padding:6px 10px;font-weight:700;border-right:1px solid #eee;">'+c.name+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;color:#555;">'+c.pct_carga+'% del volumen</td>'
+      +'<td style="padding:6px 10px;font-size:11px;color:#555;">'+c.total_cargas+' cargas</td>'
+      +'<td style="padding:6px 10px;">'
+      +'<div style="background:#eee;border-radius:4px;height:8px;width:120px;overflow:hidden;">'
+      +'<div style="height:100%;width:'+p3+'%;background:'+c3+';border-radius:4px;"></div></div></td>'
+      +'<td style="padding:6px 10px;font-weight:800;color:'+c3+'">'+p3+'%</td></tr>';
+  });
+
+  var html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>KPI Stellantis Compound Córdoba</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Arial',sans-serif;background:#fff;color:#1a1a2e;}
+  @page{size:A4 portrait;margin:0;}
+  @media print{body{margin:0;} .no-print{display:none;}}
+  .page{width:210mm;min-height:297mm;background:#fff;page-break-after:always;display:flex;flex-direction:column;}
+  .page:last-child{page-break-after:auto;}
+  /* Cover */
+  .cover{background:linear-gradient(160deg,#0D1F3C 0%,#1A3C6E 50%,#1E4D8C 100%);min-height:297mm;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;}
+  .cover-logo{width:72px;height:72px;border:3px solid rgba(200,164,74,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:24px;}
+  .cover-logo svg{width:48px;height:48px;}
+  .cover-brand{font-size:44px;font-weight:900;color:#C8A44A;letter-spacing:10px;margin-bottom:6px;}
+  .cover-sub{font-size:13px;color:rgba(255,255,255,0.5);letter-spacing:4px;text-transform:uppercase;margin-bottom:48px;}
+  .cover-title{font-size:28px;font-weight:800;color:white;text-align:center;margin-bottom:8px;line-height:1.3;}
+  .cover-subtitle{font-size:15px;color:rgba(255,255,255,0.65);text-align:center;margin-bottom:40px;}
+  .cover-meta{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:20px 32px;min-width:320px;text-align:center;}
+  .cover-meta-row{display:flex;justify-content:space-between;gap:40px;margin-bottom:8px;}
+  .cover-meta-row:last-child{margin-bottom:0;}
+  .cover-meta-lbl{font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:2px;text-transform:uppercase;}
+  .cover-meta-val{font-size:14px;font-weight:700;color:#C8A44A;}
+  .cover-footer{position:absolute;bottom:24px;font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:2px;}
+  /* Content pages */
+  .content-page{padding:24px 28px;}
+  .section-header{background:linear-gradient(90deg,#0D1F3C,#1A3C6E);border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:12px;color:white;}
+  .section-icon{font-size:22px;}
+  .section-title{font-size:16px;font-weight:800;letter-spacing:.5px;}
+  .section-desc{font-size:10px;color:rgba(255,255,255,0.6);margin-top:2px;}
+  .kpi-hero{display:flex;align-items:center;gap:16px;background:#f8fafc;border-radius:10px;padding:16px 20px;margin-bottom:16px;border-left:5px solid #1A3C6E;}
+  .kpi-hero-num{font-size:48px;font-weight:900;line-height:1;}
+  .kpi-hero-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:800;color:white;margin-top:4px;}
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .bar-label{width:54px;font-size:11px;font-weight:700;text-align:right;color:#333;}
+  .bar-track{flex:1;background:#e9ecef;border-radius:4px;height:10px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:4px;}
+  .bar-pct{width:50px;font-size:12px;font-weight:800;}
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+  .stat-box{background:#f8fafc;border-radius:8px;padding:12px 14px;border-top:3px solid #1A3C6E;}
+  .stat-val{font-size:26px;font-weight:900;line-height:1;}
+  .stat-lbl{font-size:10px;color:#718096;margin-top:3px;font-weight:500;}
+  .data-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px;}
+  .data-table thead th{background:#0D1F3C;color:white;padding:8px 10px;font-weight:700;font-size:10px;text-align:left;letter-spacing:.5px;}
+  .data-table tbody tr:nth-child(even){background:#f8fafc;}
+  .data-table tbody td{padding:6px 10px;border-bottom:1px solid #eee;}
+  .page-num{text-align:right;font-size:9px;color:#aaa;margin-top:auto;padding-top:12px;border-top:1px solid #eee;}
+  .divider{height:1px;background:#e2e8f0;margin:16px 0;}
+  .alert-box{border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;}
+  .alert-info{background:#EBF8FF;border-left:4px solid #3182CE;color:#2C5282;}
+  .alert-warn{background:#FFFBEB;border-left:4px solid #C8A44A;color:#744210;}
+</style>
+</head><body>
+
+<!-- PORTADA -->
+<div class="page" style="position:relative;">
+<div class="cover">
+  <div class="cover-logo">
+    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="20" stroke="#C8A44A" stroke-width="2" fill="none"/>
+      <circle cx="24" cy="8" r="3" fill="#C8A44A"/>
+      <circle cx="36.5" cy="15" r="3" fill="#C8A44A"/>
+      <circle cx="36.5" cy="33" r="3" fill="#C8A44A"/>
+      <circle cx="24" cy="40" r="3" fill="#C8A44A"/>
+      <circle cx="11.5" cy="33" r="3" fill="#C8A44A"/>
+      <circle cx="11.5" cy="15" r="3" fill="#C8A44A"/>
+      <circle cx="24" cy="16" r="2" fill="rgba(200,164,74,0.5)"/>
+      <circle cx="30" cy="20" r="2" fill="rgba(200,164,74,0.5)"/>
+      <circle cx="30" cy="28" r="2" fill="rgba(200,164,74,0.5)"/>
+      <circle cx="24" cy="32" r="2" fill="rgba(200,164,74,0.5)"/>
+      <circle cx="18" cy="28" r="2" fill="rgba(200,164,74,0.5)"/>
+      <circle cx="18" cy="20" r="2" fill="rgba(200,164,74,0.5)"/>
+      <circle cx="24" cy="24" r="3" fill="#C8A44A"/>
+    </svg>
+  </div>
+  <div class="cover-brand">STELLANTIS</div>
+  <div class="cover-sub">Reporte KPI Compound</div>
+  <div class="cover-title">KPI Compound Córdoba —<br>Gestión de Supervisor de Patio</div>
+  <div class="cover-subtitle">Indicadores operativos de control y cumplimiento</div>
+  <div class="cover-meta">
+    <div class="cover-meta-row">
+      <div><div class="cover-meta-lbl">Fecha de emisión</div><div class="cover-meta-val">${fec}</div></div>
+      <div><div class="cover-meta-lbl">Hora</div><div class="cover-meta-val">${hora}</div></div>
+    </div>
+    <div class="cover-meta-row" style="margin-top:8px;">
+      <div><div class="cover-meta-lbl">Compound</div><div class="cover-meta-val">Córdoba</div></div>
+      <div><div class="cover-meta-lbl">Período</div><div class="cover-meta-val">${td2.periodo||"Período actual"}</div></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:24px;margin-top:40px;">
+    <div style="text-align:center;">
+      <div style="font-size:36px;font-weight:900;color:${colS};">${pctS}%</div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;">Parquización</div>
+    </div>
+    <div style="width:1px;background:rgba(255,255,255,0.1);"></div>
+    <div style="text-align:center;">
+      <div style="font-size:36px;font-weight:900;color:${colM};">${pctM}%</div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;">Mantenimiento</div>
+    </div>
+    <div style="width:1px;background:rgba(255,255,255,0.1);"></div>
+    <div style="text-align:center;">
+      <div style="font-size:36px;font-weight:900;color:${colT};">${pctT}%</div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;">OTD Transporte</div>
+    </div>
+  </div>
+  <div class="cover-footer">Documento generado automáticamente · Uso interno · Stellantis Argentina</div>
+</div>
+</div>
+
+<!-- PÁGINA 2: STOCK + MANTENIMIENTO -->
+<div class="page content-page">
+  <div class="section-header">
+    <span class="section-icon">📦</span>
+    <div>
+      <div class="section-title">KPI 1 — Control de Stock (Parquización)</div>
+      <div class="section-desc">Unidades con +1 día en playa que tienen boxatura asignada</div>
+    </div>
+  </div>
+
+  <div class="kpi-hero">
+    <div>
+      <div class="kpi-hero-num" style="color:${colS};">${pctS}%</div>
+      <div class="kpi-hero-badge" style="background:${colS};">${pctS>=95?"EXCELENTE":pctS>=80?"BUENO":pctS>=60?"ATENCIÓN":"CRÍTICO"}</div>
+    </div>
+    <div style="flex:1;padding-left:16px;border-left:1px solid #e2e8f0;">
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="stat-box" style="border-top-color:${colS};"><div class="stat-val" style="color:${colS};">${elegib.length}</div><div class="stat-lbl">Total elegibles (+1 día)</div></div>
+        <div class="stat-box" style="border-top-color:#27AE60;"><div class="stat-val" style="color:#27AE60;">${conBox.length}</div><div class="stat-lbl">Con boxatura ✅</div></div>
+        <div class="stat-box" style="border-top-color:${sinBox>0?"#E74C3C":"#27AE60"};"><div class="stat-val" style="color:${sinBox>0?"#E74C3C":"#27AE60"};">${sinBox}</div><div class="stat-lbl">Sin boxatura ⚠️</div></div>
+        <div class="stat-box" style="border-top-color:${colS};"><div class="stat-val" style="color:${colS};">${pctS}%</div><div class="stat-lbl">% Parquización</div></div>
+      </div>
+      <div style="background:#e9ecef;border-radius:6px;height:14px;overflow:hidden;margin-top:4px;">
+        <div style="height:100%;width:${pctS}%;background:${colS};border-radius:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+  ${sinBox>0?'<div class="alert-box alert-warn">⚠️ Hay <b>'+sinBox+' unidades</b> sin boxatura asignada. Exportar el Excel desde el portal para gestionar su parquización.</div>':'<div class="alert-box alert-info">✅ Todas las unidades elegibles tienen boxatura asignada correctamente.</div>'}
+
+  <div class="divider"></div>
+
+  <div class="section-header" style="margin-top:8px;">
+    <span class="section-icon">🔧</span>
+    <div>
+      <div class="section-title">KPI 2 — Mantenimiento Preventivo</div>
+      <div class="section-desc">% de unidades al día en los servicios activos — vencidos excluyen del cálculo los servicios desactivados</div>
+    </div>
+  </div>
+
+  <div class="kpi-hero">
+    <div>
+      <div class="kpi-hero-num" style="color:${colM};">${pctM}%</div>
+      <div class="kpi-hero-badge" style="background:${colM};">${pctM>=95?"EXCELENTE":pctM>=80?"BUENO":pctM>=60?"ATENCIÓN":"CRÍTICO"}</div>
+    </div>
+    <div style="flex:1;padding-left:16px;border-left:1px solid #e2e8f0;">
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="stat-box"><div class="stat-val">${pendAct.length}</div><div class="stat-lbl">Total activos</div></div>
+        <div class="stat-box" style="border-top-color:#27AE60;"><div class="stat-val" style="color:#27AE60;">${pendAct.length-ovAct.length}</div><div class="stat-lbl">Al día ✅</div></div>
+        <div class="stat-box" style="border-top-color:#E74C3C;"><div class="stat-val" style="color:#E74C3C;">${ovAct.length}</div><div class="stat-lbl">Vencidos 🔴</div></div>
+        <div class="stat-box" style="border-top-color:${colM};"><div class="stat-val" style="color:${colM};">${pctM}%</div><div class="stat-lbl">% Cumplimiento</div></div>
+      </div>
+    </div>
+  </div>
+
+  <table class="data-table">
+    <thead><tr><th>Código</th><th>Servicio</th><th>Unidades</th><th>Avance</th><th>% Cumplimiento</th></tr></thead>
+    <tbody>${maintRowsHtml}</tbody>
+  </table>
+
+  <div class="page-num">KPI Compound Córdoba · Stellantis Argentina · Pág. 2</div>
+</div>
+
+<!-- PÁGINA 3: TRANSPORTE -->
+<div class="page content-page">
+  <div class="section-header">
+    <span class="section-icon">🚛</span>
+    <div>
+      <div class="section-title">KPI 3 — Cumplimiento de Transportes (OTD)</div>
+      <div class="section-desc">¿Las cargas armadas se entregan dentro de la ventana horaria pactada?</div>
+    </div>
+  </div>
+
+  <div class="kpi-hero">
+    <div>
+      <div class="kpi-hero-num" style="color:${colT};">${pctT}%</div>
+      <div class="kpi-hero-badge" style="background:${colT};">${pctT>=95?"EXCELENTE":pctT>=80?"BUENO":pctT>=60?"ATENCIÓN":"CRÍTICO"}</div>
+    </div>
+    <div style="flex:1;padding-left:16px;border-left:1px solid #e2e8f0;">
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="stat-box"><div class="stat-val">${totC}</div><div class="stat-lbl">Total cargas</div></div>
+        <div class="stat-box" style="border-top-color:#27AE60;"><div class="stat-val" style="color:#27AE60;">${cumC}</div><div class="stat-lbl">Cargas cumplidas ✅</div></div>
+        <div class="stat-box" style="border-top-color:${totC-cumC>0?"#E74C3C":"#27AE60"};"><div class="stat-val" style="color:${totC-cumC>0?"#E74C3C":"#27AE60"};">${totC-cumC}</div><div class="stat-lbl">Fuera de ventana ⚠️</div></div>
+        <div class="stat-box" style="border-top-color:${colT};"><div class="stat-val" style="color:${colT};">${pctT}%</div><div class="stat-lbl">OTD Global</div></div>
+      </div>
+    </div>
+  </div>
+
+  <table class="data-table">
+    <thead><tr><th>Carrier</th><th>% del Volumen</th><th>Total Cargas</th><th>Avance</th><th>OTD</th></tr></thead>
+    <tbody>${transpRowsHtml}</tbody>
+  </table>
+
+  <div class="alert-box alert-info">ℹ️ ${esc(td2.notas||"Datos provisorios hasta integración de BBDD de ventanas horarias.")}</div>
+
+  <div style="margin-top:auto;padding-top:20px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#aaa;">
+    <span>Documento generado automáticamente · Uso interno · Stellantis Argentina</span>
+    <span>KPI Compound Córdoba · Pág. 3</span>
+  </div>
+</div>
+
+</body></html>`;
+
+  var win = window.open("","_blank","width=900,height=700");
+  win.document.write(html);
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 600);
+}
+
+// Auto-render al entrar a la página
+var _kpicRendered = false;
+function onShowKpisCompound(){
+  if(!_kpicRendered){
+    renderKpisCompound();
+    _kpicRendered = true;
+  }
+}
+
   var fotoFile=document.getElementById("lav-foto-input").files[0];
   var fotoUrl=null;if(fotoFile)fotoUrl=await uploadPhoto(fotoFile,"fotos-mantenimiento","lavados/"+uuid()+"-"+fotoFile.name).catch(function(){return null;});
   try{
