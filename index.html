@@ -287,6 +287,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="nav-section">Intervenciones</div>
     <div class="nav-item" onclick="showPage('daños')" id="nav-daños"><span class="icon">🔴</span> Daños (C30)</div>
     <div class="nav-item" onclick="showPage('gomas')" id="nav-gomas"><span class="icon">🟡</span> Neumáticos (C37)</div>
+    <div class="nav-item supervisor-only" onclick="showPage('seguridad')" id="nav-seguridad"><span class="icon">🦺</span> Seguridad</div>
     <div class="nav-section">Reportes</div>
     <div class="nav-item supervisor-only" onclick="showPage('kpis')" id="nav-kpis"><span class="icon">📈</span> KPIs y Exportar</div>
     <div class="nav-item supervisor-only" onclick="showPage('kpis-compound')" id="nav-kpis-compound"><span class="icon">🏆</span> KPIs Compound</div>
@@ -491,13 +492,39 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div class="page-title">🏆 KPIs Compound — Córdoba</div>
       <div class="page-sub" id="kpic-sub">Indicadores de gestión operativa del supervisor de patio</div>
 
-      <!-- BARRA DE ACCIONES -->
-      <div class="filters no-print" style="margin-bottom:20px;">
-        <button class="btn btn-primary btn-sm" onclick="renderKpisCompound()">🔄 Actualizar</button>
-        <button class="btn btn-sm" style="background:linear-gradient(135deg,#1A3C6E,#0D1F3C);color:white;border:1px solid rgba(200,164,74,0.4);" onclick="exportKpiCompoundPDF()">📄 Exportar PDF</button>
-        <span style="margin-left:auto;font-size:11px;color:var(--text3)" id="kpic-update-time"></span>
+
+      <!-- TAB BAR -->
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;">
+        <button onclick="switchKpiTab('metier')" id="kpic-tab-metier" style="padding:9px 20px;font-family:'Barlow',sans-serif;font-size:12px;font-weight:700;border:none;cursor:pointer;border-bottom:3px solid var(--gold);margin-bottom:-2px;background:var(--card);color:var(--gold);">📊 KPI Métier Supply Chain</button>
+        <button onclick="switchKpiTab('operativos')" id="kpic-tab-operativos" style="padding:9px 20px;font-family:'Barlow',sans-serif;font-size:12px;font-weight:700;border:none;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;background:transparent;color:var(--text3);">🏭 KPI Operativos Córdoba</button>
       </div>
 
+      <!-- ══════════════ TAB: KPI MÉTIER ══════════════ -->
+      <div id="kpic-panel-metier">
+        <div class="filters no-print" style="margin-bottom:20px;">
+          <select id="metier-period-type" onchange="renderKpiMetier()" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);">
+            <option value="daily">Diario</option><option value="weekly">Semanal</option><option value="monthly">Mensual</option>
+          </select>
+          <input type="date" id="metier-date-from" onchange="renderKpiMetier()" style="font-size:12px;">
+          <span style="color:var(--text3);font-size:12px;align-self:center">al</span>
+          <input type="date" id="metier-date-to" onchange="renderKpiMetier()" style="font-size:12px;">
+          <button class="btn btn-primary btn-sm" onclick="renderKpiMetier()">🔄 Actualizar</button>
+          <button class="btn btn-ghost btn-sm supervisor-only" onclick="showMetierConfig()">⚙️ Configurar</button>
+          <button class="btn btn-sm no-print" style="background:linear-gradient(135deg,#1A3C6E,#0D1F3C);color:white;border:1px solid rgba(200,164,74,0.4);" onclick="exportKpiMetierPDF()">📄 PDF Métier</button>
+          <span style="margin-left:auto;font-size:11px;color:var(--text3);" id="metier-update-time"></span>
+        </div>
+        <div id="metier-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:24px;"></div>
+        <div id="metier-inputs-panel" style="margin-bottom:20px;"></div>
+        <div id="metier-import-log-panel"></div>
+      </div>
+
+      <!-- ══════════════ TAB: KPI OPERATIVOS ══════════════ -->
+      <div id="kpic-panel-operativos" style="display:none;">
+        <div class="filters no-print" style="margin-bottom:20px;">
+          <button class="btn btn-primary btn-sm" onclick="renderKpisCompound()">🔄 Actualizar</button>
+          <button class="btn btn-sm" style="background:linear-gradient(135deg,#1A3C6E,#0D1F3C);color:white;border:1px solid rgba(200,164,74,0.4);" onclick="exportKpiCompoundPDF()">📄 Exportar PDF</button>
+          <span style="margin-left:auto;font-size:11px;color:var(--text3)" id="kpic-update-time"></span>
+        </div>
       <!-- ══ KPI 1: CONTROL DE STOCK ══ -->
       <div style="margin-bottom:28px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
@@ -847,8 +874,70 @@ tbody td{padding:9px 12px;color:var(--text);}
         </div>
       </div>
     </div>
+      </div><!-- /kpic-panel-operativos -->
+    </div><!-- /page-kpis-compound -->
 
-  </div>
+    <!-- SEGURIDAD -->
+    <div class="page" id="page-seguridad">
+      <div class="page-title">🦺 Seguridad</div>
+      <div class="page-sub">Registro de incidentes de seguridad · gestión y seguimiento</div>
+      <div class="filters">
+        <input type="date" id="seg-desde">
+        <input type="date" id="seg-hasta">
+        <select id="seg-estado" onchange="renderSeguridad()">
+          <option value="ALL">Todos los estados</option>
+          <option value="abierto">Abierto</option>
+          <option value="en_analisis">En análisis</option>
+          <option value="cerrado">Cerrado</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="renderSeguridad()">🔄 Actualizar</button>
+        <button class="btn btn-danger btn-sm" onclick="openSeguridadModal()">+ Registrar incidente</button>
+        <button class="btn btn-gold btn-sm" onclick="exportSeguridadExcel()">⬇ Excel</button>
+      </div>
+      <!-- KPI badges -->
+      <div class="stats-row" id="seg-stats"></div>
+      <!-- Table -->
+      <div class="card" style="margin-top:16px;"><div class="tbl-wrap"><table>
+        <thead><tr><th>Fecha</th><th>Tipo</th><th>Gravedad</th><th>Descripción</th><th>Personas</th><th>Estado</th><th>Registrado por</th><th>Acciones</th></tr></thead>
+        <tbody id="seg-tbody"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- KPI MÉTIER CONFIG -->
+    <div class="page" id="page-kpi-metier-config">
+      <div class="page-title">⚙️ Configuración KPI Métier</div>
+      <div class="page-sub">Parámetros de cálculo para los KPI Supply Chain oficiales</div>
+      <div class="card" style="max-width:600px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;">Compound Córdoba (00034)</div>
+        <div class="field"><label>Capacidad interna (unidades)</label>
+          <input type="number" id="cfg-capacity" placeholder="Ej: 4000" min="1" max="99999">
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Denominador del % Saturación interna. Editable.</div>
+        </div>
+        <div class="field"><label>Regla RFT</label>
+          <select id="cfg-rft-rule">
+            <option value="blocked_for_shipment_n">Blocked for shipment = N (recomendado · pendiente validación métier)</option>
+            <option value="availability_date_not_null">Availability Date no nula</option>
+          </select>
+        </div>
+        <div class="field"><label>Throughput — fuentes incluidas</label>
+          <div style="display:flex;gap:20px;margin-top:6px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;"><input type="checkbox" id="cfg-tp-distrib" checked> Distribución</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;"><input type="checkbox" id="cfg-tp-traslado" checked> Traslado Playa</label>
+          </div>
+        </div>
+        <div class="field"><label>Alcance KPI daños</label>
+          <select id="cfg-damage-scope">
+            <option value="all">Todos los daños registrados</option>
+            <option value="compound_only">Solo daños atribuibles al Compound</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:20px;">
+          <button class="btn btn-primary" onclick="saveMetierConfig()">💾 Guardar configuración</button>
+          <button class="btn btn-ghost" onclick="showPage('kpis-compound')">← Volver</button>
+        </div>
+        <div id="cfg-save-msg" style="font-size:11px;color:var(--text3);margin-top:10px;"></div>
+      </div>
+    </div>
 </div>
 
 <!-- ══════ MODALS ══════ -->
@@ -880,6 +969,26 @@ tbody td{padding:9px 12px;color:var(--text);}
             <option value="resuelto">Resuelto</option>
           </select>
         </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Fecha del daño</label>
+          <input type="date" id="d-damage-date">
+        </div>
+        <div class="field"><label>Responsabilidad</label>
+          <select id="d-resp" onchange="toggleOperarioResp()">
+            <option value="">Sin definir</option>
+            <option value="Compound">Compound</option>
+            <option value="Operario interno">Operario interno</option>
+            <option value="Transportista">Transportista</option>
+            <option value="Fábrica">Fábrica</option>
+            <option value="Cliente">Cliente</option>
+            <option value="Sin responsable">Sin responsable</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="d-operario-wrap" style="display:none">
+        <label>Operario responsable</label>
+        <input type="text" id="d-operario" placeholder="Nombre del operario...">
       </div>
       <div class="field"><label>Descripción del daño</label><textarea id="d-desc" placeholder="Ej: Paragolpes delantero con raspón profundo, lado conductor"></textarea></div>
       <div class="field-row">
@@ -1319,7 +1428,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.6.7";
+var APP_VERSION="v4.8.0";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2791,15 +2900,24 @@ async function toggleUsuario(id,activo){
 function openModal(id){document.getElementById(id).classList.add("open");}
 function closeModal(id){document.getElementById(id).classList.remove("open");}
 
+function toggleOperarioResp(){
+  var r=document.getElementById("d-resp")?document.getElementById("d-resp").value:"";
+  var wrap=document.getElementById("d-operario-wrap");
+  if(wrap)wrap.style.display=(r==="Operario interno")?"block":"none";
+}
+
 function openDañoModal(){
   document.getElementById("d-id").value="";
   document.getElementById("d-modal-title").textContent="🔴 Registrar Daño (C30)";
   document.getElementById("d-save-btn").textContent="🔴 Registrar + Bloquear C30";
-  ["d-vin","d-modelo","d-box","d-desc"].forEach(function(id){document.getElementById(id).value="";});
+  ["d-vin","d-modelo","d-box","d-desc","d-operario"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
   document.getElementById("d-ubic").value="";
   document.getElementById("d-fact").value="false";
   document.getElementById("d-estado").value="pendiente";
   document.getElementById("d-tipo").value="";
+  if(document.getElementById("d-resp"))document.getElementById("d-resp").value="";
+  if(document.getElementById("d-damage-date"))document.getElementById("d-damage-date").value=new Date().toISOString().slice(0,10);
+  toggleOperarioResp();
   document.getElementById("d-foto-preview").style.display="none";
   var vinEl=document.getElementById("d-vin");
   if(vinEl)vinEl.removeAttribute("readonly");
@@ -2818,11 +2936,13 @@ function openDañoModalForEdit(dano){
   document.getElementById("d-fact").value=dano.facturado?"true":"false";
   document.getElementById("d-estado").value=dano.estado||"pendiente";
   document.getElementById("d-tipo").value=dano.tipo_dano||"";
-  // Show existing photo if any
+  if(document.getElementById("d-resp"))document.getElementById("d-resp").value=dano.responsabilidad||"";
+  if(document.getElementById("d-operario"))document.getElementById("d-operario").value=dano.operario_responsable||"";
+  if(document.getElementById("d-damage-date"))document.getElementById("d-damage-date").value=dano.damage_date||"";
+  toggleOperarioResp();
   var prev=document.getElementById("d-foto-preview");
   if(dano.foto_url){prev.src=dano.foto_url;prev.style.display="block";}
   else{prev.style.display="none";}
-  // VIN readonly when editing
   document.getElementById("d-vin").setAttribute("readonly","true");
   openModal("modal-daño");
 }
@@ -2947,6 +3067,9 @@ async function saveDaño(){
     tipo_dano:document.getElementById("d-tipo").value||null,
     facturado:document.getElementById("d-fact").value==="true",
     estado:document.getElementById("d-estado").value||"pendiente",
+    responsabilidad:document.getElementById("d-resp")?document.getElementById("d-resp").value||null:null,
+    operario_responsable:document.getElementById("d-operario")?document.getElementById("d-operario").value||null:null,
+    damage_date:document.getElementById("d-damage-date")?document.getElementById("d-damage-date").value||null:null,
     updated_at:new Date().toISOString()
   };
   if(fotoUrl)payload.foto_url=fotoUrl;
@@ -3055,12 +3178,20 @@ function uniqueList(arr){
 function detectImportType(rows,fileName){
   var first=rows&&rows.length?rows[0]:{};
   var keys=Object.keys(first||{});
-  var lowerKeys=keys.map(function(k){return k.toLowerCase();});
-  var has=function(name){return lowerKeys.indexOf(String(name).toLowerCase())>=0;};
+  var lowerKeys=keys.map(function(k){return k.toLowerCase().trim();});
+  var has=function(name){return lowerKeys.indexOf(String(name).toLowerCase().trim())>=0;};
+  // Blocks file
   if(has("Block")||has("Block Date")||has("Unblock Date")||has("Unblocked/Deleted"))return"blocks";
-  if(has("Assignment date")||has("Boxatura")||has("Blocks"))return"stock";
+  // Distribución: has Delivery Compound + Carrier Descr + no Compound Origin
+  if(has("delivery compound")||has("carrier descr")||(has("list date")&&has("delivery to dealer date")&&!has("compound origin")))return"distribucion";
+  // Traslado Playa: has Compound Origin + Compound Destination
+  if(has("compound origin")||has("compound destination"))return"traslado";
+  // Stock: standard
+  if(has("assignment date")||has("boxatura")||has("blocks")||has("blocked for shipment"))return"stock";
   var lc=String(fileName||"").toLowerCase();
   if(lc.indexOf("bloquead")>=0||lc.indexOf("block")>=0)return"blocks";
+  if(lc.indexOf("distribuc")>=0||lc.indexOf("distribucion")>=0)return"distribucion";
+  if(lc.indexOf("traslado")>=0||lc.indexOf("transfer")>=0)return"traslado";
   return"stock";
 }
 function isCordobaRow(r){
@@ -3282,6 +3413,8 @@ async function importStock(evt){
       var importType=detectImportType(rows,file.name);
       setImportProgress(35,importType==="blocks"?"Bloqueos: "+rows.length.toLocaleString()+" filas":"Stock: "+rows.length.toLocaleString()+" unidades");
       if(importType==="blocks") await importBlockRows(rows,file.name);
+      else if(importType==="distribucion") await importDistribucionRows(rows,file.name);
+      else if(importType==="traslado") await importTrasladoRows(rows,file.name);
       else await importStockRows(rows);
     }catch(err){
       console.error("Import error:",err);
@@ -6737,7 +6870,711 @@ async function opRenderMiDia(){
   }
   document.getElementById("op-hoy-list").innerHTML=html||'<div class="empty" style="padding:24px"><div class="empty-icon">🌅</div>Todavía no hay registros hoy</div>';
 }
+
+// ══════════════════════════════════════════════════════════════
+// KPI MÉTIER SUPPLY CHAIN — v4.8.0
+// ══════════════════════════════════════════════════════════════
+
+// ── CONFIG CACHE ──────────────────────────────────────────────
+var metierConfig = {
+  internal_capacity: 4000,
+  throughput_include_distribution: true,
+  throughput_include_transfer: true,
+  rft_rule: 'blocked_for_shipment_n',
+  damage_kpi_scope: 'all'
+};
+
+// ── TAB SWITCH ────────────────────────────────────────────────
+function switchKpiTab(tab) {
+  var isPanelMetier = tab === 'metier';
+  var pm = document.getElementById('kpic-panel-metier');
+  var po = document.getElementById('kpic-panel-operativos');
+  var tm = document.getElementById('kpic-tab-metier');
+  var to = document.getElementById('kpic-tab-operativos');
+  if(pm) pm.style.display = isPanelMetier ? 'block' : 'none';
+  if(po) po.style.display = isPanelMetier ? 'none' : 'block';
+  if(tm) { tm.style.borderBottomColor = isPanelMetier ? 'var(--gold)' : 'transparent'; tm.style.color = isPanelMetier ? 'var(--gold)' : 'var(--text3)'; tm.style.background = isPanelMetier ? 'var(--card)' : 'transparent'; }
+  if(to) { to.style.borderBottomColor = isPanelMetier ? 'transparent' : 'var(--gold)'; to.style.color = isPanelMetier ? 'var(--text3)' : 'var(--gold)'; to.style.background = isPanelMetier ? 'transparent' : 'var(--card)'; }
+  if(isPanelMetier) renderKpiMetier();
+  else renderKpisCompound();
+}
+
+// ── LOAD CONFIG ───────────────────────────────────────────────
+async function loadMetierConfig() {
+  try {
+    var data = await sbGet('compound_kpi_config','compound_code=eq.00034&limit=1');
+    if(Array.isArray(data) && data.length) {
+      var c = data[0];
+      metierConfig.internal_capacity = c.internal_capacity || 4000;
+      metierConfig.throughput_include_distribution = c.throughput_include_distribution !== false;
+      metierConfig.throughput_include_transfer = c.throughput_include_transfer !== false;
+      metierConfig.rft_rule = c.rft_rule || 'blocked_for_shipment_n';
+      metierConfig.damage_kpi_scope = c.damage_kpi_scope || 'all';
+    }
+  } catch(e) {}
+}
+
+async function saveMetierConfig() {
+  var capacity = parseInt(document.getElementById('cfg-capacity-m') ? document.getElementById('cfg-capacity-m').value : document.getElementById('cfg-capacity') ? document.getElementById('cfg-capacity').value : '4000') || 4000;
+  var inclDistrib = document.getElementById('cfg-tp-distrib-m') ? document.getElementById('cfg-tp-distrib-m').checked : true;
+  var inclTraslado = document.getElementById('cfg-tp-traslado-m') ? document.getElementById('cfg-tp-traslado-m').checked : true;
+  var rftRule = document.getElementById('cfg-rft-rule-m') ? document.getElementById('cfg-rft-rule-m').value : 'blocked_for_shipment_n';
+  var dmgScope = document.getElementById('cfg-damage-scope-m') ? document.getElementById('cfg-damage-scope-m').value : 'all';
+  var payload = { compound_code:'00034', compound_name:'Córdoba', internal_capacity:capacity, throughput_include_distribution:inclDistrib, throughput_include_transfer:inclTraslado, rft_rule:rftRule, damage_kpi_scope:dmgScope, updated_at:new Date().toISOString(), updated_by:currentUser?currentUser.nombre:'—' };
+  try {
+    await sbUpsert('compound_kpi_config', payload, 'compound_code');
+    metierConfig.internal_capacity = capacity;
+    metierConfig.throughput_include_distribution = inclDistrib;
+    metierConfig.throughput_include_transfer = inclTraslado;
+    metierConfig.rft_rule = rftRule;
+    metierConfig.damage_kpi_scope = dmgScope;
+    showToast('Configuración guardada','success');
+    closeModal('modal-metier-config');
+    var msg = document.getElementById('cfg-save-msg');
+    if(msg) msg.textContent = '✅ Guardado ' + new Date().toLocaleTimeString('es-AR');
+    renderKpiMetier();
+  } catch(e) { showToast('Error al guardar: ' + e.message, 'error'); }
+}
+
+function showMetierConfig() {
+  document.getElementById('cfg-capacity-m').value = metierConfig.internal_capacity;
+  document.getElementById('cfg-rft-rule-m').value = metierConfig.rft_rule;
+  document.getElementById('cfg-tp-distrib-m').checked = metierConfig.throughput_include_distribution;
+  document.getElementById('cfg-tp-traslado-m').checked = metierConfig.throughput_include_transfer;
+  document.getElementById('cfg-damage-scope-m').value = metierConfig.damage_kpi_scope;
+  openModal('modal-metier-config');
+}
+
+// ── SEMÁFORO HELPER ───────────────────────────────────────────
+function semaforo(val, rules) {
+  // rules: [{color, condition: fn(val)}]
+  for(var i=0; i<rules.length; i++) {
+    if(rules[i].condition(val)) return rules[i].color;
+  }
+  return '#94A3B8';
+}
+var SEM_GREEN = '#2E7D32', SEM_ORANGE = '#E65100', SEM_RED = '#C62828';
+
+function semaforoThroughput(pct) { return pct>=90?SEM_GREEN:pct>80?SEM_ORANGE:SEM_RED; }
+function semaforoRFT(pct) { return pct>=85?SEM_GREEN:SEM_RED; }
+function semaforoSaturation(pct) { return pct<=80?SEM_GREEN:pct<90?SEM_ORANGE:SEM_RED; }
+function semaforoServiceOrder(pct) { return pct<=5?SEM_GREEN:pct<10?SEM_ORANGE:SEM_RED; }
+function semaforoSafety(nb) { return nb===0?SEM_GREEN:SEM_RED; }
+function semaforoDamaged(pct) { return pct<0.5?SEM_GREEN:SEM_RED; }
+
+// ── KPI CARD BUILDER ──────────────────────────────────────────
+function buildKpiCard(opts) {
+  // opts: {id, icon, title, freq, value, target, color, formula, source, detail, na, naMsg}
+  var isNA = opts.na || opts.value === null || opts.value === undefined;
+  var colorStr = isNA ? '#94A3B8' : opts.color;
+  var valStr = isNA ? 'N/A' : (typeof opts.value === 'number' ? (opts.value % 1 === 0 ? opts.value.toLocaleString() : opts.value.toFixed(1)) : opts.value);
+  return '<div class="kpi-card" style="--kc:'+colorStr+';position:relative;overflow:hidden;">'
+    + '<div style="position:absolute;top:0;left:0;right:0;height:4px;background:'+colorStr+';border-radius:14px 14px 0 0;"></div>'
+    + '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'
+    + '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;">' + esc(opts.title) + '</div>'
+    + '<span style="background:rgba(0,0,0,0.1);border:1px solid '+colorStr+'33;color:'+colorStr+';font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;">' + esc(opts.freq) + '</span>'
+    + '</div>'
+    + '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:48px;font-weight:900;color:'+colorStr+';line-height:1;margin:8px 0 4px;">'
+    + '<span style="font-size:20px;margin-right:4px;">' + (opts.icon||'') + '</span>' + valStr
+    + (opts.unit ? '<span style="font-size:16px;font-weight:400;color:var(--text3);margin-left:4px;">'+esc(opts.unit)+'</span>' : '')
+    + '</div>'
+    + (isNA && opts.naMsg ? '<div style="font-size:11px;color:#E65100;margin-bottom:6px;font-weight:600;">⚠ ' + esc(opts.naMsg) + '</div>' : '')
+    + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">' + esc(opts.detail||'') + '</div>'
+    + (opts.target ? '<div style="font-size:10px;color:var(--text3);">Meta: <b style="color:'+colorStr+'">'+esc(opts.target)+'</b></div>' : '')
+    + '<div style="font-size:9px;color:var(--text3);margin-top:6px;border-top:1px solid var(--border);padding-top:6px;font-style:italic;">' + esc(opts.formula||'') + '</div>'
+    + '</div>';
+}
+
+// ── MAIN RENDER ───────────────────────────────────────────────
+async function renderKpiMetier() {
+  await loadMetierConfig();
+  var today = new Date().toISOString().slice(0,10);
+  var fromEl = document.getElementById('metier-date-from');
+  var toEl = document.getElementById('metier-date-to');
+  if(fromEl && !fromEl.value) { var d30=new Date(); d30.setDate(d30.getDate()-30); fromEl.value=d30.toISOString().slice(0,10); }
+  if(toEl && !toEl.value) toEl.value = today;
+  var dateFrom = (fromEl?fromEl.value:null) || today;
+  var dateTo = (toEl?toEl.value:null) || today;
+
+  var grid = document.getElementById('metier-kpi-grid');
+  if(!grid) return;
+  grid.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px;">⟳ Calculando KPIs...</div>';
+
+  try {
+    // Parallel fetch
+    var [stockDaily, shipmentsDistr, shipmentsTraslado, throughputInputs, safetyData, danosData] = await Promise.all([
+      sbGet('kpi_stock_daily','compound_code=eq.00034&order=snapshot_date.desc&limit=30'),
+      sbGet('kpi_shipments_daily','compound_code=eq.00034&source_type=eq.distribution&metric_date=gte.'+dateFrom+'&metric_date=lte.'+dateTo+'&order=metric_date.desc'),
+      sbGet('kpi_shipments_daily','compound_code=eq.00034&source_type=eq.transfer_playa&metric_date=gte.'+dateFrom+'&metric_date=lte.'+dateTo+'&order=metric_date.desc'),
+      sbGet('kpi_throughput_inputs_daily','compound_code=eq.00034&metric_date=gte.'+dateFrom+'&metric_date=lte.'+dateTo+'&order=metric_date.desc'),
+      sbGet('safety_incidents','compound_code=eq.00034&order=incident_date.desc&limit=200'),
+      sbGet('danos','compound_code=eq.00034&estado=neq.resuelto&select=id,vin,damage_date,responsabilidad&limit=5000'),
+    ]);
+    if(!Array.isArray(stockDaily)) stockDaily=[];
+    if(!Array.isArray(shipmentsDistr)) shipmentsDistr=[];
+    if(!Array.isArray(shipmentsTraslado)) shipmentsTraslado=[];
+    if(!Array.isArray(throughputInputs)) throughputInputs=[];
+    if(!Array.isArray(safetyData)) safetyData=[];
+    if(!Array.isArray(danosData)) danosData=[];
+
+    // Latest stock snapshot
+    var latestStock = stockDaily.length ? stockDaily[0] : null;
+
+    // ── KPI 1: % VEH RFT ─────────────────────────────────────
+    var rftPct = null, rftDetail = '';
+    if(latestStock) {
+      rftPct = latestStock.rft_pct !== null ? parseFloat(latestStock.rft_pct) : null;
+      rftDetail = (latestStock.rft_qty||0) + ' RFT de ' + (latestStock.total_stock||0) + ' · ' + latestStock.snapshot_date;
+    } else {
+      // Fallback: compute from stockCache
+      if(stockCache.length) {
+        var bfsKey = 'Blocked for shipment ';
+        var rftCount = stockCache.filter(function(s){ var bfs=s[bfsKey]||s['Blocked for shipment']||s['blocked_for_shipment']||''; return bfs.toString().trim().toUpperCase()==='N'; }).length;
+        rftPct = stockCache.length ? Math.round(rftCount/stockCache.length*100*10)/10 : null;
+        rftDetail = rftCount + ' RFT de ' + stockCache.length + ' unidades (stock en memoria)';
+      }
+    }
+
+    // ── KPI 2: % SATURATION ───────────────────────────────────
+    var satPct = null, satDetail = '';
+    var totalStockForSat = latestStock ? latestStock.total_stock : stockCache.length;
+    if(totalStockForSat && metierConfig.internal_capacity > 0) {
+      satPct = Math.round(totalStockForSat / metierConfig.internal_capacity * 1000) / 10;
+      satDetail = totalStockForSat + ' uds / capacidad ' + metierConfig.internal_capacity.toLocaleString();
+    }
+
+    // ── KPI 3: % DAILY THROUGHPUT (last available day) ────────
+    // Use D-1 (yesterday)
+    var yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+    var yStr = yesterday.toISOString().slice(0,10);
+    var dispD1 = 0, hasDispD1 = false;
+    shipmentsDistr.filter(function(s){return s.metric_date===yStr;}).forEach(function(s){dispD1+=s.shipments_qty||0;hasDispD1=true;});
+    shipmentsTraslado.filter(function(s){return s.metric_date===yStr;}).forEach(function(s){dispD1+=s.shipments_qty||0;hasDispD1=true;});
+    var inputD1 = throughputInputs.find(function(i){return i.metric_date===yStr;});
+    var tpDailyPct = null, tpDailyMsg = null, tpDailyDetail = '';
+    if(!hasDispD1) {
+      tpDailyMsg = 'Sin datos de despacho para D-1 ('+yStr+')';
+    } else if(!inputD1 || ((!inputD1.vehicles_passed_to_sales_qty||inputD1.vehicles_passed_to_sales_qty===0) && (!inputD1.vehicles_entered_from_other_yards_qty||inputD1.vehicles_entered_from_other_yards_qty===0))) {
+      tpDailyMsg = 'Faltan inputs del denominador para D-1';
+    } else {
+      var denom = (inputD1.vehicles_passed_to_sales_qty||0) + (inputD1.vehicles_entered_from_other_yards_qty||0);
+      var rerouting = inputD1.rerouting_qty||0;
+      var num = Math.max(0, dispD1 - rerouting);
+      tpDailyPct = denom > 0 ? Math.round(num/denom*1000)/10 : null;
+      tpDailyDetail = 'Despachos: ' + num + ' / Denominador: ' + denom + ' (D-1: '+yStr+')';
+      if(tpDailyPct===null) tpDailyMsg = 'Denominador = 0';
+    }
+
+    // ── KPI 4: % WEEKLY THROUGHPUT ────────────────────────────
+    var weekStart = new Date(); weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1); // Monday
+    var wsStr = weekStart.toISOString().slice(0,10);
+    var dispWeek = 0, hasDispWeek = false;
+    [...shipmentsDistr,...shipmentsTraslado].filter(function(s){return s.metric_date>=wsStr&&s.metric_date<=today;}).forEach(function(s){dispWeek+=s.shipments_qty||0;hasDispWeek=true;});
+    var inputsWeek = throughputInputs.filter(function(i){return i.metric_date>=wsStr&&i.metric_date<=today;});
+    var tpWeekPct = null, tpWeekMsg = null, tpWeekDetail = '';
+    if(!hasDispWeek) { tpWeekMsg = 'Sin datos de despacho esta semana'; }
+    else {
+      var wDenom = inputsWeek.reduce(function(s,i){return s+(i.vehicles_passed_to_sales_qty||0)+(i.vehicles_entered_from_other_yards_qty||0);},0);
+      var wRerouting = inputsWeek.reduce(function(s,i){return s+(i.rerouting_qty||0);},0);
+      var wNum = Math.max(0, dispWeek - wRerouting);
+      if(wDenom===0) { tpWeekMsg = 'Faltan inputs del denominador para esta semana'; }
+      else { tpWeekPct = Math.round(wNum/wDenom*1000)/10; tpWeekDetail = 'Despachos: '+wNum+' / Denominador: '+wDenom+' · semana desde '+wsStr; }
+    }
+
+    // ── KPI 5: % VEH SERVICE ORDER NOT DONE ──────────────────
+    var soWeekData = null;
+    try { var soArr = await sbGet('kpi_service_order_weekly','compound_code=eq.00034&week_start=lte.'+today+'&order=week_start.desc&limit=1'); if(Array.isArray(soArr)&&soArr.length) soWeekData=soArr[0]; } catch(e){}
+    var soPct = null, soMsg = null, soDetail = '';
+    if(soWeekData) {
+      soPct = parseFloat(soWeekData.pct_not_done)||0;
+      soDetail = soWeekData.pending_vehicles_qty + ' pendientes de ' + soWeekData.due_vehicles_qty + ' con servicios debidos · sem. ' + soWeekData.week_start;
+    } else {
+      // Compute live
+      if(pendingCache && pendingCache.length) {
+        var dueVehicles = []; var pendVehicles = [];
+        var vinsSeen = {};
+        pendingCache.forEach(function(p){
+          if(!vinsSeen[p.vin]) {
+            dueVehicles.push(p.vin);
+            vinsSeen[p.vin] = {overdue:false};
+          }
+          if(p.urgency==='overdue'||p.urgency==='urgent') vinsSeen[p.vin].overdue=true;
+        });
+        var dueN = Object.keys(vinsSeen).length;
+        var pendN = Object.values(vinsSeen).filter(function(v){return v.overdue;}).length;
+        soPct = dueN>0 ? Math.round(pendN/dueN*1000)/10 : 0;
+        soDetail = pendN + ' veh con servicio vencido/urgente de ' + dueN + ' con servicios debidos (calculado en vivo)';
+      } else { soMsg = 'Sin datos de mantenimiento cargados'; }
+    }
+
+    // ── KPI 6: NB SAFETY ISSUES ───────────────────────────────
+    var thisMonthStart = today.slice(0,7)+'-01';
+    var safetyMonth = safetyData.filter(function(s){return s.incident_date>=thisMonthStart;});
+    var nbSafety = safetyMonth.length;
+
+    // ── KPI 7: % DAMAGED VEH ─────────────────────────────────
+    var dmgPct = null, dmgMsg = null, dmgDetail = '';
+    var dmgMonthStart = today.slice(0,7)+'-01';
+    var dmgNumerator = danosData.filter(function(d){
+      if(!d.damage_date) return false;
+      if(metierConfig.damage_kpi_scope==='compound_only' && d.responsabilidad!=='Compound') return false;
+      return d.damage_date >= dmgMonthStart;
+    });
+    var uniqueDmgVins = new Set(dmgNumerator.map(function(d){return d.vin;})).size;
+    // Denominator: shipments this month
+    var dmgDenom = [...shipmentsDistr,...shipmentsTraslado].filter(function(s){return s.metric_date>=dmgMonthStart;}).reduce(function(a,s){return a+(s.shipments_qty||0);},0);
+    if(dmgDenom===0) { dmgMsg = 'Sin despachos del mes para calcular denominador'; }
+    else { dmgPct = Math.round(uniqueDmgVins/dmgDenom*10000)/100; dmgDetail = uniqueDmgVins+' veh dañados de '+dmgDenom+' despachados · mes '+today.slice(0,7); }
+
+    // ── BUILD CARDS ───────────────────────────────────────────
+    var cards = [
+      buildKpiCard({icon:'🔵',title:'% Veh RFT',freq:'Diario',value:rftPct,unit:'%',color:semaforoRFT(rftPct||0),target:'≥ 85%',formula:'RFT / Total stock · RFT = Blocked for shipment = N (pendiente validación métier)',detail:rftDetail,na:rftPct===null,naMsg:'Sin snapshot de stock. Importar Stock Playa.'}),
+      buildKpiCard({icon:'📦',title:'% Saturación Interna',freq:'Diario',value:satPct,unit:'%',color:semaforoSaturation(satPct||0),target:'≤ 80% verde · ≥ 90% rojo',formula:'Total stock / Capacidad interna (' + metierConfig.internal_capacity.toLocaleString() + ' uds)',detail:satDetail,na:satPct===null,naMsg:'Sin datos de stock o capacidad no configurada.'}),
+      buildKpiCard({icon:'🚛',title:'% Daily Throughput',freq:'Diario',value:tpDailyPct,unit:'%',color:semaforoThroughput(tpDailyPct||0),target:'≥ 90% verde · ≤ 80% rojo',formula:'Despachos D-1 / (Pasados a Sales D-1 + Ingresos otros yards D-1)',detail:tpDailyDetail,na:tpDailyPct===null,naMsg:tpDailyMsg||''}),
+      buildKpiCard({icon:'📅',title:'% Weekly Throughput',freq:'Semanal',value:tpWeekPct,unit:'%',color:semaforoThroughput(tpWeekPct||0),target:'≥ 90% verde · ≤ 80% rojo',formula:'Σ Despachos semana / (Σ Sales + Σ Ingresos) semana',detail:tpWeekDetail,na:tpWeekPct===null,naMsg:tpWeekMsg||''}),
+      buildKpiCard({icon:'🔧',title:'% Veh Service Order Not Done',freq:'Semanal',value:soPct,unit:'%',color:semaforoServiceOrder(soPct||0),target:'≤ 5% verde · ≥ 10% rojo',formula:'Veh con servicio pendiente / Veh con servicio debido',detail:soDetail,na:soPct===null,naMsg:soMsg||''}),
+      buildKpiCard({icon:'🦺',title:'Nb Safety Issues',freq:'Mensual',value:nbSafety,unit:'',color:semaforoSafety(nbSafety),target:'0 = verde · > 0 = rojo',formula:'Cantidad de incidentes registrados en el mes',detail:safetyMonth.length+' incidentes en '+today.slice(0,7),na:false}),
+      buildKpiCard({icon:'💥',title:'% Damaged Veh',freq:'Mensual',value:dmgPct,unit:'%',color:semaforoDamaged(dmgPct||0),target:'< 0.5% verde · ≥ 0.5% rojo',formula:'VINs dañados únicos / Veh despachados del mes',detail:dmgDetail,na:dmgPct===null,naMsg:dmgMsg||''}),
+    ];
+
+    grid.innerHTML = cards.join('');
+    document.getElementById('metier-update-time').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-AR');
+
+    renderMetierInputsPanel(yStr, inputD1);
+    renderMetierImportLog();
+
+  } catch(e) {
+    grid.innerHTML = '<div style="color:var(--red);font-size:12px;padding:20px;">❌ Error al calcular KPIs: '+esc(e.message||String(e))+'</div>';
+  }
+}
+
+function renderMetierInputsPanel(dateStr, existingInput) {
+  var el = document.getElementById('metier-inputs-panel');
+  if(!el) return;
+  el.innerHTML = '<div style="background:rgba(200,164,74,0.08);border:1px solid rgba(200,164,74,0.3);border-radius:10px;padding:14px 18px;">'
+    + '<b style="color:var(--gold);">📋 Inputs Daily Throughput</b> <span style="font-size:10px;color:var(--text3);margin-left:8px;">Denominador para D-1 ('+dateStr+')</span>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:12px;">'
+    + '<div class="field"><label style="font-size:10px;">Pasados a Sales</label><input type="number" id="mtp-sales" min="0" value="'+(existingInput?existingInput.vehicles_passed_to_sales_qty||0:0)+'" style="font-size:13px;"></div>'
+    + '<div class="field"><label style="font-size:10px;">Ingresos desde otros yards</label><input type="number" id="mtp-ingresos" min="0" value="'+(existingInput?existingInput.vehicles_entered_from_other_yards_qty||0:0)+'" style="font-size:13px;"></div>'
+    + '<div class="field"><label style="font-size:10px;">Rerouting a excluir</label><input type="number" id="mtp-rerouting" min="0" value="'+(existingInput?existingInput.rerouting_qty||0:0)+'" style="font-size:13px;"></div>'
+    + '<div class="field"><label style="font-size:10px;">Notas</label><input type="text" id="mtp-notes" value="'+(existingInput?esc(existingInput.notes||''):'') +'" style="font-size:13px;"></div>'
+    + '</div>'
+    + '<div style="margin-top:10px;display:flex;align-items:center;gap:10px;">'
+    + '<button class="btn btn-primary btn-sm" onclick="saveMetierInputs(\''+dateStr+'\')">💾 Guardar inputs del día</button>'
+    + '<span id="metier-inputs-save-msg" style="font-size:11px;color:var(--text3);"></span>'
+    + '</div></div>';
+}
+
+async function saveMetierInputs(dateStr) {
+  var date = dateStr || new Date().toISOString().slice(0,10);
+  var payload = {
+    metric_date: date,
+    compound_code: '00034',
+    vehicles_passed_to_sales_qty: parseInt(document.getElementById('mtp-sales').value)||0,
+    vehicles_entered_from_other_yards_qty: parseInt(document.getElementById('mtp-ingresos').value)||0,
+    rerouting_qty: parseInt(document.getElementById('mtp-rerouting').value)||0,
+    notes: document.getElementById('mtp-notes').value||null,
+    input_source: 'manual',
+    updated_by: currentUser?currentUser.nombre:'—',
+    updated_at: new Date().toISOString()
+  };
+  try {
+    await sbUpsert('kpi_throughput_inputs_daily', payload, 'metric_date,compound_code');
+    var msg = document.getElementById('metier-inputs-save-msg');
+    if(msg) msg.textContent = '✅ Guardado ' + new Date().toLocaleTimeString('es-AR');
+    showToast('Inputs guardados','success');
+    renderKpiMetier();
+  } catch(e) { showToast('Error: '+e.message,'error'); }
+}
+
+async function renderMetierImportLog() {
+  var el = document.getElementById('metier-import-log-panel');
+  if(!el) return;
+  try {
+    var logs = await sbGet('kpi_import_log','compound_code=eq.00034&order=imported_at.desc&limit=10');
+    if(!Array.isArray(logs)||!logs.length){el.innerHTML='<div style="font-size:11px;color:var(--text3);padding:10px;">Sin importaciones registradas aún.</div>';return;}
+    el.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Últimas importaciones</div>'
+      +'<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Archivo</th><th>Tipo</th><th>Filas</th><th>Período</th><th>Importado por</th><th>Fecha</th></tr></thead><tbody>'
+      +logs.map(function(l){return'<tr><td style="font-size:11px">'+esc(l.file_name||'—')+'</td><td><span class="badge b-inprog">'+esc(l.file_type||'—')+'</span></td><td>'+esc(l.rows_valid||l.rows_read||0)+'</td><td style="font-size:10px">'+esc((l.period_from||'')+' a '+(l.period_to||''))+'</td><td style="font-size:11px">'+esc(l.imported_by||'—')+'</td><td style="font-size:10px">'+new Date(l.imported_at).toLocaleString('es-AR')+'</td></tr>';}).join('')
+      +'</tbody></table></div></div>';
+  } catch(e) { el.innerHTML=''; }
+}
+
+// ── IMPORTERS ─────────────────────────────────────────────────
+async function importDistribucionRows(rows, fileName) {
+  setImportProgress(40,'Procesando Distribución: '+rows.length+' filas...');
+  var byDate = {};
+  var minDate = null, maxDate = null;
+  rows.forEach(function(r){
+    var vin = r['VIN']||r['Vin']||'';
+    if(!vin) return;
+    var listDate = r['List Date']||r['list date']||r['list_date']||'';
+    if(!listDate) return;
+    var d = normalizeDate(listDate);
+    if(!d) return;
+    if(!minDate||d<minDate) minDate=d;
+    if(!maxDate||d>maxDate) maxDate=d;
+    if(!byDate[d]) byDate[d] = new Set();
+    byDate[d].add(vin.toString().trim());
+  });
+  setImportProgress(60,'Guardando despachos por día...');
+  var entries = Object.entries(byDate);
+  var saved = 0;
+  for(var i=0; i<entries.length; i++) {
+    var date=entries[i][0], vins=entries[i][1];
+    var payload = { metric_date:date, compound_code:'00034', source_type:'distribution', shipments_qty:vins.size, source_import_id:null, created_at:new Date().toISOString() };
+    try { await sbUpsert('kpi_shipments_daily', payload, 'metric_date,compound_code,source_type'); saved++; } catch(e){}
+    setImportProgress(60+Math.round(i/entries.length*30),'Guardando día '+(i+1)+'/'+entries.length+'...');
+  }
+  await logKpiImport(fileName,'distribution',rows.length,rows.length,minDate,maxDate);
+  setImportProgress(100,'Distribución importada.');
+  setImportResult(true,'✅ Distribución: '+entries.length+' días · '+rows.length+' VINs · del '+minDate+' al '+maxDate);
+  showToast('Distribución importada correctamente','success');
+}
+
+async function importTrasladoRows(rows, fileName) {
+  setImportProgress(40,'Procesando Traslado Playa: '+rows.length+' filas...');
+  var byDate = {};
+  var minDate = null, maxDate = null;
+  rows.forEach(function(r){
+    var vin = r['VIN']||r['Vin']||'';
+    if(!vin) return;
+    var listDate = r['List Date']||r['list date']||'';
+    if(!listDate) return;
+    var d = normalizeDate(listDate);
+    if(!d) return;
+    if(!minDate||d<minDate) minDate=d;
+    if(!maxDate||d>maxDate) maxDate=d;
+    if(!byDate[d]) byDate[d] = new Set();
+    byDate[d].add(vin.toString().trim());
+  });
+  setImportProgress(60,'Guardando traslados por día...');
+  var entries = Object.entries(byDate);
+  var saved = 0;
+  for(var i=0; i<entries.length; i++) {
+    var date=entries[i][0], vins=entries[i][1];
+    var payload = { metric_date:date, compound_code:'00034', source_type:'transfer_playa', shipments_qty:vins.size };
+    try { await sbUpsert('kpi_shipments_daily', payload, 'metric_date,compound_code,source_type'); saved++; } catch(e){}
+    setImportProgress(60+Math.round(i/entries.length*30),'Guardando día '+(i+1)+'/'+entries.length+'...');
+  }
+  await logKpiImport(fileName,'transfer_playa',rows.length,rows.length,minDate,maxDate);
+  setImportProgress(100,'Traslado importado.');
+  setImportResult(true,'✅ Traslado Playa: '+entries.length+' días · '+rows.length+' VINs · del '+minDate+' al '+maxDate);
+  showToast('Traslado Playa importado correctamente','success');
+}
+
+// Also hook Stock import to save kpi_stock_daily snapshot
+var _origImportStockRows = window.importStockRows || null;
+async function importStockAndSnapshot(rows) {
+  if(_origImportStockRows) await _origImportStockRows(rows);
+  // Build stock snapshot
+  try {
+    await loadMetierConfig();
+    var bfsKey = 'Blocked for shipment ';
+    var validRows = rows.filter(function(r){return r['VIN']||r['Vin'];});
+    var rftRule = metierConfig.rft_rule;
+    var rftCount = validRows.filter(function(r){
+      if(rftRule==='availability_date_not_null') return r['Availability Date']!==null&&r['Availability Date']!=='';
+      var bfs=r[bfsKey]||r['Blocked for shipment']||r['blocked_for_shipment']||'';
+      return bfs.toString().trim().toUpperCase()==='N';
+    }).length;
+    var today = new Date().toISOString().slice(0,10);
+    var payload = {
+      snapshot_date: today,
+      compound_code: '00034',
+      total_stock: validRows.length,
+      rft_qty: rftCount,
+      non_rft_qty: validRows.length - rftCount,
+      capacity_internal: metierConfig.internal_capacity,
+      rft_pct: validRows.length>0?Math.round(rftCount/validRows.length*1000)/10:0,
+      saturation_pct: metierConfig.internal_capacity>0?Math.round(validRows.length/metierConfig.internal_capacity*1000)/10:null,
+      created_at: new Date().toISOString()
+    };
+    await sbUpsert('kpi_stock_daily', payload, 'snapshot_date,compound_code');
+    await logKpiImport('Stock Playa','stock',rows.length,validRows.length,today,today);
+  } catch(e) { console.warn('kpi_stock_daily snapshot failed:', e); }
+}
+
+async function logKpiImport(fileName, fileType, rowsRead, rowsValid, periodFrom, periodTo) {
+  try {
+    await sbPost('kpi_import_log', {
+      file_name: fileName,
+      file_type: fileType,
+      rows_read: rowsRead,
+      rows_valid: rowsValid,
+      period_from: periodFrom,
+      period_to: periodTo,
+      imported_by: currentUser?currentUser.nombre:'—',
+      compound_code: '00034',
+      imported_at: new Date().toISOString()
+    });
+  } catch(e) {}
+}
+
+function normalizeDate(val) {
+  if(!val) return null;
+  var s = val.toString().trim();
+  // dd/mm/yyyy
+  var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(m) return m[3]+'-'+m[2]+'-'+m[1];
+  // yyyy-mm-dd
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // Excel serial
+  if(/^\d+$/.test(s)) {
+    var d=new Date((parseInt(s)-25569)*86400000);
+    if(!isNaN(d)) return d.toISOString().slice(0,10);
+  }
+  return null;
+}
+
+// ── SEGURIDAD ─────────────────────────────────────────────────
+async function renderSeguridad() {
+  var desde = document.getElementById('seg-desde')?document.getElementById('seg-desde').value:'';
+  var hasta = document.getElementById('seg-hasta')?document.getElementById('seg-hasta').value:'';
+  var estado = document.getElementById('seg-estado')?document.getElementById('seg-estado').value:'ALL';
+  var params = 'compound_code=eq.00034&order=incident_date.desc';
+  if(desde) params += '&incident_date=gte.'+desde;
+  if(hasta) params += '&incident_date=lte.'+hasta;
+  if(estado!=='ALL') params += '&status=eq.'+estado;
+  var data = [];
+  try { data = await sbGet('safety_incidents',params); if(!Array.isArray(data))data=[]; } catch(e){}
+
+  // Stats
+  var thisMonth = new Date().toISOString().slice(0,7)+'-01';
+  var thisMonthCount = data.filter(function(s){return s.incident_date>=thisMonth;}).length;
+  var openCount = data.filter(function(s){return s.status==='abierto';}).length;
+  var gravCrit = data.filter(function(s){return s.severity==='Crítica';}).length;
+  var segStats = document.getElementById('seg-stats');
+  if(segStats) segStats.innerHTML = [
+    '<div class="stat-card" style="border-top:3px solid '+(thisMonthCount===0?SEM_GREEN:SEM_RED)+'"><div class="stat-label">Este mes</div><div class="stat-value" style="color:'+(thisMonthCount===0?SEM_GREEN:SEM_RED)+'">'+thisMonthCount+'</div><div class="stat-sub">incidentes</div></div>',
+    '<div class="stat-card" style="border-top:3px solid '+(openCount===0?SEM_GREEN:SEM_ORANGE)+'"><div class="stat-label">Abiertos</div><div class="stat-value" style="color:'+(openCount===0?SEM_GREEN:SEM_ORANGE)+'">'+openCount+'</div><div class="stat-sub">pendientes de cierre</div></div>',
+    '<div class="stat-card" style="border-top:3px solid '+(gravCrit===0?SEM_GREEN:SEM_RED)+'"><div class="stat-label">Críticos</div><div class="stat-value" style="color:'+(gravCrit===0?SEM_GREEN:SEM_RED)+'">'+gravCrit+'</div><div class="stat-sub">gravedad crítica</div></div>',
+    '<div class="stat-card"><div class="stat-label">Total período</div><div class="stat-value">'+data.length+'</div><div class="stat-sub">registros</div></div>',
+  ].join('');
+
+  var gravColor = {Baja:'#2E7D32',Media:'#E65100',Alta:'#C62828','Crítica':'#7F1D1D'};
+  var tbody = document.getElementById('seg-tbody');
+  if(!tbody) return;
+  if(!data.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text3);">Sin incidentes registrados</td></tr>';return;}
+  tbody.innerHTML = data.map(function(s){
+    var gc = gravColor[s.severity]||'#94A3B8';
+    var statusBadge = s.status==='abierto'?'b-ko':s.status==='en_analisis'?'b-inprog':'b-done';
+    return '<tr>'
+      +'<td style="font-weight:700">'+esc(s.incident_date||'—')+'</td>'
+      +'<td style="font-size:11px">'+esc(s.incident_type||'—')+'</td>'
+      +'<td><span class="badge" style="background:'+gc+'20;color:'+gc+';border:1px solid '+gc+'40">'+esc(s.severity||'—')+'</span></td>'
+      +'<td style="font-size:11px;max-width:200px">'+esc((s.description||'Sin descripción').substring(0,80))+'</td>'
+      +'<td style="font-size:11px">'+esc(s.people_involved||'—')+'</td>'
+      +'<td><span class="badge '+statusBadge+'">'+esc(s.status||'—')+'</span></td>'
+      +'<td style="font-size:11px">'+esc(s.registered_by||'—')+'</td>'
+      +'<td><button class="btn btn-ghost btn-sm" onclick=\'openSeguridadModalEdit('+JSON.stringify({id:s.id,incident_date:s.incident_date,incident_type:s.incident_type,severity:s.severity,people_involved:s.people_involved,description:s.description,immediate_action:s.immediate_action,status:s.status,attachment_url:s.attachment_url}).replace(/'/g,"\\'")+')\'> ✏️</button></td>'
+      +'</tr>';
+  }).join('');
+}
+
+function openSeguridadModal() {
+  document.getElementById('seg-id').value='';
+  document.getElementById('seg-modal-title').textContent='🦺 Registrar Incidente de Seguridad';
+  document.getElementById('seg-save-btn').textContent='🦺 Registrar incidente';
+  ['seg-personas','seg-desc','seg-accion'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('seg-tipo').value='';
+  document.getElementById('seg-gravedad').value='Media';
+  document.getElementById('seg-estado-modal').value='abierto';
+  document.getElementById('seg-fecha').value=new Date().toISOString().slice(0,10);
+  var prev=document.getElementById('seg-foto-preview');if(prev)prev.style.display='none';
+  openModal('modal-seguridad');
+}
+
+function openSeguridadModalEdit(s) {
+  document.getElementById('seg-id').value=s.id||'';
+  document.getElementById('seg-modal-title').textContent='✏️ Editar Incidente';
+  document.getElementById('seg-save-btn').textContent='💾 Guardar cambios';
+  document.getElementById('seg-fecha').value=s.incident_date||'';
+  document.getElementById('seg-tipo').value=s.incident_type||'';
+  document.getElementById('seg-gravedad').value=s.severity||'Media';
+  document.getElementById('seg-personas').value=s.people_involved||'';
+  document.getElementById('seg-desc').value=s.description||'';
+  document.getElementById('seg-accion').value=s.immediate_action||'';
+  document.getElementById('seg-estado-modal').value=s.status||'abierto';
+  var prev=document.getElementById('seg-foto-preview');
+  if(s.attachment_url&&prev){prev.src=s.attachment_url;prev.style.display='block';}
+  else if(prev){prev.style.display='none';}
+  openModal('modal-seguridad');
+}
+
+async function saveSeguridad() {
+  var fecha=document.getElementById('seg-fecha').value;
+  var tipo=document.getElementById('seg-tipo').value;
+  var desc=document.getElementById('seg-desc').value.trim();
+  if(!fecha||!tipo||!desc){showToast('Fecha, tipo y descripción son obligatorios','error');return;}
+  var fotoFile=document.getElementById('seg-foto-input').files[0];
+  var fotoUrl=null;
+  if(fotoFile) fotoUrl=await uploadPhoto(fotoFile,'fotos-mantenimiento','seguridad/'+uuid()+'-'+fotoFile.name);
+  var existingId=document.getElementById('seg-id').value;
+  var payload={
+    incident_date:fecha,
+    compound_code:currentPatio?currentPatio.compound_code:'00034',
+    incident_type:tipo,
+    severity:document.getElementById('seg-gravedad').value,
+    people_involved:document.getElementById('seg-personas').value||null,
+    description:desc,
+    immediate_action:document.getElementById('seg-accion').value||null,
+    status:document.getElementById('seg-estado-modal').value,
+    registered_by:currentUser?currentUser.nombre:'—',
+    updated_at:new Date().toISOString()
+  };
+  if(fotoUrl)payload.attachment_url=fotoUrl;
+  try {
+    if(existingId){await sbPatch('safety_incidents',existingId,payload);showToast('Incidente actualizado','success');}
+    else{await sbPost('safety_incidents',payload);showToast('Incidente registrado','success');}
+    closeModal('modal-seguridad');
+    renderSeguridad();
+  } catch(e){showToast('Error: '+e.message,'error');}
+}
+
+function exportSeguridadExcel(){
+  var tbody=document.getElementById('seg-tbody');
+  if(!tbody||!tbody.innerHTML||tbody.querySelector('[colspan]'))return showToast('Sin datos para exportar','info');
+  var rows=document.querySelectorAll('#seg-tbody tr');
+  var dataRows=Array.from(rows).map(function(r){
+    var cells=r.querySelectorAll('td');
+    return[cells[0]?cells[0].textContent.trim():'',cells[1]?cells[1].textContent.trim():'',cells[2]?cells[2].textContent.trim():'',cells[3]?cells[3].textContent.trim():'',cells[4]?cells[4].textContent.trim():'',cells[5]?cells[5].textContent.trim():'',cells[6]?cells[6].textContent.trim():''];
+  });
+  var headers=['Fecha','Tipo','Gravedad','Descripción','Personas','Estado','Registrado por'];
+  var html='<html><head><meta charset="UTF-8"></head><body>'
+    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader('Seguridad — Incidentes Córdoba','Exportado '+new Date().toLocaleDateString('es-AR'),headers.length)
+    +xlsColHeader(headers)
+    +dataRows.map(function(r,i){return xlsRow(r,i%2===0);}).join('')
+    +'</table></body></html>';
+  styledXlsxDownload(html,'Seguridad_Incidentes_'+new Date().toISOString().slice(0,10));
+}
+
+// ── PDF EXPORT ────────────────────────────────────────────────
+function exportKpiMetierPDF() {
+  var cards = document.getElementById('metier-kpi-grid');
+  if(!cards||!cards.innerHTML) return showToast('Actualizá los KPIs primero','info');
+  var html = '<html><head><meta charset="UTF-8"><style>'
+    + '@page{size:A4;margin:1.5cm;} body{font-family:Arial,sans-serif;font-size:10px;color:#1A202C;}'
+    + '.hdr{background:#0D1F3C;color:white;padding:16px 20px;margin:-1.5cm -1.5cm 20px;}'
+    + '.hdr h1{margin:0;font-size:18px;font-weight:900;letter-spacing:2px;color:#C8A44A;}'
+    + '.hdr p{margin:3px 0 0;font-size:9px;opacity:.55;}'
+    + '.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}'
+    + '.card{border-radius:8px;padding:14px;border-left:4px solid #ccc;background:#F4F6F9;break-inside:avoid;}'
+    + '.ct{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#64748B;margin-bottom:4px;}'
+    + '.cv{font-size:32px;font-weight:900;line-height:1;margin-bottom:4px;}'
+    + '.cl{font-size:10px;font-weight:600;color:#4A5568;margin-bottom:6px;}'
+    + '.pb{background:#E2E8F0;height:6px;border-radius:3px;overflow:hidden;margin-bottom:6px;}'
+    + '.pbd{height:100%;border-radius:3px;}'
+    + '.cf{font-size:8px;color:#94A3B8;font-style:italic;}'
+    + '.ft{font-size:8px;color:#94A3B8;border-top:1px solid #E2E8F0;padding-top:6px;margin-top:16px;display:flex;justify-content:space-between;}'
+    + '</style></head><body>'
+    + '<div class="hdr"><h1>KPI MÉTIER SUPPLY CHAIN — STELLANTIS ARGENTINA</h1><p>Compound Córdoba (00034) · '+new Date().toLocaleDateString('es-AR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})+'</p></div>'
+    + '<div class="grid">' + cards.innerHTML + '</div>'
+    + '<div class="ft"><span>Stellantis Argentina S.A. · Uso interno confidencial</span><span>Generado: '+new Date().toLocaleString('es-AR')+'</span></div>'
+    + '</body></html>';
+  var w=window.open('','_blank','width=850,height=1100');
+  if(!w){showToast('Habilitá ventanas emergentes para el PDF','info');return;}
+  w.document.write(html); w.document.close();
+  w.onload=function(){w.focus();setTimeout(function(){w.print();},400);};
+}
+
+// ── HOOK showPage ─────────────────────────────────────────────
+var _spOrigMetier = window.showPage;
+window.showPage = function(name) {
+  if(_spOrigMetier) _spOrigMetier(name);
+  if(name==='kpis-compound') { setTimeout(function(){ switchKpiTab('metier'); },100); }
+  if(name==='seguridad') { setTimeout(renderSeguridad, 100); }
+};
+
+
 </script>
+
+<!-- MODAL SEGURIDAD -->
+<div class="modal-overlay" id="modal-seguridad">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h3 id="seg-modal-title">🦺 Registrar Incidente de Seguridad</h3><button class="modal-close" onclick="closeModal('modal-seguridad')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="seg-id">
+      <div class="field-row">
+        <div class="field"><label>Fecha del incidente *</label><input type="date" id="seg-fecha"></div>
+        <div class="field"><label>Gravedad</label>
+          <select id="seg-gravedad">
+            <option value="Baja">Baja</option>
+            <option value="Media">Media</option>
+            <option value="Alta">Alta</option>
+            <option value="Crítica">Crítica</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Tipo de incidente *</label>
+        <select id="seg-tipo">
+          <option value="">Seleccionar...</option>
+          <option value="Accidente con persona">Accidente con persona</option>
+          <option value="Incidente sin lesión">Incidente sin lesión</option>
+          <option value="Casi accidente">Casi accidente</option>
+          <option value="Daño a propiedad">Daño a propiedad</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div class="field"><label>Personas involucradas</label><input type="text" id="seg-personas" placeholder="Nombre/s..."></div>
+      <div class="field"><label>Descripción del incidente *</label><textarea id="seg-desc" placeholder="Describí qué ocurrió, dónde y cómo..."></textarea></div>
+      <div class="field"><label>Acción inmediata tomada</label><textarea id="seg-accion" placeholder="Medidas tomadas de forma inmediata..."></textarea></div>
+      <div class="field"><label>Estado</label>
+        <select id="seg-estado-modal">
+          <option value="abierto">Abierto</option>
+          <option value="en_analisis">En análisis</option>
+          <option value="cerrado">Cerrado</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Evidencia / Foto</label>
+        <div class="photo-placeholder" onclick="document.getElementById('seg-foto-input').click()">📷 Adjuntar evidencia</div>
+        <input type="file" id="seg-foto-input" accept="image/*" style="display:none" onchange="previewPhoto(this,'seg-foto-preview')">
+        <img id="seg-foto-preview" class="photo-preview">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-seguridad')">Cancelar</button>
+      <button class="btn btn-danger" id="seg-save-btn" onclick="saveSeguridad()">🦺 Registrar incidente</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL KPI MÉTIER CONFIG -->
+<div class="modal-overlay" id="modal-metier-config">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head"><h3>⚙️ Configuración KPI Métier</h3><button class="modal-close" onclick="closeModal('modal-metier-config')">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Capacidad interna del compound (unidades)</label>
+        <input type="number" id="cfg-capacity-m" placeholder="Ej: 4000" min="1">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;">Denominador del % Saturación interna.</div>
+      </div>
+      <div class="field"><label>Regla RFT</label>
+        <select id="cfg-rft-rule-m">
+          <option value="blocked_for_shipment_n">Blocked for shipment = N (recomendado)</option>
+          <option value="availability_date_not_null">Availability Date no nula</option>
+        </select>
+      </div>
+      <div class="field"><label>Throughput — fuentes</label>
+        <div style="display:flex;gap:16px;margin-top:6px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;"><input type="checkbox" id="cfg-tp-distrib-m" checked> Distribución</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;"><input type="checkbox" id="cfg-tp-traslado-m" checked> Traslado Playa</label>
+        </div>
+      </div>
+      <div class="field"><label>Alcance KPI daños</label>
+        <select id="cfg-damage-scope-m">
+          <option value="all">Todos los daños registrados</option>
+          <option value="compound_only">Solo daños atribuibles al Compound</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-metier-config')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMetierConfig()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
 
 <!-- PDF print area (hidden) -->
 <div id="pdf-area" style="display:none;"></div>
