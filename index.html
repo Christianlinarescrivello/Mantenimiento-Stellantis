@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.8.5</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.8.6</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.8.5</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.8.6</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1476,7 +1476,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.8.5";
+var APP_VERSION="v4.8.6";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -2767,42 +2767,7 @@ async function exportKPIsExcel(){
     +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
     +'<tr><td colspan="9" style="background:#E8ECF0;font-weight:bold;font-family:Calibri,Arial;font-size:11pt;padding:8px 12px;color:#1A3C6E;">Listado de Pendientes — '+(kpi.pending||[]).length+' unidades</td></tr>'
     +xlsColHeader(pendHeaders)+pendRows+'</table>'
-    +'
-<script>
-/* v4.8.5 — Corrección estructural de navegación:
-   Algunas páginas quedaron insertadas fuera de .main o anidadas dentro de KPIs Compound.
-   Al cargar el portal, se reubican como páginas hermanas dentro de .main para que
-   "Importar archivos", "Seguridad" y módulos asociados se abran en el área correcta. */
-(function fixMisnestedPages(){
-  function relocatePages(){
-    var main = document.querySelector(".main");
-    if(!main) return;
-    [
-      "page-historial",
-      "page-deposito",
-      "page-stock",
-      "page-usuarios",
-      "page-patios",
-      "page-resp",
-      "page-wslog",
-      "page-seguridad",
-      "page-kpi-metier-config"
-    ].forEach(function(id){
-      var el = document.getElementById(id);
-      if(el && el.parentElement !== main){
-        main.appendChild(el);
-      }
-    });
-  }
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", relocatePages);
-  } else {
-    relocatePages();
-  }
-})();
-</script>
-
-</body></html>';
+    +'</body></html>';
   styledXlsxDownload(html,"KPI_"+kpi.patioNombre.replace(/\s/g,"_")+"_"+now.toISOString().slice(0,10));
   showToast("Excel KPI generado","success");
 }
@@ -5174,14 +5139,9 @@ function showPage(name){
   document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active");});
   var pg=document.getElementById("page-"+name);if(pg)pg.classList.add("active");
   var ni=document.getElementById("nav-"+name);if(ni)ni.classList.add("active");
-
-  // Al cambiar de módulo, volver siempre al inicio para evitar vistas en blanco por scroll heredado.
   window.scrollTo(0,0);
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
-  var mainScroll = document.querySelector(".main");
-  if(mainScroll) mainScroll.scrollTop = 0;
-  if(pg && pg.scrollIntoView) pg.scrollIntoView({block:"start", behavior:"auto"});
   if(name==="dashboard")renderDashboard();
   if(name==="preventivo")renderPreventivo();
   if(name==="planificador")renderPlanificador();
@@ -7748,7 +7708,7 @@ function switchKpiTab(tab){
 }
 
 // ══════════════════════════════════════════════════════════════
-// EXCEL MÉTIER EXPORT — v4.8.5
+// EXCEL MÉTIER EXPORT — v4.8.6
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierExcel(){
   await renderKpiMetier();
@@ -7845,7 +7805,7 @@ async function exportKpiMetierExcel(){
     var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
     // Title
     h+=mkRow([hdr('KPI METIER SUPPLY CHAIN — COMPOUND CÓRDOBA',8,C.navy,C.gold,16)]);
-    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.5',8,C.blue,C.white,9)]);
+    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.6',8,C.blue,C.white,9)]);
     h+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
 
     // Period summary
@@ -8054,7 +8014,7 @@ async function exportKpiMetierExcel(){
 
     var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
     h+='<tr>'+h6('DATOS BASE CONSOLIDADOS \u2014 SOPORTE DE C\u00c1LCULO KPI',8,C2.navy,C2.gold,12)+'</tr>';
-    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.5',8,C2.blue,C2.white,9)+'</tr>';
+    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.6',8,C2.blue,C2.white,9)+'</tr>';
     h+=blk(8);
 
     // A. Stock snapshots
@@ -8214,7 +8174,7 @@ async function exportKpiMetierExcel(){
 }
 
 // ══════════════════════════════════════════════════════════════
-// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.5
+// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.6
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierPDF(){
   await renderKpiMetier();
@@ -8316,7 +8276,7 @@ async function exportKpiMetierPDF(){
     +'<div style="background:#0D1F3C;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">'
     +'<div>'
     +'<div style="font-size:18pt;font-weight:900;color:#C8A44A;letter-spacing:2px;font-family:Arial Black,Arial;">KPI METIER SUPPLY CHAIN</div>'
-    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.5</div>'
+    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.6</div>'
     +'</div>'
     +'<div style="text-align:right;font-size:8pt;color:rgba(255,255,255,.4);">STELLANTIS ARGENTINA<br>Uso interno confidencial</div>'
     +'</div>'
@@ -8404,7 +8364,7 @@ async function exportKpiMetierPDF(){
 
 
 // ══════════════════════════════════════════════════════════════
-// TRACKING REPORTING TOOL IMPORTER v4.8.5
+// TRACKING REPORTING TOOL IMPORTER v4.8.6
 // ══════════════════════════════════════════════════════════════
 async function importTrackingRows(rows, fileName){
   setImportProgress(35,'Procesando Tracking Reporting Tool: '+rows.length+' filas...');
@@ -8591,6 +8551,41 @@ kpiCard = function(o){
   <span style="color:rgba(255,255,255,0.2)">|</span>
   <span id="dib-version" style="margin-left:auto;color:rgba(255,255,255,0.3)"></span>
 </div>
+
+
+<script>
+/* v4.8.6 — Fix real de navegación:
+   Reubica páginas mal anidadas en la estructura HTML final para que
+   "Importar archivos", "Seguridad" y pantallas de soporte se abran
+   correctamente en el área central del portal. */
+(function(){
+  function fixPagePlacement(){
+    var main = document.querySelector(".main");
+    if(!main) return;
+    [
+      "page-historial",
+      "page-deposito",
+      "page-stock",
+      "page-usuarios",
+      "page-patios",
+      "page-resp",
+      "page-wslog",
+      "page-seguridad",
+      "page-kpi-metier-config"
+    ].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el && el.parentElement !== main){
+        main.appendChild(el);
+      }
+    });
+  }
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", fixPagePlacement);
+  }else{
+    fixPagePlacement();
+  }
+})();
+</script>
 
 </body>
 </html>
