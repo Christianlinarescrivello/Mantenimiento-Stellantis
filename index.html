@@ -1476,7 +1476,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.8.3";
+var APP_VERSION="v4.8.4";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -5135,13 +5135,14 @@ function showOpView(){
 }
 
 function showPage(name){
+  // Mantener navegación siempre visible desde el inicio de la página
+  window.scrollTo(0,0);
+  document.documentElement.scrollTop=0;
+  document.body.scrollTop=0;
   document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
   document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active");});
   var pg=document.getElementById("page-"+name);if(pg)pg.classList.add("active");
   var ni=document.getElementById("nav-"+name);if(ni)ni.classList.add("active");
-  window.scrollTo(0,0);
-  document.documentElement.scrollTop=0;
-  document.body.scrollTop=0;
   if(name==="dashboard")renderDashboard();
   if(name==="preventivo")renderPreventivo();
   if(name==="planificador")renderPlanificador();
