@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.6.7</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.8.4</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.6.7</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.8.4</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -5135,14 +5135,18 @@ function showOpView(){
 }
 
 function showPage(name){
-  // Mantener navegación siempre visible desde el inicio de la página
-  window.scrollTo(0,0);
-  document.documentElement.scrollTop=0;
-  document.body.scrollTop=0;
   document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
   document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active");});
   var pg=document.getElementById("page-"+name);if(pg)pg.classList.add("active");
   var ni=document.getElementById("nav-"+name);if(ni)ni.classList.add("active");
+
+  // Al cambiar de módulo, volver siempre al inicio para evitar vistas en blanco por scroll heredado.
+  window.scrollTo(0,0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+  var mainScroll = document.querySelector(".main");
+  if(mainScroll) mainScroll.scrollTop = 0;
+  if(pg && pg.scrollIntoView) pg.scrollIntoView({block:"start", behavior:"auto"});
   if(name==="dashboard")renderDashboard();
   if(name==="preventivo")renderPreventivo();
   if(name==="planificador")renderPlanificador();
@@ -7698,7 +7702,7 @@ function switchKpiTab(tab){
 }
 
 // ══════════════════════════════════════════════════════════════
-// EXCEL MÉTIER EXPORT — v4.8.3
+// EXCEL MÉTIER EXPORT — v4.8.4
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierExcel(){
   await renderKpiMetier();
@@ -7795,7 +7799,7 @@ async function exportKpiMetierExcel(){
     var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
     // Title
     h+=mkRow([hdr('KPI METIER SUPPLY CHAIN — COMPOUND CÓRDOBA',8,C.navy,C.gold,16)]);
-    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.3',8,C.blue,C.white,9)]);
+    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.4',8,C.blue,C.white,9)]);
     h+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
 
     // Period summary
@@ -8004,7 +8008,7 @@ async function exportKpiMetierExcel(){
 
     var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
     h+='<tr>'+h6('DATOS BASE CONSOLIDADOS \u2014 SOPORTE DE C\u00c1LCULO KPI',8,C2.navy,C2.gold,12)+'</tr>';
-    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.3',8,C2.blue,C2.white,9)+'</tr>';
+    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.4',8,C2.blue,C2.white,9)+'</tr>';
     h+=blk(8);
 
     // A. Stock snapshots
@@ -8164,7 +8168,7 @@ async function exportKpiMetierExcel(){
 }
 
 // ══════════════════════════════════════════════════════════════
-// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.3
+// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.4
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierPDF(){
   await renderKpiMetier();
@@ -8266,7 +8270,7 @@ async function exportKpiMetierPDF(){
     +'<div style="background:#0D1F3C;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">'
     +'<div>'
     +'<div style="font-size:18pt;font-weight:900;color:#C8A44A;letter-spacing:2px;font-family:Arial Black,Arial;">KPI METIER SUPPLY CHAIN</div>'
-    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.3</div>'
+    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.4</div>'
     +'</div>'
     +'<div style="text-align:right;font-size:8pt;color:rgba(255,255,255,.4);">STELLANTIS ARGENTINA<br>Uso interno confidencial</div>'
     +'</div>'
@@ -8354,7 +8358,7 @@ async function exportKpiMetierPDF(){
 
 
 // ══════════════════════════════════════════════════════════════
-// TRACKING REPORTING TOOL IMPORTER v4.8.3
+// TRACKING REPORTING TOOL IMPORTER v4.8.4
 // ══════════════════════════════════════════════════════════════
 async function importTrackingRows(rows, fileName){
   setImportProgress(35,'Procesando Tracking Reporting Tool: '+rows.length+' filas...');
