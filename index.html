@@ -506,6 +506,7 @@ tbody td{padding:9px 12px;color:var(--text);}
           <button class="btn btn-primary btn-sm" onclick="renderKpiMetier()">🔄 Actualizar</button>
           <button class="btn btn-ghost btn-sm supervisor-only" onclick="showMetierConfig()">⚙️ Configurar</button>
           <button class="btn btn-sm no-print" style="background:linear-gradient(135deg,#1A3C6E,#0D1F3C);color:white;border:1px solid rgba(200,164,74,0.4);" onclick="exportKpiMetierPDF()">📄 PDF Métier</button>
+          <button class="btn btn-sm no-print" style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:white;border:1px solid rgba(46,125,50,0.4);" onclick="exportKpiMetierExcel()">⬇ Excel Métier</button>
           <span style="margin-left:auto;font-size:11px;color:var(--text3);" id="metier-update-time"></span>
         </div>
         <!-- DIARIOS -->
@@ -913,14 +914,29 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="page" id="page-seguridad">
       <div class="page-title">🦺 Seguridad</div>
       <div class="page-sub">Registro de incidentes de seguridad · gestión y seguimiento</div>
-      <div class="filters">
-        <input type="date" id="seg-desde">
-        <input type="date" id="seg-hasta">
+      <div class="filters" style="flex-wrap:wrap;gap:8px;">
+        <input type="date" id="seg-desde" onchange="renderSeguridad()">
+        <input type="date" id="seg-hasta" onchange="renderSeguridad()">
         <select id="seg-estado" onchange="renderSeguridad()">
           <option value="ALL">Todos los estados</option>
           <option value="abierto">Abierto</option>
           <option value="en_analisis">En análisis</option>
           <option value="cerrado">Cerrado</option>
+        </select>
+        <select id="seg-tipo-filter" onchange="renderSeguridad()">
+          <option value="ALL">Todos los tipos</option>
+          <option value="Accidente con persona">Accidente con persona</option>
+          <option value="Incidente sin lesión">Incidente sin lesión</option>
+          <option value="Casi accidente">Casi accidente</option>
+          <option value="Daño a propiedad">Daño a propiedad</option>
+          <option value="Otro">Otro</option>
+        </select>
+        <select id="seg-grav-filter" onchange="renderSeguridad()">
+          <option value="ALL">Todas las gravedades</option>
+          <option value="Baja">Baja</option>
+          <option value="Media">Media</option>
+          <option value="Alta">Alta</option>
+          <option value="Crítica">Crítica</option>
         </select>
         <button class="btn btn-primary btn-sm" onclick="renderSeguridad()">🔄 Actualizar</button>
         <button class="btn btn-danger btn-sm" onclick="openSeguridadModal()">+ Registrar incidente</button>
@@ -1460,7 +1476,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.8.1";
+var APP_VERSION="v4.8.3";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -3212,18 +3228,17 @@ function detectImportType(rows,fileName){
   var keys=Object.keys(first||{});
   var lowerKeys=keys.map(function(k){return k.toLowerCase().trim();});
   var has=function(name){return lowerKeys.indexOf(String(name).toLowerCase().trim())>=0;};
-  // Blocks file
-  if(has("Block")||has("Block Date")||has("Unblock Date")||has("Unblocked/Deleted"))return"blocks";
-  // Distribución: has Delivery Compound + Carrier Descr + no Compound Origin
-  if(has("delivery compound")||has("carrier descr")||(has("list date")&&has("delivery to dealer date")&&!has("compound origin")))return"distribucion";
-  // Traslado Playa: has Compound Origin + Compound Destination
-  if(has("compound origin")||has("compound destination"))return"traslado";
-  // Stock: standard
-  if(has("assignment date")||has("boxatura")||has("blocks")||has("blocked for shipment"))return"stock";
   var lc=String(fileName||"").toLowerCase();
-  if(lc.indexOf("bloquead")>=0||lc.indexOf("block")>=0)return"blocks";
-  if(lc.indexOf("distribuc")>=0||lc.indexOf("distribucion")>=0)return"distribucion";
-  if(lc.indexOf("traslado")>=0||lc.indexOf("transfer")>=0)return"traslado";
+  // Tracking Reporting Tool: Mov. Type + Destination + Date Mov.
+  if(has("mov. type")||has("mov type")||has("date mov.")||has("date mov")||lc.indexOf("tracking")>=0)return"tracking";
+  // Blocks
+  if(has("block")||has("block date")||has("unblock date")||has("unblocked/deleted")||lc.indexOf("bloquead")>=0||lc.indexOf("block")>=0)return"blocks";
+  // Distribucion
+  if(has("delivery compound")||has("carrier descr")||(has("list date")&&has("delivery to dealer date")&&!has("compound origin"))||lc.indexOf("distribuc")>=0)return"distribucion";
+  // Traslado
+  if(has("compound origin")||has("compound destination")||lc.indexOf("traslado")>=0||lc.indexOf("transfer")>=0)return"traslado";
+  // Stock
+  if(has("assignment date")||has("boxatura")||has("blocks")||has("blocked for shipment"))return"stock";
   return"stock";
 }
 function isCordobaRow(r){
@@ -3273,8 +3288,15 @@ async function importStockRows(rows){
     setImportProgress(40+Math.round(((i+200)/mapped.length)*55),"Subiendo stock: "+Math.min(i+200,mapped.length)+" / "+mapped.length+"...");
   }
   await loadStock();renderDashboard();renderPreventivo();
-  // Save KPI stock snapshot for today
-  if(typeof saveStockKpiSnapshot==='function')saveStockKpiSnapshot(mapped).catch(function(){});
+  // Save KPI stock snapshot — pass original rows to preserve Blocked for shipment / Availability Date
+  if(typeof saveStockKpiSnapshot==='function'){
+    // Filter original rows to Cordoba (00034) only for the snapshot
+    var rowsForSnapshot=rows.filter(function(r){
+      var cc=String(r["Compound Code"]||r["compound_code"]||"").padStart(5,"0");
+      return cc==="00034";
+    });
+    if(rowsForSnapshot.length)saveStockKpiSnapshot(rowsForSnapshot).catch(function(e){console.warn('snapshot failed:',e);});
+  }
 
   // Auto-insert C30 units into danos table (sin descripción — pendiente de completar)
   setImportProgress(96,"Sincronizando C30 y C37...");
@@ -3449,6 +3471,8 @@ async function importStock(evt){
       if(importType==="blocks") await importBlockRows(rows,file.name);
       else if(importType==="distribucion") await importDistribucionRows(rows,file.name);
       else if(importType==="traslado") await importTrasladoRows(rows,file.name);
+      else if(importType==="tracking") await importTrackingRows(rows,file.name);
+      else if(importType==="tracking") await importTrackingRows(rows,file.name);
       else await importStockRows(rows);
     }catch(err){
       console.error("Import error:",err);
@@ -6945,30 +6969,149 @@ function normalizeDate(val){
 function fmtDate(s){if(!s)return'—';try{return new Date(s+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}catch(e){return s;}}
 
 // ── KPI CARD ─────────────────────────────────────────────────
+var _kpiCardCounter=0;
 function kpiCard(o){
-  // o: {icon,title,freq,value,unit,color,target,formula,source,detail,na,naMsg,badge,badgeColor}
+  // o: {icon,title,freq,value,unit,color,target,formula,source,detail,na,naMsg,badge,badgeColor,
+  //     chartType,chartGoal,chartMax,chartThresholds,dataStatus,numerator,denominator,period}
   var isNA=o.na||o.value===null||o.value===undefined;
   var col=isNA?SEM_GRAY:o.color;
   var valStr=isNA?'N/A':(typeof o.value==='number'?(o.value%1===0?o.value.toLocaleString():o.value.toFixed(1)):o.value);
-  var freqColors={Diario:'rgba(26,60,110,.15)',Semanal:'rgba(21,101,192,.15)',Mensual:'rgba(106,27,154,.15)'};
-  var freqTextColors={Diario:'#60A5FA',Semanal:'#93C5FD',Mensual:'#C084FC'};
-  return '<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:var(--shadow);position:relative;overflow:hidden;">'
-    +'<div style="position:absolute;top:0;left:0;right:0;height:4px;background:'+col+';border-radius:14px 14px 0 0;"></div>'
-    +'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">'
-    +'<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;line-height:1.4;max-width:180px;">'+esc(o.title)+'</div>'
-    +'<span style="background:'+( freqColors[o.freq]||'rgba(0,0,0,.1)')+';color:'+(freqTextColors[o.freq]||'#94A3B8')+';font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;margin-left:6px;">'+esc(o.freq)+'</span>'
-    +'</div>'
-    +'<div style="display:flex;align-items:flex-end;gap:8px;margin:6px 0 4px;">'
-    +'<div style="font-family:Barlow Condensed,sans-serif;font-size:52px;font-weight:900;color:'+col+';line-height:1;">'+valStr+'</div>'
-    +(o.unit&&!isNA?'<div style="font-size:16px;color:'+col+';font-weight:600;margin-bottom:6px;">'+esc(o.unit)+'</div>':'')
-    +'</div>'
-    +(o.badge?'<div style="display:inline-block;background:'+(o.badgeColor||'rgba(0,0,0,.08)')+';color:white;font-size:9px;font-weight:700;padding:2px 8px;border-radius:6px;margin-bottom:6px;">'+esc(o.badge)+'</div>':'')
-    +(isNA&&o.naMsg?'<div style="font-size:11px;color:#E65100;margin-bottom:6px;font-weight:600;line-height:1.4;">⚠ '+esc(o.naMsg)+'</div>':'')
-    +(o.detail?'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.4;">'+esc(o.detail)+'</div>':'')
-    +(o.target?'<div style="font-size:10px;color:var(--text3);">Meta: <b style="color:'+col+'">'+esc(o.target)+'</b></div>':'')
-    +'<div style="font-size:9px;color:var(--text3);margin-top:8px;border-top:1px solid var(--border);padding-top:6px;font-style:italic;line-height:1.4;">'+esc(o.formula||'')+'</div>'
-    +(o.source?'<div style="font-size:9px;color:var(--text3);margin-top:2px;">Fuente: '+esc(o.source)+'</div>':'')
-    +'</div>';
+  var freqBg={Diario:'rgba(26,60,110,.12)',Semanal:'rgba(21,101,192,.12)',Mensual:'rgba(106,27,154,.12)'};
+  var freqFg={Diario:'#60A5FA',Semanal:'#93C5FD',Mensual:'#C084FC'};
+  var statusBg={completo:'rgba(46,125,50,.12)',parcial:'rgba(230,81,0,.12)',na:'rgba(113,128,150,.12)'};
+  var statusFg={completo:'#2E7D32',parcial:'#E65100',na:'#718096'};
+  var statusLabel={completo:'Completo',parcial:'Parcial',na:'N/A'};
+  var ds=o.dataStatus||( isNA?'na':'completo');
+  var cid='kpichart'+(++_kpiCardCounter);
+
+  var html='<div style="background:var(--card);border:1px solid '+(isNA?'var(--border)':col+'44')+';border-radius:14px;padding:20px 20px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden;">';
+  // Top color bar
+  html+='<div style="position:absolute;top:0;left:0;right:0;height:4px;background:'+col+';border-radius:14px 14px 0 0;"></div>';
+  // Header row
+  html+='<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;">';
+  html+='<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;line-height:1.4;max-width:185px;">'+esc(o.title)+'</div>';
+  html+='<div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">';
+  html+='<span style="background:'+(statusBg[ds]||'rgba(0,0,0,.08)')+';color:'+(statusFg[ds]||'#718096')+';font-size:8px;font-weight:700;padding:2px 6px;border-radius:8px;">'+(statusLabel[ds]||ds)+'</span>';
+  html+='<span style="background:'+(freqBg[o.freq]||'rgba(0,0,0,.08)')+';color:'+(freqFg[o.freq]||'#94A3B8')+';font-size:8px;font-weight:700;padding:2px 7px;border-radius:8px;">'+esc(o.freq)+'</span>';
+  html+='</div></div>';
+  // Value row
+  html+='<div style="display:flex;align-items:flex-end;gap:6px;margin:4px 0 2px;">';
+  html+='<div style="font-family:Barlow Condensed,sans-serif;font-size:50px;font-weight:900;color:'+col+';line-height:1;">'+valStr+'</div>';
+  if(o.unit&&!isNA)html+='<div style="font-size:15px;color:'+col+';font-weight:600;margin-bottom:7px;">'+esc(o.unit)+'</div>';
+  html+='</div>';
+  // Badge
+  if(o.badge)html+='<div style="display:inline-block;background:'+(o.badgeColor||'rgba(0,0,0,.08)')+';color:white;font-size:9px;font-weight:700;padding:2px 8px;border-radius:6px;margin-bottom:5px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(o.badge)+'</div>';
+  // NA message
+  if(isNA&&o.naMsg)html+='<div style="font-size:10px;color:#E65100;font-weight:600;line-height:1.4;margin-bottom:6px;">⚠ '+esc(o.naMsg)+'</div>';
+
+  // ── CHART ────────────────────────────────────────────────────
+  if(!isNA && o.chartType){
+    var val=typeof o.value==='number'?o.value:0;
+    var goal=o.chartGoal||null;
+    var cmax=o.chartMax||100;
+    html+='<div style="margin:10px 0 8px;position:relative;">';
+    if(o.chartType==='bar_progress'){
+      // Horizontal bar with goal marker
+      var pct=Math.min(val/cmax*100,100);
+      var goalPct=goal!==null?Math.min(goal/cmax*100,100):null;
+      html+='<div style="background:rgba(255,255,255,0.07);border-radius:6px;height:18px;position:relative;overflow:visible;">';
+      html+='<div style="height:18px;border-radius:6px;background:'+col+';width:'+pct+'%;transition:width .8s ease;position:relative;">';
+      html+='<span style="position:absolute;right:6px;top:1px;font-size:10px;font-weight:800;color:white;white-space:nowrap;">'+valStr+(o.unit?o.unit:'')+'</span>';
+      html+='</div>';
+      if(goalPct!==null){
+        html+='<div style="position:absolute;top:-4px;bottom:-4px;left:'+goalPct+'%;width:2px;background:rgba(255,255,255,0.7);border-radius:2px;"></div>';
+        html+='<span style="position:absolute;top:-14px;left:'+goalPct+'%;font-size:8px;color:rgba(255,255,255,0.7);transform:translateX(-50%);">objetivo '+goal+(o.unit?o.unit:'')+'</span>';
+      }
+      html+='</div>';
+    } else if(o.chartType==='thermometer'){
+      // Segmented bar: green/orange/red zones
+      var t1=o.chartThresholds?o.chartThresholds[0]:80, t2=o.chartThresholds?o.chartThresholds[1]:90;
+      var pct2=Math.min(val/cmax*100,100);
+      html+='<div style="background:rgba(255,255,255,0.07);border-radius:6px;height:16px;position:relative;overflow:hidden;">';
+      // Colored zones in background
+      html+='<div style="position:absolute;top:0;left:0;height:100%;width:'+t1+'%;background:rgba(46,125,50,.25);"></div>';
+      html+='<div style="position:absolute;top:0;left:'+t1+'%;height:100%;width:'+(t2-t1)+'%;background:rgba(230,81,0,.25);"></div>';
+      html+='<div style="position:absolute;top:0;left:'+t2+'%;height:100%;right:0;background:rgba(198,40,40,.25);"></div>';
+      // Fill
+      html+='<div style="height:16px;border-radius:6px;background:'+col+';width:'+pct2+'%;position:relative;transition:width .8s ease;">';
+      html+='<span style="position:absolute;right:6px;top:0px;font-size:9px;font-weight:800;color:white;">'+valStr+'%</span>';
+      html+='</div></div>';
+      // Zone labels
+      html+='<div style="display:flex;justify-content:space-between;margin-top:3px;">';
+      html+='<span style="font-size:8px;color:#2E7D32;">0%</span>';
+      html+='<span style="font-size:8px;color:#E65100;">'+t1+'%</span>';
+      html+='<span style="font-size:8px;color:#C62828;">'+t2+'%</span>';
+      html+='<span style="font-size:8px;color:var(--text3);">100%</span>';
+      html+='</div>';
+    } else if(o.chartType==='bullet'){
+      // Bullet chart: background band + value bar + goal line
+      var pct3=Math.min(val/cmax*100,100);
+      var goalPct3=goal!==null?Math.min(goal/cmax*100,100):null;
+      html+='<div style="background:rgba(255,255,255,0.07);border-radius:6px;height:20px;position:relative;overflow:visible;">';
+      html+='<div style="height:20px;border-radius:6px;background:'+col+';width:'+pct3+'%;position:relative;transition:width .8s ease;">';
+      html+='<span style="position:absolute;right:6px;top:2px;font-size:10px;font-weight:800;color:white;">'+valStr+'%</span>';
+      html+='</div>';
+      if(goalPct3!==null){
+        html+='<div style="position:absolute;top:-5px;bottom:-5px;left:'+goalPct3+'%;width:3px;background:rgba(255,255,255,.8);border-radius:2px;"></div>';
+        html+='<span style="position:absolute;top:-16px;left:'+goalPct3+'%;font-size:8px;color:rgba(255,255,255,.7);transform:translateX(-50%);">≥ '+goal+'%</span>';
+      }
+      html+='</div>';
+    } else if(o.chartType==='donut_so'){
+      // Donut: pending vs done via SVG
+      var done=100-val, r=28, cx=32, cy=32, circ=2*Math.PI*r;
+      var pendArc=circ*(val/100), doneArc=circ-pendArc;
+      html+='<div style="display:flex;align-items:center;gap:12px;">';
+      html+='<svg width="64" height="64" viewBox="0 0 64 64" style="flex-shrink:0;">';
+      html+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="12"/>';
+      html+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+col+'" stroke-width="12" stroke-dasharray="'+pendArc+' '+doneArc+'" stroke-dashoffset="'+circ*0.25+'" stroke-linecap="round"/>';
+      html+='<text x="32" y="37" text-anchor="middle" font-size="11" font-weight="900" fill="'+col+'" font-family="Arial">'+valStr+'%</text>';
+      html+='</svg>';
+      html+='<div style="font-size:10px;color:var(--text3);line-height:1.5;">';
+      if(o.numerator!=null)html+='Pendientes: <b style="color:'+col+'">'+o.numerator+'</b><br>';
+      if(o.denominator!=null)html+='Con servicio debido: <b>'+o.denominator+'</b>';
+      html+='</div></div>';
+    } else if(o.chartType==='counter_safety'){
+      // Big counter with color + mini severity dist
+      html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">';
+      html+='<div style="width:48px;height:48px;border-radius:50%;background:'+col+'22;border:3px solid '+col+';display:flex;align-items:center;justify-content:center;">';
+      html+='<span style="font-size:22px;font-weight:900;color:'+col+';">'+val+'</span>';
+      html+='</div>';
+      html+='<div style="font-size:11px;color:var(--text3);">'+(o.detail?esc(o.detail):'incidentes este mes')+'</div>';
+      html+='</div>';
+      if(o.severityDist){
+        html+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">';
+        Object.entries(o.severityDist).forEach(function(e){
+          var sc={Baja:'#2E7D32',Media:'#E65100',Alta:'#C62828',Crítica:'#7F1D1D'};
+          var c2=sc[e[0]]||'#94A3B8';
+          html+='<span style="background:'+c2+'20;color:'+c2+';border:1px solid '+c2+'40;font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;">'+esc(e[0])+': '+e[1]+'</span>';
+        });
+        html+='</div>';
+      }
+    } else if(o.chartType==='bar_threshold'){
+      // Bar with threshold line at o.chartGoal
+      var pct4=Math.min(val/cmax*100,100);
+      var thPct=goal!==null?Math.min(goal/cmax*100,100):null;
+      html+='<div style="background:rgba(255,255,255,0.07);border-radius:6px;height:18px;position:relative;overflow:visible;">';
+      html+='<div style="height:18px;border-radius:6px;background:'+col+';width:'+pct4+'%;position:relative;transition:width .8s ease;">';
+      html+='<span style="position:absolute;right:6px;top:1px;font-size:10px;font-weight:800;color:white;">'+valStr+'%</span>';
+      html+='</div>';
+      if(thPct!==null){
+        html+='<div style="position:absolute;top:-4px;bottom:-4px;left:'+thPct+'%;width:2px;background:rgba(255,255,255,.75);"></div>';
+        html+='<span style="position:absolute;top:-14px;left:'+thPct+'%;font-size:8px;color:rgba(255,255,255,.7);transform:translateX(-50%);">umbral '+goal+'%</span>';
+      }
+      html+='</div>';
+    }
+    html+='</div>';
+  }
+  // ── END CHART ─────────────────────────────────────────────────
+
+  // Detail + source
+  if(o.detail&&!o.chartType)html+='<div style="font-size:10px;color:var(--text3);margin-bottom:6px;line-height:1.4;">'+esc(o.detail)+'</div>';
+  if(o.target)html+='<div style="font-size:9px;color:var(--text3);margin-bottom:3px;">Meta: <b style="color:'+col+'">'+esc(o.target)+'</b></div>';
+  html+='<div style="font-size:8px;color:var(--text3);margin-top:6px;border-top:1px solid var(--border);padding-top:5px;font-style:italic;line-height:1.4;">'+esc(o.formula||'')+'</div>';
+  if(o.source)html+='<div style="font-size:8px;color:var(--text3);margin-top:2px;">Fuente: '+esc(o.source)+'</div>';
+  html+='</div>';
+  return html;
 }
 
 // ── LOAD CONFIG ───────────────────────────────────────────────
@@ -7018,50 +7161,39 @@ async function renderKpiMetier(){
 // ── DAILY ─────────────────────────────────────────────────────
 async function renderMetierDaily(){
   var grid=document.getElementById('metier-daily-grid');
-  var inputsEl=document.getElementById('metier-daily-inputs');
   if(!grid)return;
   var ddd=document.getElementById('metier-daily-date');
-  var targetDate=ddd&&ddd.value?ddd.value:null;
   var today=new Date().toISOString().slice(0,10);
   var yest=new Date();yest.setDate(yest.getDate()-1);var yestStr=yest.toISOString().slice(0,10);
-  var showDate=targetDate||yestStr;
+  var showDate=ddd&&ddd.value?ddd.value:yestStr;
   var isD1=showDate===yestStr;
   grid.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;">⟳ Cargando KPI diarios...</div>';
-
   try{
-    // 1. Stock snapshot for the day
+    // 1. Stock snapshot
     var stockSnap=await sbGet('kpi_stock_daily','compound_code=eq.00034&snapshot_date=eq.'+showDate+'&limit=1');
     if(!Array.isArray(stockSnap))stockSnap=[];
-
-    // 2. Shipments for the day
+    // 2. Shipments (expeditions)
     var shipDistr=await sbGet('kpi_shipments_daily','compound_code=eq.00034&source_type=eq.distribution&metric_date=eq.'+showDate+'&limit=1');
     var shipTrasl=await sbGet('kpi_shipments_daily','compound_code=eq.00034&source_type=eq.transfer_playa&metric_date=eq.'+showDate+'&limit=1');
     var shipDistrQty=Array.isArray(shipDistr)&&shipDistr.length?shipDistr[0].shipments_qty:null;
     var shipTraslQty=Array.isArray(shipTrasl)&&shipTrasl.length?shipTrasl[0].shipments_qty:null;
-
-    // 3. Throughput inputs
-    var tpInput=await sbGet('kpi_throughput_inputs_daily','compound_code=eq.00034&metric_date=eq.'+showDate+'&limit=1');
-    var inp=Array.isArray(tpInput)&&tpInput.length?tpInput[0]:null;
-
-    // 4. Saved snapshot for this date
-    var savedSnap=await sbGet('kpi_snapshots','compound_code=eq.00034&period=eq.'+showDate+'&period_type=eq.daily');
-    var snapByName={};
-    if(Array.isArray(savedSnap))savedSnap.forEach(function(s){snapByName[s.kpi_name]=s;});
+    // 3. Ingress (from Tracking ING)
+    var ingressData=await sbGet('kpi_ingress_daily','compound_code=eq.00034&metric_date=eq.'+showDate+'&limit=1');
+    var ingressQty=Array.isArray(ingressData)&&ingressData.length?ingressData[0].ingress_qty:null;
 
     // ── RFT ─────────────────────────────────────────────────
     var rftSnap=stockSnap.length?stockSnap[0]:null;
     var rftVal=rftSnap?parseFloat(rftSnap.rft_pct):null;
-    var rftDetail=rftSnap?(rftSnap.rft_qty+' RFT de '+rftSnap.total_stock+' · snapshot '+fmtDate(rftSnap.snapshot_date)):'Sin snapshot para este día';
+    var rftDetail=rftSnap?rftSnap.rft_qty+' RFT de '+rftSnap.total_stock+' · snapshot '+fmtDate(rftSnap.snapshot_date):'Sin snapshot para este dia';
     var rftLatestMsg=null;
     if(!rftSnap){
-      // Try latest available
       var latestS=await sbGet('kpi_stock_daily','compound_code=eq.00034&order=snapshot_date.desc&limit=1');
-      if(Array.isArray(latestS)&&latestS.length){var ls=latestS[0];rftLatestMsg='Último disponible: '+fmtDate(ls.snapshot_date)+' ('+ls.rft_pct+'%)';}
+      if(Array.isArray(latestS)&&latestS.length)rftLatestMsg='Ultimo disponible: '+fmtDate(latestS[0].snapshot_date)+' ('+latestS[0].rft_pct+'%)';
     }
 
-    // ── SATURACIÓN ──────────────────────────────────────────
+    // ── SATURACION ──────────────────────────────────────────
     var satVal=rftSnap&&metierConfig.internal_capacity>0?Math.round(rftSnap.total_stock/metierConfig.internal_capacity*1000)/10:null;
-    var satDetail=rftSnap?(rftSnap.total_stock+' uds / cap. '+metierConfig.internal_capacity.toLocaleString()):'Sin snapshot de stock';
+    var satDetail=rftSnap?rftSnap.total_stock+' uds / cap. '+metierConfig.internal_capacity.toLocaleString():'Sin snapshot de stock';
 
     // ── DAILY THROUGHPUT ─────────────────────────────────────
     var hasShipments=shipDistrQty!==null||shipTraslQty!==null;
@@ -7069,98 +7201,84 @@ async function renderMetierDaily(){
     if(metierConfig.throughput_include_distribution&&shipDistrQty!==null)totalShip+=shipDistrQty;
     if(metierConfig.throughput_include_transfer&&shipTraslQty!==null)totalShip+=shipTraslQty;
     var tpVal=null,tpMsg=null,tpDetail='',tpBadge=null,tpBadgeColor=null;
-    var sources=[];
-    if(metierConfig.throughput_include_distribution)sources.push('Distribución: '+(shipDistrQty!==null?shipDistrQty:'sin dato'));
-    if(metierConfig.throughput_include_transfer)sources.push('Traslado: '+(shipTraslQty!==null?shipTraslQty:'sin dato'));
-
+    var srcParts=[];
+    if(metierConfig.throughput_include_distribution)srcParts.push('Distribucion: '+(shipDistrQty!==null?shipDistrQty:'sin dato'));
+    if(metierConfig.throughput_include_transfer)srcParts.push('Traslado: '+(shipTraslQty!==null?shipTraslQty:'sin dato'));
     if(!hasShipments){
-      tpMsg='Sin datos de despacho para '+(isD1?'D-1':showDate)+'. Importar archivo de Distribución o Traslado.';
-    } else if(!inp||(!(inp.vehicles_passed_to_sales_qty)&&!(inp.vehicles_entered_from_other_yards_qty))){
-      // Numerator exists, denominator missing
-      tpMsg='Despachos: '+totalShip+'. Faltan inputs del denominador (Pasados a Sales + Ingresos otros yards).';
-      tpDetail=sources.join(' · ');
+      tpMsg='Sin expediciones para '+(isD1?'D-1':showDate)+'. Importar Distribucion o Traslado.';
+    } else if(ingressQty===null||ingressQty===0){
+      tpMsg='Expediciones: '+totalShip+'. Sin ingresos Tracking ING para este dia. Importar Tracking Reporting Tool.';
+      tpDetail=srcParts.join(' · ');
     } else {
-      var denom=(inp.vehicles_passed_to_sales_qty||0)+(inp.vehicles_entered_from_other_yards_qty||0);
-      var rerouting=inp.rerouting_qty||0;
-      var num=Math.max(0,totalShip-rerouting);
-      if(denom===0){tpMsg='Denominador = 0. Verificar inputs.';}
-      else{tpVal=Math.round(num/denom*1000)/10;tpDetail=sources.join(' · ')+' · Rerouting: -'+rerouting+' · Denominador: '+denom;}
-      // If saved snapshot exists, use that as official
-      if(snapByName['daily_throughput']&&snapByName['daily_throughput'].value!==null){
-        var snp=snapByName['daily_throughput'];
-        tpVal=parseFloat(snp.value);tpBadge='📌 Snapshot oficial '+fmtDate(snp.computed_at);tpBadgeColor='#1A3C6E';
-        tpDetail=snp.detail||tpDetail;tpMsg=null;
-      }
+      tpVal=Math.round(totalShip/ingressQty*1000)/10;
+      tpDetail=srcParts.join(' · ')+' · Ingresos (Tracking ING): '+ingressQty;
     }
-
-    // Find last available day for reference
+    // Check saved snapshot
+    var savedSnap=await sbGet('kpi_snapshots','compound_code=eq.00034&period=eq.'+showDate+'&period_type=eq.daily&kpi_name=eq.daily_throughput');
+    if(Array.isArray(savedSnap)&&savedSnap.length&&savedSnap[0].value!==null){
+      tpVal=parseFloat(savedSnap[0].value);tpBadge='Snapshot oficial '+fmtDate(savedSnap[0].computed_at);tpBadgeColor='#1A3C6E';tpDetail=savedSnap[0].detail||tpDetail;tpMsg=null;
+    }
     var lastAvailMsg=null;
     if(!hasShipments){
       var lastShip=await sbGet('kpi_shipments_daily','compound_code=eq.00034&order=metric_date.desc&limit=1');
-      if(Array.isArray(lastShip)&&lastShip.length)lastAvailMsg='Último dato disponible: '+fmtDate(lastShip[0].metric_date)+' (no reemplaza D-1)';
+      if(Array.isArray(lastShip)&&lastShip.length)lastAvailMsg='Ultimo dato disponible: '+fmtDate(lastShip[0].metric_date)+' (no reemplaza D-1)';
     }
 
     var cards=[
       kpiCard({icon:'RFT',title:'% Veh Ready For Transport (RFT)',freq:'Diario',
         value:rftVal,unit:'%',color:semRFT(rftVal),
         target:'>= 85% verde / < 85% rojo',
-        formula:'RFT / Total stock. RFT = Blocked for shipment = N (pendiente validacion metier)',
+        formula:'RFT / Total stock. Blocked for shipment = N. Pendiente validar alcance en exportacion terrestre y maritima.',
         source:'kpi_stock_daily (snapshot al importar Stock Playa)',
         detail:rftDetail+(rftLatestMsg?' - '+rftLatestMsg:''),
-        na:rftVal===null,naMsg:rftSnap?null:'Importar Stock Playa para generar snapshot.'}),
+        na:rftVal===null,naMsg:rftSnap?null:'Importar Stock Playa para generar snapshot.',
+        chartType:'bar_progress',chartGoal:85,chartMax:100,
+        dataStatus:rftVal===null?'na':'completo',
+        numerator:rftSnap?rftSnap.rft_qty:null,denominator:rftSnap?rftSnap.total_stock:null,
+        note:'Cobertura actual: Blocked for shipment = N. Pendiente validar si el universo debe incorporar exportacion terrestre y maritima bajo logica especifica.'}),
       kpiCard({icon:'SAT',title:'% Saturacion Interna Compound',freq:'Diario',
         value:satVal,unit:'%',color:semSat(satVal||0),
         target:'<= 80% verde / 80-90% naranja / >= 90% rojo',
         formula:'Total stock / Capacidad interna ('+metierConfig.internal_capacity.toLocaleString()+' uds configurable)',
         source:'kpi_stock_daily',detail:satDetail,
-        na:satVal===null,naMsg:rftSnap?null:'Importar Stock Playa.'}),
+        na:satVal===null,naMsg:rftSnap?null:'Importar Stock Playa.',
+        chartType:'thermometer',chartThresholds:[80,90],chartMax:120,
+        dataStatus:satVal===null?'na':'completo',
+        numerator:rftSnap?rftSnap.total_stock:null,denominator:metierConfig.internal_capacity}),
       kpiCard({icon:'TP',title:'% Daily Throughput',freq:'Diario',
         value:tpVal,unit:'%',color:semTP(tpVal),
         target:'>= 90% verde / 80-90% naranja / <= 80% rojo',
-        formula:'Despachos D-1 (excl. rerouting) / (Pasados a Sales + Ingresos otros yards)',
-        source:'kpi_shipments_daily + inputs manuales',
+        formula:'Expediciones desde Cordoba D-1 / Ingresos a Cordoba D-1',
+        source:'kpi_shipments_daily (Distribucion + Traslado) + kpi_ingress_daily (Tracking ING)',
         detail:tpDetail+(lastAvailMsg?' - '+lastAvailMsg:''),
-        na:tpVal===null,naMsg:tpMsg||null,badge:tpBadge,badgeColor:tpBadgeColor}),
+        na:tpVal===null,naMsg:tpMsg||null,badge:tpBadge,badgeColor:tpBadgeColor,
+        chartType:tpVal!==null?'bullet':null,chartGoal:90,chartMax:130,
+        dataStatus:tpVal===null?'na':'completo',
+        numerator:totalShip,denominator:ingressQty}),
     ];
     grid.innerHTML=cards.join('');
-    renderDailyInputsPanel(showDate,inp,hasShipments);
-
-  }catch(e){grid.innerHTML='<div style="color:var(--red);font-size:12px;padding:16px;">❌ Error: '+esc(e.message)+'</div>';}
+    // Show ingress info panel (read-only, no manual inputs)
+    renderIngressInfoPanel(showDate,totalShip,ingressQty,hasShipments);
+  }catch(e){grid.innerHTML='<div style="color:var(--red);font-size:12px;padding:16px;">Error: '+esc(e.message)+'</div>';}
 }
 
-function renderDailyInputsPanel(dateStr,existingInput,hasShipments){
+function renderIngressInfoPanel(dateStr,shipQty,ingressQty,hasShipments){
   var el=document.getElementById('metier-daily-inputs');if(!el)return;
-  var hasInp=existingInput&&((existingInput.vehicles_passed_to_sales_qty||0)+(existingInput.vehicles_entered_from_other_yards_qty||0))>0;
-  el.innerHTML='<div style="background:rgba(200,164,74,0.07);border:1px solid rgba(200,164,74,0.25);border-radius:10px;padding:14px 18px;">'
-    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">'
-    +'<span style="font-size:13px;font-weight:700;color:var(--gold);">📋 Inputs Throughput</span>'
-    +'<span style="font-size:11px;color:var(--text3);">'+fmtDate(dateStr)+(hasInp?'  ✅ Guardados':'  ⚠ Pendientes')+'</span>'
-    +'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:12px;">'
-    +'<div class="field"><label style="font-size:10px;">Pasados a Sales</label><input type="number" id="mtp-sales" min="0" value="'+(existingInput?existingInput.vehicles_passed_to_sales_qty||0:0)+'"></div>'
-    +'<div class="field"><label style="font-size:10px;">Ingresos desde otros yards</label><input type="number" id="mtp-ingresos" min="0" value="'+(existingInput?existingInput.vehicles_entered_from_other_yards_qty||0:0)+'"></div>'
-    +'<div class="field"><label style="font-size:10px;">Rerouting (excluir)</label><input type="number" id="mtp-rerouting" min="0" value="'+(existingInput?existingInput.rerouting_qty||0:0)+'"></div>'
-    +'<div class="field"><label style="font-size:10px;">Notas</label><input type="text" id="mtp-notes" value="'+(existingInput?esc(existingInput.notes||''):'')+'"></div>'
-    +'</div>'
-    +'<div style="display:flex;align-items:center;gap:10px;">'
-    +'<button class="btn btn-primary btn-sm" id="mtp-save-btn" data-date="'+dateStr+'">💾 Guardar inputs</button>'
-    +(hasShipments&&!hasInp?'<span style="font-size:11px;color:#E65100;font-weight:600;">⚠ Sin inputs → Daily Throughput = N/A</span>':'')
-    +'</div></div>';
+  var hasIng=ingressQty!==null&&ingressQty>0;
+  var status=(!hasShipments||!hasIng)?'warning':'ok';
+  el.innerHTML='<div style="background:rgba(26,60,110,0.06);border:1px solid rgba(26,60,110,0.2);border-radius:10px;padding:12px 16px;display:flex;gap:24px;align-items:center;flex-wrap:wrap;">'
+    +'<div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Expediciones '+fmtDate(dateStr)+'</div>'
+    +'<div style="font-size:20px;font-weight:900;color:'+(hasShipments?'#1A3C6E':'#718096')+';">'+(hasShipments?shipQty:'—')+'</div>'
+    +'<div style="font-size:9px;color:var(--text3);">Distribucion + Traslado Playa</div></div>'
+    +'<div style="font-size:24px;color:var(--text3);">÷</div>'
+    +'<div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Ingresos Tracking ING</div>'
+    +'<div style="font-size:20px;font-weight:900;color:'+(hasIng?'#1565C0':'#718096')+';">'+(hasIng?ingressQty:'—')+'</div>'
+    +'<div style="font-size:9px;color:var(--text3);">Tracking Reporting Tool · Mov. Type=ING · Dest=00034</div></div>'
+    +(status==='warning'?'<div style="font-size:10px;color:#E65100;font-weight:600;">⚠ '+((!hasShipments)?'Importar Distribucion/Traslado':!hasIng?'Importar Tracking Reporting Tool para calcular Throughput':'')+'</div>':'')
+    +'</div>';
 }
 
-async function saveMtpInputs(){
-  var btn=document.getElementById('mtp-save-btn');
-  if(btn&&btn.dataset.date)await saveMetierInputs(btn.dataset.date);
-  else if(typeof _currentInputsDate!=='undefined')await saveMetierInputs(_currentInputsDate);
-}
 
-async function saveMetierInputs(dateStr){
-  var payload={metric_date:dateStr,compound_code:'00034',vehicles_passed_to_sales_qty:parseInt(document.getElementById('mtp-sales').value)||0,vehicles_entered_from_other_yards_qty:parseInt(document.getElementById('mtp-ingresos').value)||0,rerouting_qty:parseInt(document.getElementById('mtp-rerouting').value)||0,notes:document.getElementById('mtp-notes').value||null,input_source:'manual',updated_by:currentUser?currentUser.nombre:'—',updated_at:new Date().toISOString()};
-  try{await sbUpsert('kpi_throughput_inputs_daily',payload,'metric_date,compound_code');showToast('Inputs guardados','success');renderMetierDaily();}
-  catch(e){showToast('Error: '+e.message,'error');}
-}
-
-// ── WEEKLY ────────────────────────────────────────────────────
 async function renderMetierWeekly(){
   var grid=document.getElementById('metier-weekly-grid');
   var actEl=document.getElementById('metier-weekly-actions');
@@ -7170,9 +7288,8 @@ async function renderMetierWeekly(){
   var sunday=getSundayOf(monday);
   var isCurrent=isWeekCurrent(monday);
   grid.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;">⟳ Cargando KPI semanales...</div>';
-
   try{
-    // Check saved snapshot first
+    // Saved snapshot first
     var savedSnaps=await sbGet('kpi_snapshots','compound_code=eq.00034&period=eq.'+monday+'&period_type=eq.weekly');
     var snapByName={};if(Array.isArray(savedSnaps))savedSnaps.forEach(function(s){snapByName[s.kpi_name]=s;});
 
@@ -7180,73 +7297,75 @@ async function renderMetierWeekly(){
     var tpWSnap=snapByName['weekly_throughput'];
     var tpWVal=null,tpWDetail='',tpWMsg=null,tpWBadge=null,tpWBadgeColor=null;
     if(tpWSnap&&!isCurrent){
-      tpWVal=parseFloat(tpWSnap.value);tpWBadge='📌 Snapshot oficial '+fmtDate(tpWSnap.computed_at);tpWBadgeColor='#1A3C6E';tpWDetail=tpWSnap.detail||'';
+      tpWVal=parseFloat(tpWSnap.value);tpWBadge='Snapshot oficial '+fmtDate(tpWSnap.computed_at);tpWBadgeColor='#1A3C6E';tpWDetail=tpWSnap.detail||'';
     } else {
-      // Compute live
       var allShip=await sbGet('kpi_shipments_daily','compound_code=eq.00034&metric_date=gte.'+monday+'&metric_date=lte.'+sunday+'&order=metric_date');
-      var allInp=await sbGet('kpi_throughput_inputs_daily','compound_code=eq.00034&metric_date=gte.'+monday+'&metric_date=lte.'+sunday);
-      if(!Array.isArray(allShip))allShip=[];if(!Array.isArray(allInp))allInp=[];
+      var allIng=await sbGet('kpi_ingress_daily','compound_code=eq.00034&metric_date=gte.'+monday+'&metric_date=lte.'+sunday+'&order=metric_date');
+      if(!Array.isArray(allShip))allShip=[];if(!Array.isArray(allIng))allIng=[];
       var totalShipW=0;var hasShipW=allShip.length>0;
       allShip.forEach(function(s){
         if(s.source_type==='distribution'&&metierConfig.throughput_include_distribution)totalShipW+=s.shipments_qty||0;
         if(s.source_type==='transfer_playa'&&metierConfig.throughput_include_transfer)totalShipW+=s.shipments_qty||0;
       });
-      var totalSales=allInp.reduce(function(a,i){return a+(i.vehicles_passed_to_sales_qty||0);},0);
-      var totalIngresos=allInp.reduce(function(a,i){return a+(i.vehicles_entered_from_other_yards_qty||0);},0);
-      var totalRerouting=allInp.reduce(function(a,i){return a+(i.rerouting_qty||0);},0);
-      var denomW=totalSales+totalIngresos;
+      var totalIngW=allIng.reduce(function(a,i){return a+(i.ingress_qty||0);},0);
       var daysLoaded=new Set(allShip.map(function(s){return s.metric_date;})).size;
-      var weekLabel=isCurrent?'semana en curso (parcial, '+daysLoaded+' días cargados)':'semana del '+fmtDate(monday)+' al '+fmtDate(sunday);
-      if(!hasShipW){tpWMsg='Sin despachos importados para esta semana.';}
-      else if(denomW===0){tpWMsg='Despachos: '+totalShipW+'. Faltan inputs del denominador.';}
-      else{var numW=Math.max(0,totalShipW-totalRerouting);tpWVal=Math.round(numW/denomW*1000)/10;tpWDetail=numW+' despachos / '+denomW+' denominador · '+weekLabel;}
-      if(isCurrent)tpWBadge='⚡ Semana en curso · actualizado en vivo';
-      else if(daysLoaded<5&&hasShipW)tpWBadge='⚠ Semana parcial ('+daysLoaded+' días)';
+      var weekLabel=isCurrent?'semana en curso ('+daysLoaded+' dias cargados)':'semana del '+fmtDate(monday)+' al '+fmtDate(sunday);
+      if(!hasShipW){tpWMsg='Sin expediciones importadas para esta semana.';}
+      else if(totalIngW===0){tpWMsg='Expediciones: '+totalShipW+'. Sin ingresos Tracking ING para esta semana.';}
+      else{tpWVal=Math.round(totalShipW/totalIngW*1000)/10;tpWDetail=totalShipW+' expediciones / '+totalIngW+' ingresos · '+weekLabel;}
+      if(isCurrent){tpWBadge='Semana en curso · valor provisorio';tpWBadgeColor='#718096';}
+      else if(daysLoaded<5&&hasShipW){tpWBadge='Semana parcial ('+daysLoaded+' dias cargados)';}
     }
 
     // ── SERVICE ORDER NOT DONE ────────────────────────────────
     var soSnap=snapByName['service_order_not_done'];
     var soVal=null,soDetail='',soMsg=null,soBadge=null,soBadgeColor=null;
+    var soNumerator=null,soDenominator=null;
     if(soSnap&&!isCurrent){
-      soVal=parseFloat(soSnap.value);soBadge='📌 Snapshot oficial '+fmtDate(soSnap.computed_at);soBadgeColor='#1A3C6E';soDetail=soSnap.detail||'';
+      soVal=parseFloat(soSnap.value);soBadge='Snapshot oficial '+fmtDate(soSnap.computed_at);soBadgeColor='#1A3C6E';soDetail=soSnap.detail||'';
     } else {
-      // Live from pendingCache
       if(pendingCache&&pendingCache.length){
         var vinMap={};
         pendingCache.forEach(function(p){if(!vinMap[p.vin])vinMap[p.vin]={due:true,overUrgent:false};if(p.urgency==='overdue'||p.urgency==='urgent')vinMap[p.vin].overUrgent=true;});
-        var dueN=Object.keys(vinMap).length;
-        var pendN=Object.values(vinMap).filter(function(v){return v.overUrgent;}).length;
-        soVal=dueN>0?Math.round(pendN/dueN*1000)/10:0;
-        soDetail=pendN+' veh con servicio vencido o urgente de '+dueN+' con servicios debidos';
-        soBadge=isCurrent?'⚡ Valor en vivo — no es snapshot oficial':'⚡ Calculado en vivo';
-        soBadgeColor='rgba(100,116,139,0.5)';
-      } else {soMsg='pendingCache vacío. Importar stock y bloqueos.';}
+        soDenominator=Object.keys(vinMap).length;
+        soNumerator=Object.values(vinMap).filter(function(v){return v.overUrgent;}).length;
+        soVal=soDenominator>0?Math.round(soNumerator/soDenominator*1000)/10:0;
+        soDetail=soNumerator+' veh con mantenimiento obligatorio pendiente de '+soDenominator+' con servicios debidos';
+        soBadge=isCurrent?'Semana en curso · valor en vivo':'Calculado en vivo';soBadgeColor='#718096';
+      } else {soMsg='Sin datos de mantenimiento. Importar stock y bloqueos.';}
     }
 
     var cards=[
-      kpiCard({icon:'📅',title:'% Weekly Throughput',freq:'Semanal',value:tpWVal,unit:'%',color:semTP(tpWVal),target:'≥ 90% verde · 80–90% naranja · ≤ 80% rojo',formula:'Σ Despachos semana (excl. rerouting) / Σ (Sales + Ingresos) semana',source:'kpi_shipments_daily + inputs manuales',detail:tpWDetail,na:tpWVal===null,naMsg:tpWMsg,badge:tpWBadge,badgeColor:tpWBadgeColor}),
-      kpiCard({icon:'🔧',title:'% Veh Service Order Not Done',freq:'Semanal',value:soVal,unit:'%',color:semSO(soVal),target:'≤ 5% verde · 5–10% naranja · ≥ 10% rojo',formula:'Veh con servicio vencido o urgente / Veh con servicios debidos',source:'pendingCache (vivo) · kpi_snapshots (cierre semana)',detail:soDetail,na:soVal===null,naMsg:soMsg,badge:soBadge,badgeColor:soBadgeColor}),
+      kpiCard({icon:'Weekly',title:'% Weekly Throughput',freq:'Semanal',
+        value:tpWVal,unit:'%',color:semTP(tpWVal),
+        target:'>= 90% verde / 80-90% naranja / <= 80% rojo',
+        formula:'Expediciones desde Cordoba en la semana / Ingresos a Cordoba en la semana (L-D)',
+        source:'kpi_shipments_daily (Distribucion + Traslado) + kpi_ingress_daily (Tracking ING)',
+        detail:tpWDetail,na:tpWVal===null,naMsg:tpWMsg,badge:tpWBadge,badgeColor:tpWBadgeColor,
+        chartType:tpWVal!==null?'bullet':null,chartGoal:90,chartMax:130,
+        dataStatus:tpWVal===null?'na':(tpWBadge&&tpWBadge.indexOf('curso')>=0?'parcial':'completo')}),
+      kpiCard({icon:'SO',title:'% Veh con Mantenimiento Obligatorio Pendiente',freq:'Semanal',
+        value:soVal,unit:'%',color:semSO(soVal),
+        target:'<= 5% verde / 5-10% naranja / >= 10% rojo',
+        formula:'Veh con servicio obligatorio vencido o pendiente / Total veh con servicios obligatorios debidos',
+        source:'pendingCache (en vivo) · kpi_snapshots (cierre de semana)',
+        detail:soDetail,na:soVal===null,naMsg:soMsg,badge:soBadge,badgeColor:soBadgeColor,
+        chartType:soVal!==null?'donut_so':null,
+        numerator:soNumerator,denominator:soDenominator,
+        dataStatus:soVal===null?'na':(soBadge&&soBadge.indexOf('vivo')>=0?'parcial':'completo')}),
     ];
     grid.innerHTML=cards.join('');
 
-    // Actions bar
-    _weeklyMon=monday; _weeklyS=sunday;
+    _weeklyMon=monday;_weeklyS=sunday;
     if(actEl){
-      var canSave=!isCurrent||confirm;
       actEl.innerHTML=isCurrent
-        ?'<div style="background:rgba(21,101,192,.08);border:1px solid rgba(21,101,192,.2);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
-          +'<span style="font-size:12px;color:var(--text2);">La semana todavía está en curso. Los valores son provisorios.</span>'
-          +'<button class="btn btn-primary btn-sm" id="save-weekly-btn" onclick="saveWeeklySnapshotBtn()">📌 Fijar / Guardar snapshot oficial</button>'
-          +'</div>'
-        :Object.keys(snapByName).length?'<div style="font-size:11px;color:var(--text3);padding:8px 0;">✅ Snapshot oficial guardado el '+fmtDate(snapByName['weekly_throughput']?snapByName['weekly_throughput'].computed_at:snapByName['service_order_not_done'].computed_at)+'</div>'
-        :'<div style="background:rgba(230,81,0,.08);border:1px solid rgba(230,81,0,.2);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
-          +'<span style="font-size:12px;color:#E65100;">⚠ Semana cerrada sin snapshot oficial guardado.</span>'
-          +'<button class="btn btn-primary btn-sm" id="save-weekly-btn" onclick="saveWeeklySnapshotBtn()">📌 Fijar / Guardar snapshot oficial</button>'
-          +'</div>';
+        ?'<div style="background:rgba(21,101,192,.08);border:1px solid rgba(21,101,192,.2);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span style="font-size:12px;color:var(--text2);">Semana en curso — valores provisorios.</span><button class="btn btn-primary btn-sm" id="save-weekly-btn" onclick="saveWeeklySnapshotBtn()">Fijar snapshot oficial ahora</button></div>'
+        :Object.keys(snapByName).length?'<div style="font-size:11px;color:var(--text3);padding:8px 0;">Snapshot oficial guardado el '+fmtDate(snapByName['weekly_throughput']?snapByName['weekly_throughput'].computed_at:snapByName['service_order_not_done'].computed_at)+'</div>'
+        :'<div style="background:rgba(230,81,0,.08);border:1px solid rgba(230,81,0,.2);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:12px;"><span style="font-size:12px;color:#E65100;">Semana cerrada sin snapshot oficial guardado.</span><button class="btn btn-primary btn-sm" id="save-weekly-btn" onclick="saveWeeklySnapshotBtn()">Guardar snapshot</button></div>';
     }
-
-  }catch(e){grid.innerHTML='<div style="color:var(--red);font-size:12px;padding:16px;">❌ Error: '+esc(e.message)+'</div>';}
+  }catch(e){grid.innerHTML='<div style="color:var(--red);font-size:12px;padding:16px;">Error: '+esc(e.message)+'</div>';}
 }
+
 
 var _weeklyMon='', _weeklyS='';
 function saveWeeklySnapshotBtn(){saveWeeklySnapshot(_weeklyMon,_weeklyS);}
@@ -7257,18 +7376,17 @@ async function saveWeeklySnapshot(monday,sunday){
   var dueN=Object.keys(vinMap).length,pendN=Object.values(vinMap).filter(function(v){return v.overUrgent;}).length;
   var soPct=dueN>0?Math.round(pendN/dueN*1000)/10:0;
 
-  // Compute weekly throughput
+  // Compute weekly throughput from ingress
   var allShip=await sbGet('kpi_shipments_daily','compound_code=eq.00034&metric_date=gte.'+monday+'&metric_date=lte.'+sunday);
-  var allInp=await sbGet('kpi_throughput_inputs_daily','compound_code=eq.00034&metric_date=gte.'+monday+'&metric_date=lte.'+sunday);
-  if(!Array.isArray(allShip))allShip=[];if(!Array.isArray(allInp))allInp=[];
+  var allIng=await sbGet('kpi_ingress_daily','compound_code=eq.00034&metric_date=gte.'+monday+'&metric_date=lte.'+sunday);
+  if(!Array.isArray(allShip))allShip=[];if(!Array.isArray(allIng))allIng=[];
   var totalShip=0;allShip.forEach(function(s){if(s.source_type==='distribution'&&metierConfig.throughput_include_distribution)totalShip+=s.shipments_qty||0;if(s.source_type==='transfer_playa'&&metierConfig.throughput_include_transfer)totalShip+=s.shipments_qty||0;});
-  var denom=allInp.reduce(function(a,i){return a+(i.vehicles_passed_to_sales_qty||0)+(i.vehicles_entered_from_other_yards_qty||0);},0);
-  var rerouting=allInp.reduce(function(a,i){return a+(i.rerouting_qty||0);},0);
-  var tpPct=denom>0?Math.round(Math.max(0,totalShip-rerouting)/denom*1000)/10:null;
+  var denom=allIng.reduce(function(a,i){return a+(i.ingress_qty||0);},0);
+  var tpPct=denom>0?Math.round(totalShip/denom*1000)/10:null;
   var now=new Date().toISOString();
   var by=currentUser?currentUser.nombre:'—';
   try{
-    await sbUpsert('kpi_snapshots',{compound_code:'00034',kpi_name:'weekly_throughput',period_type:'weekly',period:monday,period_end:sunday,value:tpPct,status:tpPct===null?'na':'ok',detail:totalShip+' despachos / '+denom+' denominador',computed_at:now,computed_by:by},'compound_code,kpi_name,period');
+    await sbUpsert('kpi_snapshots',{compound_code:'00034',kpi_name:'weekly_throughput',period_type:'weekly',period:monday,period_end:sunday,value:tpPct,status:tpPct===null?'na':'ok',detail:totalShip+' expediciones / '+denom+' ingresos',computed_at:now,computed_by:by},'compound_code,kpi_name,period');
     await sbUpsert('kpi_snapshots',{compound_code:'00034',kpi_name:'service_order_not_done',period_type:'weekly',period:monday,period_end:sunday,value:soPct,status:'ok',detail:pendN+' pendientes de '+dueN+' con servicios debidos',computed_at:now,computed_by:by},'compound_code,kpi_name,period');
     showToast('Snapshot semanal guardado correctamente','success');
     renderMetierWeekly();
@@ -7320,10 +7438,29 @@ async function renderMetierMonthly(){
     // Safety detail
     var gravCrit=safetyData.filter(function(s){return s.severity==='Crítica';}).length;
     var safetyDetail=nbSafety>0?gravCrit+' críticos · '+safetyData.filter(function(s){return s.status==='abierto';}).length+' abiertos':'Sin incidentes en el período';
+    // Build severity distribution for chart
+    var severityDist={};
+    safetyData.forEach(function(s){var sv=s.severity||'Sin definir';severityDist[sv]=(severityDist[sv]||0)+1;});
 
     var cards=[
-      kpiCard({icon:'🦺',title:'Nb of Safety Issues',freq:'Mensual',value:nbSafety,unit:'',color:semSafe(nbSafety),target:'0 verde · > 0 rojo',formula:'Cantidad de incidentes registrados en el mes',source:'safety_incidents',detail:safetyDetail,na:false}),
-      kpiCard({icon:'💥',title:'% Damaged Vehicles',freq:'Mensual',value:dmgVal,unit:'%',color:semDmg(dmgVal),target:'< 0.5% verde · ≥ 0.5% rojo',formula:'VINs dañados únicos del mes / Veh despachados del mes',source:'danos + kpi_shipments_daily',detail:dmgDetail,na:dmgVal===null,naMsg:dmgMsg,badge:dmgBadge}),
+      kpiCard({icon:'Safety',title:'Nb of Safety Issues',freq:'Mensual',
+        value:nbSafety,unit:'',color:semSafe(nbSafety),
+        target:'0 = verde / > 0 = rojo',
+        formula:'Cantidad de incidentes registrados en el mes en curso',
+        source:'Modulo Seguridad - tabla safety_incidents',
+        detail:safetyDetail,na:false,
+        chartType:'counter_safety',
+        dataStatus:'completo',
+        severityDist:severityDist}),
+      kpiCard({icon:'Damaged',title:'% Damaged Vehicles',freq:'Mensual',
+        value:dmgVal,unit:'%',color:semDmg(dmgVal),
+        target:'< 0.5% verde / >= 0.5% rojo',
+        formula:'VINs unicos con dano del mes / Veh despachados del mes',
+        source:'danos + kpi_shipments_daily (Distribucion + Traslado)',
+        detail:dmgDetail,na:dmgVal===null,naMsg:dmgMsg,badge:dmgBadge,
+        chartType:dmgVal!==null?'bar_threshold':null,chartGoal:0.5,chartMax:2,
+        dataStatus:dmgVal===null?'na':(dmgBadge?'parcial':'completo'),
+        numerator:uniqueDmgVins,denominator:totalDispMonth}),
     ];
     grid.innerHTML=cards.join('');
 
@@ -7398,7 +7535,6 @@ async function renderMetierImportLog(){
   try{
     var logs=await sbGet('kpi_import_log','compound_code=eq.00034&order=imported_at.desc&limit=8');
     if(!Array.isArray(logs)||!logs.length){el.innerHTML='<div style="font-size:11px;color:var(--text3);padding:8px 0;">Sin importaciones registradas.</div>';return;}
-    var _currentInputsDate=dateStr;
     el.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Últimas importaciones</div>'
       +'<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Archivo</th><th>Tipo</th><th>Filas</th><th>Período</th><th>Por</th><th>Fecha</th></tr></thead><tbody>'
       +logs.map(function(l){return'<tr><td style="font-size:11px">'+esc(l.file_name||'—')+'</td><td><span class="badge b-inprog">'+esc(l.file_type||'—')+'</span></td><td>'+esc(l.rows_valid||l.rows_read||0)+'</td><td style="font-size:10px">'+esc((l.period_from||'')+' → '+(l.period_to||''))+'</td><td style="font-size:11px">'+esc(l.imported_by||'—')+'</td><td style="font-size:10px">'+new Date(l.imported_at).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</td></tr>';}).join('')
@@ -7407,70 +7543,6 @@ async function renderMetierImportLog(){
 }
 
 // ── PDF EXPORT ────────────────────────────────────────────────
-async function exportKpiMetierPDF(){
-  await renderKpiMetier();
-  await new Promise(function(r){setTimeout(r,800);});
-  var dGrid=document.getElementById('metier-daily-grid');
-  var wGrid=document.getElementById('metier-weekly-grid');
-  var mGrid=document.getElementById('metier-monthly-grid');
-  var dDate=document.getElementById('metier-daily-date');
-  var wDate=document.getElementById('metier-week-date');
-  var mSel=document.getElementById('metier-month-sel');
-
-  var html='<html><head><meta charset="UTF-8"><style>'
-    +'@page{size:A4;margin:1.5cm;} @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}'
-    +'*{box-sizing:border-box;} body{font-family:Calibri,Arial,sans-serif;font-size:10px;color:#1A202C;margin:0;padding:0;background:white;}'
-    +'.hdr{background:#0D1F3C;color:white;padding:18px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;}'
-    +'.hdr-left h1{margin:0;font-size:22px;font-weight:900;letter-spacing:2px;color:#C8A44A;font-family:Arial Black,Arial,sans-serif;}'
-    +'.hdr-left p{margin:4px 0 0;font-size:10px;opacity:.6;}'
-    +'.hdr-right{text-align:right;font-size:9px;opacity:.5;}'
-    +'.sec-hdr{display:flex;align-items:center;gap:10px;margin:20px 0 12px;padding-bottom:6px;border-bottom:2px solid #C8A44A;}'
-    +'.sec-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;color:white;flex-shrink:0;}'
-    +'.sec-title{font-size:14px;font-weight:900;color:#0D1F3C;letter-spacing:.5px;}'
-    +'.sec-sub{font-size:9px;color:#718096;margin-top:1px;}'
-    +'.grid{display:grid;gap:12px;}'
-    +'.grid-3{grid-template-columns:1fr 1fr 1fr;}'
-    +'.grid-2{grid-template-columns:1fr 1fr;}'
-    +'.card{background:#F8FAFC;border-radius:8px;padding:14px 16px;border:1px solid #E2E8F0;position:relative;overflow:hidden;break-inside:avoid;}'
-    +'.card-top-bar{position:absolute;top:0;left:0;right:0;height:4px;border-radius:8px 8px 0 0;}'
-    +'.card-freq{display:inline-block;font-size:8px;font-weight:700;padding:2px 7px;border-radius:8px;margin-bottom:6px;}'
-    +'.card-title{font-size:9px;font-weight:700;color:#4A5568;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;line-height:1.4;}'
-    +'.card-value{font-size:40px;font-weight:900;line-height:1;margin-bottom:4px;font-family:Arial Black,Arial,sans-serif;}'
-    +'.card-badge{display:inline-block;font-size:8px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px;background:#E2E8F0;color:#4A5568;}'
-    +'.card-detail{font-size:9px;color:#718096;margin-bottom:6px;line-height:1.4;}'
-    +'.card-target{font-size:8px;color:#94A3B8;}'
-    +'.card-formula{font-size:8px;color:#94A3B8;font-style:italic;margin-top:6px;padding-top:6px;border-top:1px solid #E2E8F0;line-height:1.4;}'
-    +'.na-msg{font-size:9px;color:#E65100;font-weight:600;margin-bottom:4px;}'
-    +'.ft{font-size:8px;color:#94A3B8;border-top:1px solid #E2E8F0;padding-top:8px;margin-top:20px;display:flex;justify-content:space-between;}'
-    +'</style></head><body>'
-    +'<div class="hdr">'
-    +'<div class="hdr-left"><h1>KPI MÉTIER SUPPLY CHAIN</h1><p>Compound Córdoba (00034) · '+new Date().toLocaleDateString('es-AR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})+'</p></div>'
-    +'<div class="hdr-right">STELLANTIS ARGENTINA<br>Uso interno confidencial<br>v4.8.1</div>'
-    +'</div>';
-
-  // Helper to convert portal card to PDF format
-  function convertCardForPDF(cardHTML){
-    // Strip interactive elements, keep visual content
-    return cardHTML.replace(/class="no-print[^"]*"/g,'style="display:none"');
-  }
-
-  // Daily section
-  html+='<div class="sec-hdr"><div class="sec-icon" style="background:#1A3C6E;">📅</div><div><div class="sec-title">KPI DIARIOS</div><div class="sec-sub">Referencia: '+(dDate&&dDate.value?fmtDate(dDate.value):'D-1')+'</div></div></div>';
-  html+='<div class="grid grid-3">'+(dGrid?extractPDFCards(dGrid):'')+'</div>';
-
-  html+='<div class="sec-hdr"><div class="sec-icon" style="background:#1565C0;">📆</div><div><div class="sec-title">KPI SEMANALES</div><div class="sec-sub">Semana del '+(wDate&&wDate.value?fmtDate(getMondayOf(wDate.value)):'—')+'</div></div></div>';
-  html+='<div class="grid grid-2">'+(wGrid?extractPDFCards(wGrid):'')+'</div>';
-
-  html+='<div class="sec-hdr"><div class="sec-icon" style="background:#6A1B9A;">📊</div><div><div class="sec-title">KPI MENSUALES</div><div class="sec-sub">Período: '+(mSel&&mSel.value?mSel.value:new Date().toISOString().slice(0,7))+'</div></div></div>';
-  html+='<div class="grid grid-2">'+(mGrid?extractPDFCards(mGrid):'')+'</div>';
-
-  html+='<div class="ft"><span>Stellantis Argentina S.A. · Portal de Gestión v4.8.1</span><span>Generado: '+new Date().toLocaleString('es-AR')+'</span></div></body></html>';
-
-  var w=window.open('','_blank','width=900,height=1200');
-  if(!w){showToast('Habilitá ventanas emergentes para el PDF','info');return;}
-  w.document.write(html);w.document.close();
-  w.onload=function(){w.focus();setTimeout(function(){w.print();},500);};
-}
 
 function extractPDFCards(gridEl){
   var cards=gridEl.querySelectorAll('div[style*="border:1px solid var(--border)"]');
@@ -7509,9 +7581,13 @@ async function renderSeguridad(){
   var desde=document.getElementById('seg-desde')?document.getElementById('seg-desde').value:'';
   var hasta=document.getElementById('seg-hasta')?document.getElementById('seg-hasta').value:'';
   var estado=document.getElementById('seg-estado')?document.getElementById('seg-estado').value:'ALL';
+  var tipoFilter=document.getElementById('seg-tipo-filter')?document.getElementById('seg-tipo-filter').value:'ALL';
+  var gravFilter=document.getElementById('seg-grav-filter')?document.getElementById('seg-grav-filter').value:'ALL';
   var params='compound_code=eq.00034&order=incident_date.desc';
   if(desde)params+='&incident_date=gte.'+desde;if(hasta)params+='&incident_date=lte.'+hasta;
   if(estado!=='ALL')params+='&status=eq.'+estado;
+  if(tipoFilter!=='ALL')params+='&incident_type=eq.'+encodeURIComponent(tipoFilter);
+  if(gravFilter!=='ALL')params+='&severity=eq.'+encodeURIComponent(gravFilter);
   var data=[];try{data=await sbGet('safety_incidents',params);if(!Array.isArray(data))data=[];}catch(e){}
   _segData=data;
   var thisMonth=new Date().toISOString().slice(0,7)+'-01';
@@ -7616,6 +7692,752 @@ function switchKpiTab(tab){
   if(to){to.style.borderBottomColor=m?'transparent':'var(--gold)';to.style.color=m?'var(--text3)':'var(--gold)';to.style.background=m?'transparent':'var(--card)';}
   if(m)renderKpiMetier();else if(typeof renderKpisCompound==='function')renderKpisCompound();
 }
+
+// ══════════════════════════════════════════════════════════════
+// EXCEL MÉTIER EXPORT — v4.8.3
+// ══════════════════════════════════════════════════════════════
+async function exportKpiMetierExcel(){
+  await renderKpiMetier();
+  await new Promise(function(r){setTimeout(r,700);});
+
+  var dDate=document.getElementById('metier-daily-date');
+  var wDate=document.getElementById('metier-week-date');
+  var mSel=document.getElementById('metier-month-sel');
+  var today=new Date().toISOString().slice(0,10);
+  var dDay=dDate&&dDate.value?dDate.value:today;
+  var wMon=getMondayOf(wDate&&wDate.value?wDate.value:today);
+  var wSun=getSundayOf(wMon);
+  var month=mSel&&mSel.value?mSel.value:today.slice(0,7);
+  var genDt=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  // Gather rendered values
+  function getGridCards(gridId){
+    var grid=document.getElementById(gridId);
+    if(!grid)return[];
+    var out=[];
+    var cards=grid.querySelectorAll('[style*="border:1px solid"]');
+    cards.forEach(function(card){
+      var titleEl=card.querySelector('[style*="text-transform:uppercase"]');
+      var valEl=card.querySelector('[style*="font-size:50px"]');
+      var topBar=card.querySelector('[style*="height:4px"]');
+      var statusEl=card.querySelectorAll('[style*="border-radius:8px"]')[0];
+      var formulaEl=card.querySelector('[style*="font-style:italic"]');
+      var sourceEl=Array.from(card.querySelectorAll('[style*="font-size:8px"]')).find(function(e){return e.textContent.indexOf('Fuente:')>=0;});
+      var naEl=card.querySelector('[style*="#E65100"][style*="font-weight:600"]');
+      var badgeEl=card.querySelector('[style*="max-width:100%"]');
+      out.push({
+        title:titleEl?titleEl.textContent.trim():'',
+        value:valEl?valEl.textContent.trim():'N/A',
+        color:topBar?topBar.style.background:'#718096',
+        status:statusEl?statusEl.textContent.trim():'',
+        formula:formulaEl?formulaEl.textContent.trim():'',
+        source:sourceEl?sourceEl.textContent.replace(/^Fuente:\s*/,''):'',
+        naMsg:naEl?naEl.textContent.replace(/^⚠\s*/,''):'',
+        badge:badgeEl?badgeEl.textContent.trim():'',
+      });
+    });
+    return out;
+  }
+
+  var dailyCards=getGridCards('metier-daily-grid');
+  var weeklyCards=getGridCards('metier-weekly-grid');
+  var monthlyCards=getGridCards('metier-monthly-grid');
+
+  // Stellantis colors
+  var C={navy:'#0D1F3C',blue:'#1A3C6E',gold:'#C8A44A',green:'#2E7D32',red:'#C62828',
+         orange:'#E65100',lgray:'#F4F6F9',mgray:'#E2E8F0',dgray:'#4A5568',white:'#FFFFFF',
+         daily:'#EFF6FF',weekly:'#F0F4FF',monthly:'#FAF5FF'};
+
+  function cellStyle(bg,fg,bold,size,border,align,wrap){
+    var s='background:'+bg+';color:'+fg+';';
+    if(bold)s+='font-weight:700;';if(size)s+='font-size:'+size+'pt;';
+    if(border)s+='border:1px solid '+C.mgray+';';if(align)s+='text-align:'+align+';';
+    if(wrap)s+='white-space:normal;';
+    return s;
+  }
+
+  function semBar(val,maxVal,color,width){
+    // SVG bar chart inline
+    width=width||120;var h=12;
+    var pct=maxVal>0?Math.min(val/maxVal,1):0;
+    var fill=Math.round(pct*(width-2));
+    return '<td style="'+cellStyle(C.lgray,C.dgray,false,9,true)+'padding:4px 8px;">'
+      +'<svg width="'+width+'" height="'+h+'" viewBox="0 0 '+width+' '+h+'">'
+      +'<rect x="1" y="1" width="'+(width-2)+'" height="'+(h-2)+'" rx="3" fill="#E2E8F0"/>'
+      +'<rect x="1" y="1" width="'+fill+'" height="'+(h-2)+'" rx="3" fill="'+color+'"/>'
+      +'</svg>'
+      +'</td>';
+  }
+
+  function semDot(color){
+    return '<td style="'+cellStyle(C.lgray,color,true,11,true,'center')+'padding:4px;">●</td>';
+  }
+
+  function mkRow(cells){
+    return '<tr>'+cells.join('')+'</tr>';
+  }
+
+  function td(val,style,colspan){
+    return '<td'+(colspan?' colspan="'+colspan+'"':'')+' style="'+style+';padding:5px 10px;">'+String(val||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</td>';
+  }
+
+  function hdr(val,colspan,bg,fg,size){
+    bg=bg||C.navy;fg=fg||C.white;size=size||9;
+    return '<td'+(colspan?' colspan="'+colspan+'"':'')+' style="background:'+bg+';color:'+fg+';font-weight:700;font-size:'+size+'pt;padding:7px 10px;border:1px solid '+C.blue+';">'+String(val||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</td>';
+  }
+
+  // ── SHEET 1: RESUMEN EJECUTIVO ──────────────────────────────
+  function buildSheet1(){
+    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
+    // Title
+    h+=mkRow([hdr('KPI METIER SUPPLY CHAIN — COMPOUND CÓRDOBA',8,C.navy,C.gold,16)]);
+    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.3',8,C.blue,C.white,9)]);
+    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
+
+    // Period summary
+    h+=mkRow([hdr('PERÍODO CONSULTADO',8,C.blue,C.white,10)]);
+    h+=mkRow([hdr('KPI Diarios',1,C.lgray,C.navy,9),td('Referencia: '+dDay,cellStyle(C.white,C.dgray,false,9,true)),
+              hdr('KPI Semanales',1,C.lgray,C.navy,9),td('Semana: '+wMon+' al '+wSun,cellStyle(C.white,C.dgray,false,9,true)),
+              hdr('KPI Mensuales',1,C.lgray,C.navy,9),td('Mes: '+month,cellStyle(C.white,C.dgray,false,9,true,'',true)),
+              td('',cellStyle(C.white,C.white),2)]);
+    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
+
+    // KPI blocks
+    function kpiBlock(cards, groupLabel, groupColor, period){
+      var rows='';
+      rows+=mkRow([hdr(groupLabel,8,groupColor,C.white,10)]);
+      rows+=mkRow([hdr('KPI',2,C.navy,C.white,9),hdr('Período',1,C.navy,C.white,9),hdr('Valor',1,C.navy,C.white,9),
+                   hdr('Estado',1,C.navy,C.white,9),hdr('Objetivo',1,C.navy,C.white,9),
+                   hdr('Fuente',1,C.navy,C.white,9),hdr('Observación',1,C.navy,C.white,9)]);
+      cards.forEach(function(card,i){
+        var bg=i%2===0?C.lgray:C.white;
+        var obs=card.naMsg||card.badge||'';
+        // Semáforo color
+        var semColor=card.color||'#718096';
+        rows+=mkRow([
+          td('●',cellStyle(bg,semColor,true,14,true,'center')),
+          td(card.title,cellStyle(bg,C.navy,true,9,true)),
+          td(period,cellStyle(bg,C.dgray,false,9,true)),
+          td(card.value,cellStyle(bg,semColor,true,14,true,'center')),
+          td(card.status||'',cellStyle(bg,semColor,false,9,true,'center')),
+          td(card.formula?card.formula.split('.')[0]:'',cellStyle(bg,C.dgray,false,8,true,'','true')),
+          td(card.source||'',cellStyle(bg,C.dgray,false,8,true,'','true')),
+          td(obs,cellStyle(bg,C.orange,false,8,true,'','true')),
+        ]);
+      });
+      rows+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
+      return rows;
+    }
+
+    h+=kpiBlock(dailyCards,'KPI DIARIOS','#1A3C6E',dDay);
+    h+=kpiBlock(weeklyCards,'KPI SEMANALES','#1565C0',wMon+' al '+wSun);
+    h+=kpiBlock(monthlyCards,'KPI MENSUALES','#6A1B9A',month);
+
+    // Config footer
+    h+=mkRow([hdr('CONFIGURACIÓN ACTIVA',8,C.dgray,C.white,9)]);
+    h+=mkRow([td('Capacidad interna:',cellStyle(C.lgray,C.blue,true,9,true)),
+              td(metierConfig.internal_capacity+' unidades',cellStyle(C.white,C.dgray,false,9,true)),
+              td('Regla RFT:',cellStyle(C.lgray,C.blue,true,9,true)),
+              td(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment = N':'Availability Date no nula',cellStyle(C.white,C.dgray,false,9,true)),
+              td('TP incluye Distribucion:',cellStyle(C.lgray,C.blue,true,9,true)),
+              td(metierConfig.throughput_include_distribution?'Si':'No',cellStyle(C.white,C.dgray,false,9,true)),
+              td('TP incluye Traslado:',cellStyle(C.lgray,C.blue,true,9,true)),
+              td(metierConfig.throughput_include_transfer?'Si':'No',cellStyle(C.white,C.dgray,false,9,true))]);
+    h+='</table>';
+    return h;
+  }
+
+  // ── SHEET 2: KPI DIARIOS ────────────────────────────────────
+  function buildSheet2(){
+    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
+    h+=mkRow([hdr('KPI DIARIOS — Detalle',7,C.navy,C.gold,12)]);
+    h+=mkRow([hdr('Período de referencia: '+dDay,7,C.blue,C.white,9)]);
+    h+=mkRow([hdr('KPI',1),hdr('Fecha',1),hdr('Numerador',1),hdr('Denominador',1),hdr('Valor',1),hdr('Estado',1),hdr('Fuente',1)]);
+    var labels={
+      'RFT':['Stock importado hoy',metierConfig.rft_rule==='blocked_for_shipment_n'?'Regla: Blocked for shipment = N':'Regla: Availability Date no nula'],
+      'Saturacion':['Stock importado hoy','Capacidad interna: '+metierConfig.internal_capacity+' uds'],
+      'Throughput':['Expediciones (Distribucion + Traslado)','Ingresos (Tracking ING)'],
+    };
+    dailyCards.forEach(function(card,i){
+      var bg=i%2===0?C.lgray:C.white;
+      var lbl=Object.keys(labels).find(function(k){return card.title.indexOf(k)>=0;});
+      var num=lbl&&labels[lbl]?labels[lbl][0]:'';
+      var den=lbl&&labels[lbl]?labels[lbl][1]:'';
+      h+=mkRow([td(card.title,cellStyle(bg,C.navy,true,9,true)),
+                td(dDay,cellStyle(bg,C.dgray,false,9,true)),
+                td(num,cellStyle(bg,C.dgray,false,8,true)),
+                td(den,cellStyle(bg,C.dgray,false,8,true)),
+                td(card.value,cellStyle(bg,card.color,true,12,true,'center')),
+                td(card.status||'',cellStyle(bg,card.color,false,9,true,'center')),
+                td(card.source||'',cellStyle(bg,C.dgray,false,8,true))]);
+      // Formula row
+      h+=mkRow([td('',cellStyle(C.white,C.white)),
+                td('Formula:',cellStyle(C.white,C.blue,true,8)),
+                td(card.formula||'',cellStyle(C.white,C.dgray,false,8,'','','true'),5)]);
+    });
+    h+='</table>';return h;
+  }
+
+  // ── SHEET 3: KPI SEMANALES ──────────────────────────────────
+  function buildSheet3(){
+    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
+    h+=mkRow([hdr('KPI SEMANALES — Detalle',7,C.blue,C.gold,12)]);
+    h+=mkRow([hdr('Semana: '+wMon+' (Lunes) al '+wSun+' (Domingo)',7,C.blue,C.white,9)]);
+    h+=mkRow([hdr('KPI',1),hdr('Semana',1),hdr('Numerador',1),hdr('Denominador',1),hdr('Valor',1),hdr('Estado',1),hdr('Fuente',1)]);
+    var labels={
+      'Weekly':['Expediciones semana (Distrib.+Traslado)','Ingresos semana (Tracking ING)'],
+      'Mantenimiento':['Veh con servicio obligatorio pendiente','Total veh con servicios debidos'],
+    };
+    weeklyCards.forEach(function(card,i){
+      var bg=i%2===0?C.lgray:C.white;
+      var lbl=Object.keys(labels).find(function(k){return card.title.indexOf(k)>=0;});
+      var num=lbl&&labels[lbl]?labels[lbl][0]:'';
+      var den=lbl&&labels[lbl]?labels[lbl][1]:'';
+      h+=mkRow([td(card.title,cellStyle(bg,C.blue,true,9,true)),
+                td(wMon+' al '+wSun,cellStyle(bg,C.dgray,false,9,true)),
+                td(num,cellStyle(bg,C.dgray,false,8,true)),td(den,cellStyle(bg,C.dgray,false,8,true)),
+                td(card.value,cellStyle(bg,card.color,true,12,true,'center')),
+                td(card.status||'',cellStyle(bg,card.color,false,9,true,'center')),
+                td(card.source||'',cellStyle(bg,C.dgray,false,8,true))]);
+      if(card.badge)h+=mkRow([td('',cellStyle(C.white,C.white)),td('Nota:',cellStyle(C.white,C.orange,true,8)),td(card.badge,cellStyle(C.white,C.orange,false,8),5)]);
+    });
+    h+='</table>';return h;
+  }
+
+  // ── SHEET 4: KPI MENSUALES ──────────────────────────────────
+  function buildSheet4(){
+    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
+    h+=mkRow([hdr('KPI MENSUALES — Detalle',7,'#6A1B9A',C.gold,12)]);
+    h+=mkRow([hdr('Mes: '+month,7,'#6A1B9A',C.white,9)]);
+    h+=mkRow([hdr('KPI',1),hdr('Mes',1),hdr('Numerador',1),hdr('Denominador',1),hdr('Valor',1),hdr('Estado',1),hdr('Fuente',1)]);
+    var labels={
+      'Safety':['Incidentes del mes','N/A (conteo)'],
+      'Damaged':['VINs unicos con dano del mes','Expediciones del mes (Distrib.+Traslado)'],
+    };
+    monthlyCards.forEach(function(card,i){
+      var bg=i%2===0?C.lgray:C.white;
+      var lbl=Object.keys(labels).find(function(k){return card.title.indexOf(k)>=0;});
+      var num=lbl&&labels[lbl]?labels[lbl][0]:'';
+      var den=lbl&&labels[lbl]?labels[lbl][1]:'';
+      h+=mkRow([td(card.title,cellStyle(bg,'#6A1B9A',true,9,true)),
+                td(month,cellStyle(bg,C.dgray,false,9,true)),
+                td(num,cellStyle(bg,C.dgray,false,8,true)),td(den,cellStyle(bg,C.dgray,false,8,true)),
+                td(card.value,cellStyle(bg,card.color,true,12,true,'center')),
+                td(card.status||'',cellStyle(bg,card.color,false,9,true,'center')),
+                td(card.source||'',cellStyle(bg,C.dgray,false,8,true))]);
+      h+=mkRow([td('',cellStyle(C.white,C.white)),td('Formula:',cellStyle(C.white,C.blue,true,8)),td(card.formula||'',cellStyle(C.white,C.dgray,false,8),5)]);
+    });
+    h+='</table>';return h;
+  }
+
+  // ── SHEET 5: GRAFICO/VISUAL ─────────────────────────────────
+  function buildSheet5(){
+    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
+    h+=mkRow([hdr('PANEL DE INDICADORES — VISUAL EJECUTIVO',5,C.navy,C.gold,12)]);
+    h+=mkRow([hdr('Generado: '+genDt+'  ·  Compound Córdoba (00034)',5,C.blue,C.white,9)]);
+    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),5)]);
+
+    function visualKpi(card, period, maxVal){
+      maxVal=maxVal||100;
+      var val=parseFloat(card.value)||0;
+      var color=card.color||'#718096';
+      var pct=Math.min(val/maxVal,1);
+      var BAR_W=200;
+      var barFill=Math.round(pct*BAR_W);
+      var statusBg=card.status==='Completo'?'#2E7D3215':card.status==='Parcial'?'#E6510015':'#71809615';
+      var statusFg=card.status==='Completo'?'#2E7D32':card.status==='Parcial'?'#E65100':'#718096';
+
+      return '<tr>'
+        +'<td style="background:'+C.lgray+';border-left:5px solid '+color+';padding:10px 14px;min-width:200px;">'
+        +'<div style="font-size:8pt;font-weight:700;color:#4A5568;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">'+card.title+'</div>'
+        +'<div style="font-size:22pt;font-weight:900;color:'+color+';font-family:Arial Black;">'+card.value+'</div>'
+        +'<div style="font-size:7pt;color:#94A3B8;margin-bottom:4px;">Período: '+period+'</div>'
+        +'</td>'
+        +'<td style="background:'+C.lgray+';border:1px solid '+C.mgray+';padding:10px 14px;min-width:240px;">'
+        +'<div style="font-size:8pt;color:#4A5568;margin-bottom:6px;">Cumplimiento visual</div>'
+        +'<svg width="'+BAR_W+'" height="20" viewBox="0 0 '+BAR_W+' 20">'
+        +'<rect x="0" y="4" width="'+BAR_W+'" height="12" rx="4" fill="#E2E8F0"/>'
+        +'<rect x="0" y="4" width="'+barFill+'" height="12" rx="4" fill="'+color+'"/>'
+        +'<text x="'+Math.min(barFill+4,BAR_W-30)+'" y="14" font-size="9" fill="'+color+'" font-weight="bold">'+card.value+'</text>'
+        +'</svg>'
+        +'</td>'
+        +'<td style="background:'+C.lgray+';border:1px solid '+C.mgray+';padding:10px 14px;text-align:center;">'
+        +'<span style="background:'+statusBg+';color:'+statusFg+';font-size:8pt;font-weight:700;padding:3px 10px;border-radius:8px;">'+( card.status||'')+'</span>'
+        +'</td>'
+        +'<td style="background:'+C.white+';border:1px solid '+C.mgray+';padding:10px 14px;font-size:8pt;color:#718096;font-style:italic;">'+card.formula.substring(0,80)+'</td>'
+        +'<td style="background:'+C.white+';border:1px solid '+C.mgray+';padding:10px 14px;font-size:8pt;color:#718096;">'+( card.naMsg||card.badge||'')+'</td>'
+        +'</tr>';
+    }
+
+    h+=mkRow([hdr('INDICADORES DIARIOS',5,'#1A3C6E',C.white,10)]);
+    h+=mkRow([hdr('KPI',1),hdr('Visual',1),hdr('Estado',1),hdr('Fórmula',1),hdr('Notas',1)]);
+    dailyCards.forEach(function(c){h+=visualKpi(c,dDay,c.title.indexOf('Saturac')>=0?120:130);});
+    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),5)]);
+
+    h+=mkRow([hdr('INDICADORES SEMANALES',5,'#1565C0',C.white,10)]);
+    h+=mkRow([hdr('KPI',1),hdr('Visual',1),hdr('Estado',1),hdr('Fórmula',1),hdr('Notas',1)]);
+    weeklyCards.forEach(function(c){h+=visualKpi(c,wMon+' al '+wSun,130);});
+    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),5)]);
+
+    h+=mkRow([hdr('INDICADORES MENSUALES',5,'#6A1B9A',C.white,10)]);
+    h+=mkRow([hdr('KPI',1),hdr('Visual',1),hdr('Estado',1),hdr('Fórmula',1),hdr('Notas',1)]);
+    monthlyCards.forEach(function(c){h+=visualKpi(c,month,c.title.indexOf('Damaged')>=0?2:c.value==='0'?1:5);});
+
+    h+='</table>';return h;
+  }
+
+  // ── BUILD MULTI-SHEET XLS ────────────────────────────────────
+  // ── SHEET 6: DATOS BASE CONSOLIDADOS ───────────────────────
+  async function buildSheet6(){
+    var C2={navy:'#0D1F3C',blue:'#1A3C6E',gold:'#C8A44A',green:'#2E7D32',red:'#C62828',
+            orange:'#E65100',lgray:'#F4F6F9',mgray:'#E2E8F0',dgray:'#4A5568',white:'#FFFFFF'};
+    function h6(val,colspan,bg,fg,sz){bg=bg||C2.navy;fg=fg||C2.white;sz=sz||9;
+      return '<td'+(colspan?' colspan="'+colspan+'"':'')+' style="background:'+bg+';color:'+fg+';font-weight:700;font-size:'+sz+'pt;padding:7px 10px;border:1px solid '+C2.blue+';">'+String(val||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</td>';}
+    function td6(val,bg,fg,bold,sz){
+      return '<td style="background:'+(bg||C2.white)+';color:'+(fg||C2.dgray)+';'+(bold?'font-weight:700;':'')+'font-size:'+(sz||9)+'pt;border:1px solid '+C2.mgray+';padding:5px 10px;">'+String(val===null||val===undefined?'\u2014':val).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</td>';}
+    function sH(label,cols,color){return '<tr>'+h6(label,cols,color||C2.blue,'#FFFFFF',10)+'</tr>';}
+    function blk(cols){return '<tr><td colspan="'+cols+'" style="height:10px;"></td></tr>';}
+
+    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
+    h+='<tr>'+h6('DATOS BASE CONSOLIDADOS \u2014 SOPORTE DE C\u00c1LCULO KPI',8,C2.navy,C2.gold,12)+'</tr>';
+    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.3',8,C2.blue,C2.white,9)+'</tr>';
+    h+=blk(8);
+
+    // A. Stock snapshots
+    h+=sH('A. SNAPSHOTS DE STOCK \u2014 kpi_stock_daily',8,'#1A3C6E');
+    h+='<tr>'+h6('Fecha',1)+h6('Total Stock',1)+h6('RFT',1)+h6('No-RFT',1)+h6('Capacidad',1)+h6('% RFT',1)+h6('% Saturaci\u00f3n',1)+h6('Regla',1)+'</tr>';
+    try{
+      var snapD=await sbGet('kpi_stock_daily','compound_code=eq.00034&order=snapshot_date.desc&limit=30');
+      if(Array.isArray(snapD)&&snapD.length){
+        snapD.forEach(function(s,i){
+          var bg=i%2===0?C2.lgray:C2.white;
+          var rc=parseFloat(s.rft_pct)>=85?C2.green:C2.red;var sc=parseFloat(s.saturation_pct)<=80?C2.green:parseFloat(s.saturation_pct)<90?C2.orange:C2.red;
+          h+='<tr>'+td6(s.snapshot_date,bg)+td6(s.total_stock,bg)+td6(s.rft_qty,bg)+td6(s.non_rft_qty,bg)
+            +td6(s.capacity_internal,bg)+td6((s.rft_pct||0)+'%',bg,rc,true)+td6((s.saturation_pct||0)+'%',bg,sc,true)
+            +td6(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment=N':'Avail Date not null',bg)+'</tr>';
+        });
+      }else{h+='<tr>'+td6('Sin snapshots \u2014 importar Stock Playa',C2.lgray,C2.orange)+'</tr>';}
+    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blk(8);
+
+    // B. Expediciones diarias
+    h+=sH('B. EXPEDICIONES DIARIAS \u2014 kpi_shipments_daily',8,'#1565C0');
+    h+='<tr>'+h6('Fecha',1)+h6('Distribuci\u00f3n',1)+h6('Traslado Playa',1)+h6('Total Expedido',1)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    try{
+      var shipA=await sbGet('kpi_shipments_daily','compound_code=eq.00034&order=metric_date.desc&limit=60');
+      if(Array.isArray(shipA)&&shipA.length){
+        var sByDate={};shipA.forEach(function(s){if(!sByDate[s.metric_date])sByDate[s.metric_date]={d:null,t:null};if(s.source_type==='distribution')sByDate[s.metric_date].d=s.shipments_qty;else if(s.source_type==='transfer_playa')sByDate[s.metric_date].t=s.shipments_qty;});
+        Object.entries(sByDate).sort(function(a,b){return b[0].localeCompare(a[0]);}).forEach(function(e,i){
+          var bg=i%2===0?C2.lgray:C2.white;
+          var dq=metierConfig.throughput_include_distribution?(e[1].d||0):0;var tq=metierConfig.throughput_include_transfer?(e[1].t||0):0;
+          h+='<tr>'+td6(e[0],bg)+td6(e[1].d===null?'\u2014':e[1].d,bg)+td6(e[1].t===null?'\u2014':e[1].t,bg)
+            +td6(dq+tq,bg,C2.blue,true)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+        });
+      }else{h+='<tr>'+td6('Sin expediciones \u2014 importar Distribuci\u00f3n y Traslado Playa',C2.lgray,C2.orange)+'</tr>';}
+    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blk(8);
+
+    // C. Ingresos diarios
+    h+=sH('C. INGRESOS DIARIOS \u2014 kpi_ingress_daily (Tracking ING)',8,'#1A3C6E');
+    h+='<tr>'+h6('Fecha',1)+h6('Ingresos a C\u00f3rdoba',1)+h6('Fuente',1)+h6('Filtro aplicado',1)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    try{
+      var ingA=await sbGet('kpi_ingress_daily','compound_code=eq.00034&order=metric_date.desc&limit=30');
+      if(Array.isArray(ingA)&&ingA.length){
+        ingA.forEach(function(s,i){
+          var bg=i%2===0?C2.lgray:C2.white;
+          h+='<tr>'+td6(s.metric_date,bg)+td6(s.ingress_qty,bg,C2.blue,true)+td6('Tracking Reporting Tool',bg)
+            +td6('Mov. Type=ING, Dest=00034',bg)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+        });
+      }else{h+='<tr>'+td6('Sin ingresos \u2014 importar Tracking Reporting Tool',C2.lgray,C2.orange)+'</tr>';}
+    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blk(8);
+
+    // D. Resumen semanal
+    h+=sH('D. RESUMEN SEMANAL THROUGHPUT \u2014 kpi_snapshots',8,'#1565C0');
+    h+='<tr>'+h6('Semana (Lunes)',1)+h6('Semana (Domingo)',1)+h6('Expedido',1)+h6('Ingresado',1)+h6('% TP',1)+h6('Estado',1)+h6('Guardado por',1)+td6('',C2.white)+'</tr>';
+    try{
+      var snW=await sbGet('kpi_snapshots','compound_code=eq.00034&kpi_name=eq.weekly_throughput&order=period.desc&limit=8');
+      if(Array.isArray(snW)&&snW.length){
+        snW.forEach(function(s,i){
+          var bg=i%2===0?C2.lgray:C2.white;
+          var v=s.value!==null?s.value+'%':'N/A';
+          var vc=s.value===null?C2.dgray:s.value>=90?C2.green:s.value>80?C2.orange:C2.red;
+          var det=(s.detail||'').split('/');
+          h+='<tr>'+td6(s.period,bg)+td6(s.period_end||'',bg)+td6(det[0]?det[0].trim():'',bg)
+            +td6(det[1]?det[1].trim():'',bg)+td6(v,bg,vc,true)+td6(s.status||'',bg)
+            +td6(s.computed_by||'',bg)+td6('',C2.white)+'</tr>';
+        });
+      }else{h+='<tr>'+td6('Sin snapshots semanales guardados a\u00fan',C2.lgray,C2.orange)+'</tr>';}
+    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blk(8);
+
+    // E. Daños del mes
+    var mStart=month+'-01';
+    h+=sH('E. DA\u00d1OS DEL MES \u2014 tabla danos (damage_date)',8,'#C62828');
+    h+='<tr>'+h6('VINs \u00fanicos con da\u00f1o',1)+h6('Da\u00f1os totales',1)+h6('Mes',1)+h6('Scope',1)+h6('Expediciones mes',1)+h6('% Damaged',1)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    try{
+      var danosM=await sbGet('danos','compound_code=eq.00034&damage_date=gte.'+mStart+'&select=vin,responsabilidad,damage_date&limit=5000');
+      if(!Array.isArray(danosM))danosM=[];
+      var dmgF=metierConfig.damage_kpi_scope==='compound_only'?danosM.filter(function(d){return d.responsabilidad==='Compound';}):danosM;
+      var uVins=new Set(dmgF.map(function(d){return d.vin;})).size;
+      var sM=await sbGet('kpi_shipments_daily','compound_code=eq.00034&metric_date=gte.'+mStart+'&limit=200');
+      if(!Array.isArray(sM))sM=[];
+      var tSM=sM.reduce(function(a,s){return a+(s.shipments_qty||0);},0);
+      var dp=tSM>0?(uVins/tSM*100).toFixed(2)+'%':'N/A';
+      var dc=tSM===0?C2.dgray:parseFloat(dp)<0.5?C2.green:C2.red;
+      h+='<tr>'+td6(uVins,C2.lgray,C2.red,true)+td6(danosM.length,C2.lgray)+td6(month,C2.lgray)
+        +td6(metierConfig.damage_kpi_scope==='all'?'Todos los da\u00f1os':'Solo Compound',C2.lgray)
+        +td6(tSM||'Sin datos',C2.lgray)+td6(dp,C2.lgray,dc,true)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+      if(danosM.length){
+        var byR={};danosM.forEach(function(d){var r=d.responsabilidad||'Sin clasificar';byR[r]=(byR[r]||0)+1;});
+        Object.entries(byR).forEach(function(e,i){
+          h+='<tr>'+td6(e[0],i%2===0?C2.lgray:C2.white,C2.dgray,false,8)+td6(e[1]+' registros',i%2===0?C2.lgray:C2.white,C2.dgray,false,8)
+            +td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+        });
+      }
+    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blk(8);
+
+    // F. Incidentes de seguridad
+    h+=sH('F. INCIDENTES DE SEGURIDAD DEL MES \u2014 safety_incidents',8,'#6A1B9A');
+    h+='<tr>'+h6('Total',1)+h6('Abiertos',1)+h6('En an\u00e1lisis',1)+h6('Cerrados',1)+h6('Cr\u00edticos',1)+h6('Mes',1)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    try{
+      var safM=await sbGet('safety_incidents','compound_code=eq.00034&incident_date=gte.'+mStart+'&order=incident_date.desc');
+      if(!Array.isArray(safM))safM=[];
+      var safeColor=safM.length===0?C2.green:C2.red;
+      h+='<tr>'+td6(safM.length,C2.lgray,safeColor,true)
+        +td6(safM.filter(function(s){return s.status==='abierto';}).length,C2.lgray)
+        +td6(safM.filter(function(s){return s.status==='en_analisis';}).length,C2.lgray)
+        +td6(safM.filter(function(s){return s.status==='cerrado';}).length,C2.lgray)
+        +td6(safM.filter(function(s){return s.severity==='Cr\u00edtica';}).length,C2.lgray,safM.filter(function(s){return s.severity==='Cr\u00edtica';}).length>0?C2.red:C2.green,true)
+        +td6(month,C2.lgray)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blk(8);
+
+    // G. Mantenimiento
+    h+=sH('G. MANTENIMIENTO OBLIGATORIO \u2014 pendingCache',8,'#1A3C6E');
+    h+='<tr>'+h6('Pendientes/Vencidos',1)+h6('Total con servicio debido',1)+h6('% No Done',1)+h6('Fuente',1)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    if(typeof pendingCache!=='undefined'&&pendingCache&&pendingCache.length){
+      var vM={};pendingCache.forEach(function(p){if(!vM[p.vin])vM[p.vin]={due:true,ov:false};if(p.urgency==='overdue'||p.urgency==='urgent')vM[p.vin].ov=true;});
+      var dN=Object.keys(vM).length,pN=Object.values(vM).filter(function(v){return v.ov;}).length;
+      var soV=dN>0?(pN/dN*100).toFixed(1)+'%':'0%';
+      var soC=parseFloat(soV)<=5?C2.green:parseFloat(soV)<10?C2.orange:C2.red;
+      h+='<tr>'+td6(pN,C2.lgray,C2.red,true)+td6(dN,C2.lgray)+td6(soV,C2.lgray,soC,true)
+        +td6('pendingCache (en vivo)',C2.lgray)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    }else{h+='<tr>'+td6('Sin datos de mantenimiento \u2014 importar stock y bloqueos',C2.lgray,C2.orange)+'</tr>';}
+
+    h+='</table>';return h;
+  }
+
+  var sheet6=await buildSheet6();
+  var fullHtml='<html xmlns:o="urn:schemas-microsoft-com:office:office" '
+    +'xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">'
+    +'<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>'
+    +'<x:ExcelWorksheet><x:Name>Resumen Ejecutivo</x:Name><x:WorksheetOptions><x:FitToPage/></x:WorksheetOptions></x:ExcelWorksheet>'
+    +'<x:ExcelWorksheet><x:Name>KPI Diarios</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
+    +'<x:ExcelWorksheet><x:Name>KPI Semanales</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
+    +'<x:ExcelWorksheet><x:Name>KPI Mensuales</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
+    +'<x:ExcelWorksheet><x:Name>Panel Visual</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
+    +'<x:ExcelWorksheet><x:Name>Datos Base Consolidados</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
+    +'</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->'
+    +'<style>td,th{mso-number-format:"@";}</style>'
+    +'</head><body>'
+    +'<table><tr><td>'+buildSheet1()+'</td></tr></table>'
+    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+buildSheet2()+'</td></tr></table>'
+    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+buildSheet3()+'</td></tr></table>'
+    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+buildSheet4()+'</td></tr></table>'
+    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+buildSheet5()+'</td></tr></table>'
+    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+sheet6+'</td></tr></table>'
+    +'</body></html>';
+
+  var blob=new Blob(['\ufeff'+fullHtml],{type:'application/vnd.ms-excel;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download='KPI_Metier_Cordoba_'+today+'.xls';
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+  showToast('Excel Metier exportado (6 hojas)','success');
+}
+
+// ══════════════════════════════════════════════════════════════
+// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.3
+// ══════════════════════════════════════════════════════════════
+async function exportKpiMetierPDF(){
+  await renderKpiMetier();
+  await new Promise(function(r){setTimeout(r,800);});
+
+  var dDate=document.getElementById('metier-daily-date');
+  var wDate=document.getElementById('metier-week-date');
+  var mSel=document.getElementById('metier-month-sel');
+  var today=new Date().toISOString().slice(0,10);
+  var dDay=dDate&&dDate.value?dDate.value:today;
+  var wMon=getMondayOf(wDate&&wDate.value?wDate.value:today);
+  var wSun=getSundayOf(wMon);
+  var month=mSel&&mSel.value?mSel.value:today.slice(0,7);
+
+  function semColor(col){return col===SEM_G?'#2E7D32':col===SEM_O?'#E65100':col===SEM_R?'#C62828':'#718096';}
+
+  // Gather rendered card data
+  function getCards(gridId){
+    var grid=document.getElementById(gridId);
+    if(!grid)return[];
+    var out=[];
+    var cards=grid.querySelectorAll('[style*="border:1px solid"]');
+    cards.forEach(function(card){
+      var titleEl=card.querySelector('[style*="text-transform:uppercase"]');
+      var valEl=card.querySelector('[style*="font-size:50px"]');
+      var freqEl=card.querySelectorAll('[style*="border-radius:8px"]')[1];
+      var statusEl=card.querySelectorAll('[style*="border-radius:8px"]')[0];
+      var topBar=card.querySelector('[style*="height:4px"]');
+      var naEl=card.querySelector('[style*="#E65100"][style*="font-weight:600"]');
+      var badgeEl=card.querySelector('[style*="font-size:9px;font-weight:700"][style*="max-width"]');
+      var detailEl=card.querySelector('[style*="font-size:8px;color:var(--text3)"][style*="font-style:italic"]');
+      var sourceEl=card.querySelector('[style*="font-size:8px;color:var(--text3)"][style*="Fuente"]');
+      out.push({
+        title:titleEl?titleEl.textContent.trim():'',
+        value:valEl?valEl.textContent.trim():'N/A',
+        freq:freqEl?freqEl.textContent.trim():'',
+        status:statusEl?statusEl.textContent.trim():'',
+        color:topBar?topBar.style.background:'#718096',
+        naMsg:naEl?naEl.textContent.replace(/^⚠\s*/,''):'',
+        badge:badgeEl?badgeEl.textContent.trim():'',
+        formula:detailEl?detailEl.textContent.trim():'',
+        source:sourceEl?sourceEl.textContent.replace(/^Fuente:\s*/,''):'',
+      });
+    });
+    return out;
+  }
+
+  var dailyCards=getCards('metier-daily-grid');
+  var weeklyCards=getCards('metier-weekly-grid');
+  var monthlyCards=getCards('metier-monthly-grid');
+
+  function pdfCard(card,w){
+    var col=card.color||'#718096';
+    var statusBg={Completo:'#2E7D3215',Parcial:'#E6510015',Parcial:'#E6510015','N/A':'#71809615'};
+    var statusFg={Completo:'#2E7D32',Parcial:'#E65100','N/A':'#718096'};
+    var st=card.status||'';
+    return '<div style="width:'+w+';box-sizing:border-box;padding:6px;display:inline-block;vertical-align:top;">'
+      +'<div style="background:#F8FAFC;border-radius:8px;border-left:4px solid '+col+';padding:12px 14px;height:100%;box-sizing:border-box;">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'
+      +'<div style="font-size:8pt;font-weight:700;color:#4A5568;text-transform:uppercase;letter-spacing:.5px;line-height:1.4;max-width:160px;">'+card.title+'</div>'
+      +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">'
+      +'<span style="background:'+(statusBg[st]||'#71809615')+';color:'+(statusFg[st]||'#718096')+';font-size:7pt;font-weight:700;padding:1px 5px;border-radius:6px;">'+st+'</span>'
+      +'<span style="background:rgba(0,0,0,.06);color:#718096;font-size:7pt;font-weight:700;padding:1px 5px;border-radius:6px;">'+card.freq+'</span>'
+      +'</div></div>'
+      +'<div style="font-size:30pt;font-weight:900;color:'+col+';line-height:1;margin:4px 0 6px;font-family:Arial Black,Arial;">'+card.value+'</div>'
+      +(card.badge?'<div style="font-size:7pt;font-weight:700;color:#4A5568;background:#E2E8F0;padding:2px 7px;border-radius:4px;margin-bottom:5px;display:inline-block;">'+card.badge+'</div>':'')
+      +(card.naMsg?'<div style="font-size:8pt;color:#E65100;font-weight:600;margin-bottom:4px;">⚠ '+card.naMsg+'</div>':'')
+      // Visual chart via SVG
+      +pdfChartSVG(card, col)
+      +'<div style="font-size:7pt;color:#94A3B8;font-style:italic;margin-top:6px;padding-top:5px;border-top:1px solid #E2E8F0;line-height:1.4;">'+card.formula+'</div>'
+      +'</div></div>';
+  }
+
+  function pdfChartSVG(card, col){
+    var val=parseFloat(card.value);
+    if(isNaN(val))return '';
+    var W=200,H=14;
+    var pct=Math.min(val/100*W,W);
+    return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;margin:6px 0;">'
+      +'<rect x="0" y="0" width="'+W+'" height="'+H+'" rx="4" fill="rgba(0,0,0,.07)"/>'
+      +'<rect x="0" y="0" width="'+pct+'" height="'+H+'" rx="4" fill="'+col+'"/>'
+      +'</svg>';
+  }
+
+  function sectionHeader(label, color){
+    return '<div style="background:'+color+';color:white;padding:8px 16px;border-radius:6px;margin:16px 0 10px;">'
+      +'<span style="font-size:10pt;font-weight:700;letter-spacing:.5px;">'+label+'</span></div>';
+  }
+
+  var genDt=new Date().toLocaleString('es-AR',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  var html='<html><head><meta charset="UTF-8"><style>'
+    +'@page{size:A4 landscape;margin:1.5cm;}'
+    +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}'
+    +'*{box-sizing:border-box;margin:0;padding:0;} body{font-family:Arial,sans-serif;font-size:10pt;color:#1A202C;}'
+    +'</style></head><body>'
+
+    // ── PAGE 1: RESUMEN EJECUTIVO ──────────────────────────────
+    +'<div style="background:#0D1F3C;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">'
+    +'<div>'
+    +'<div style="font-size:18pt;font-weight:900;color:#C8A44A;letter-spacing:2px;font-family:Arial Black,Arial;">KPI METIER SUPPLY CHAIN</div>'
+    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.3</div>'
+    +'</div>'
+    +'<div style="text-align:right;font-size:8pt;color:rgba(255,255,255,.4);">STELLANTIS ARGENTINA<br>Uso interno confidencial</div>'
+    +'</div>'
+
+    +sectionHeader('KPI DIARIOS — Referencia: '+fmtDate(dDay),'#1A3C6E')
+    +'<div style="display:flex;">'
+    +dailyCards.map(function(c){return pdfCard(c,'33.33%');}).join('')
+    +'</div>'
+
+    +sectionHeader('KPI SEMANALES — Semana: '+fmtDate(wMon)+' al '+fmtDate(wSun),'#1565C0')
+    +'<div style="display:flex;">'
+    +weeklyCards.map(function(c){return pdfCard(c,'50%');}).join('')
+    +'</div>'
+
+    +sectionHeader('KPI MENSUALES — Periodo: '+month,'#6A1B9A')
+    +'<div style="display:flex;">'
+    +monthlyCards.map(function(c){return pdfCard(c,'50%');}).join('')
+    +'</div>'
+
+    // ── PAGE BREAK ─────────────────────────────────────────────
+    +'<div style="page-break-before:always;"></div>'
+
+    // ── PAGE 2: DETALLE DE SOPORTE ─────────────────────────────
+    +'<div style="background:#0D1F3C;padding:14px 24px;margin-bottom:20px;">'
+    +'<div style="font-size:14pt;font-weight:900;color:#C8A44A;">DETALLE DE SOPORTE — KPI METIER</div>'
+    +'<div style="font-size:8pt;color:rgba(255,255,255,.5);">Trazabilidad del calculo para respaldo ante Direccion  ·  '+genDt+'</div>'
+    +'</div>'
+
+    // Detail table
+    +'<table style="width:100%;border-collapse:collapse;font-size:8.5pt;">'
+    +'<thead><tr style="background:#0D1F3C;color:white;">'
+    +'<th style="padding:7px 9px;text-align:left;">KPI</th>'
+    +'<th style="padding:7px 9px;text-align:left;">Periodo</th>'
+    +'<th style="padding:7px 9px;text-align:right;">Valor</th>'
+    +'<th style="padding:7px 9px;text-align:left;">Formula</th>'
+    +'<th style="padding:7px 9px;text-align:left;">Fuente</th>'
+    +'<th style="padding:7px 9px;text-align:left;">Estado</th>'
+    +'<th style="padding:7px 9px;text-align:left;">Observaciones</th>'
+    +'</tr></thead><tbody>';
+
+  var allCards=[].concat(
+    dailyCards.map(function(c){return Object.assign({},c,{period:dDay});}),
+    weeklyCards.map(function(c){return Object.assign({},c,{period:wMon+' al '+wSun});}),
+    monthlyCards.map(function(c){return Object.assign({},c,{period:month});})
+  );
+  var observations={
+    'Ready For Transport':'Regla RFT pendiente validacion con metier',
+    'Saturacion':'Capacidad interna configurable (default: '+metierConfig.internal_capacity+' uds)',
+    'Daily Throughput':'Denominador automatico: ingresos a Cordoba importados desde Tracking Reporting Tool (Mov. Type = ING, Destination = 00034 - Cordoba).',
+    'Weekly Throughput':'Semana L-D. Valor provisorio mientras la semana esta en curso',
+    'Service Order':'Semana en curso = valor en vivo. Snapshot oficial al cierre de semana',
+    'Safety':'Registrar incidentes en modulo Seguridad',
+    'Damaged':'N/A si no hay despachos del mes importados',
+  };
+  allCards.forEach(function(c,i){
+    var obs='';
+    Object.keys(observations).forEach(function(k){if(c.title.indexOf(k)>=0)obs=observations[k];});
+    if(c.badge)obs=(obs?obs+' · ':'')+c.badge;
+    if(c.naMsg)obs=(obs?obs+' · ':'')+c.naMsg;
+    html+='<tr style="background:'+(i%2===0?'#F8FAFC':'#FFFFFF')+';border-bottom:1px solid #E2E8F0;">'
+      +'<td style="padding:6px 9px;font-weight:700;color:#0D1F3C;">'+c.title+'</td>'
+      +'<td style="padding:6px 9px;color:#4A5568;">'+c.period+'</td>'
+      +'<td style="padding:6px 9px;font-weight:900;color:'+c.color+';text-align:right;font-size:11pt;">'+c.value+'</td>'
+      +'<td style="padding:6px 9px;color:#718096;font-style:italic;font-size:8pt;">'+c.formula+'</td>'
+      +'<td style="padding:6px 9px;color:#4A5568;font-size:8pt;">'+c.source+'</td>'
+      +'<td style="padding:6px 9px;"><span style="background:'+(c.status==='Completo'?'#2E7D3215':c.status==='Parcial'?'#E6510015':'#71809615')+';color:'+(c.status==='Completo'?'#2E7D32':c.status==='Parcial'?'#E65100':'#718096')+';font-size:7.5pt;font-weight:700;padding:2px 7px;border-radius:5px;">'+c.status+'</span></td>'
+      +'<td style="padding:6px 9px;color:#718096;font-size:8pt;">'+obs+'</td>'
+      +'</tr>';
+  });
+
+  html+='</tbody></table>'
+    // Config footer
+    +'<div style="margin-top:16px;background:#F4F6F9;padding:10px 14px;border-radius:6px;border-top:2px solid #C8A44A;">'
+    +'<span style="font-size:8pt;font-weight:700;color:#0D1F3C;">CONFIG ACTIVA:  </span>'
+    +'<span style="font-size:8pt;color:#4A5568;">Capacidad '+metierConfig.internal_capacity+' uds  ·  RFT: '+(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment=N':'AvailDate not null')+'  ·  TP incluye: '+(metierConfig.throughput_include_distribution?'Distrib.':'')+' '+(metierConfig.throughput_include_transfer?'Traslado':'')+' · Danos: '+(metierConfig.damage_kpi_scope==='all'?'Todos':'Solo Compound')+'</span>'
+    +'</div>'
+    +'<div style="margin-top:12px;font-size:8pt;color:#94A3B8;text-align:center;">Stellantis Argentina S.A.  ·  Uso interno confidencial  ·  Generado: '+genDt+'</div>'
+    +'</body></html>';
+
+  var w=window.open('','_blank','width=1100,height=900');
+  if(!w){showToast('Habilitar ventanas emergentes para PDF','info');return;}
+  w.document.write(html);w.document.close();
+  w.onload=function(){w.focus();setTimeout(function(){w.print();},600);};
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// TRACKING REPORTING TOOL IMPORTER v4.8.3
+// ══════════════════════════════════════════════════════════════
+async function importTrackingRows(rows, fileName){
+  setImportProgress(35,'Procesando Tracking Reporting Tool: '+rows.length+' filas...');
+
+  // Validate expected columns
+  var first=rows.length?rows[0]:{};
+  var keys=Object.keys(first).map(function(k){return k.toLowerCase().trim();});
+  var hasMov=keys.some(function(k){return k.indexOf('mov')>=0&&k.indexOf('type')>=0;});
+  var hasDest=keys.some(function(k){return k.indexOf('destination')>=0;});
+  var hasDate=keys.some(function(k){return k.indexOf('date')>=0&&k.indexOf('mov')>=0;});
+  var hasVIN=keys.some(function(k){return k==='vin'||k==='vin ';});
+  if(!hasMov||!hasDest){
+    setImportResult(false,'El archivo no parece ser un Tracking Reporting Tool. Se esperan columnas: Mov. Type, Destination, Date Mov., VIN');
+    return;
+  }
+
+  // Find exact column names
+  function findCol(fn){return Object.keys(first).find(function(k){return fn(k.toLowerCase().trim());});}
+  var colMovType=findCol(function(k){return k.indexOf('mov')>=0&&k.indexOf('type')>=0;});
+  var colDest=findCol(function(k){return k.indexOf('destination')>=0;});
+  var colDate=findCol(function(k){return k.indexOf('date')>=0&&k.indexOf('mov')>=0;});
+  var colVin=findCol(function(k){return k==='vin'||k==='vin ';});
+
+  setImportProgress(40,'Filtrando movimientos ING para Cordoba...');
+
+  // Filter: Mov. Type = ING AND Destination contains 00034 or Cordoba
+  var filtered=rows.filter(function(r){
+    var movType=String(r[colMovType]||'').trim().toUpperCase();
+    var dest=String(r[colDest]||'').toUpperCase();
+    return movType==='ING'&&(dest.indexOf('00034')>=0||dest.indexOf('CORDOBA')>=0||dest.indexOf('CÓRDOBA')>=0);
+  });
+
+  if(!filtered.length){
+    setImportResult(false,'Sin movimientos ING para Cordoba (00034) en el archivo. Verificar columnas Mov. Type y Destination.');
+    return;
+  }
+
+  setImportProgress(50,'Agrupando '+filtered.length+' ingresos por fecha...');
+
+  // Group by date, count unique VINs
+  var byDate={};var minDate=null,maxDate=null;
+  filtered.forEach(function(r){
+    var vin=String(r[colVin]||r['VIN']||r['Vin']||'').trim();
+    if(!vin)return;
+    var d=normalizeDate(r[colDate]||'');if(!d)return;
+    if(!minDate||d<minDate)minDate=d;if(!maxDate||d>maxDate)maxDate=d;
+    if(!byDate[d])byDate[d]=new Set();
+    byDate[d].add(vin);
+  });
+
+  var entries=Object.entries(byDate);
+  setImportProgress(60,'Guardando '+entries.length+' dias de ingresos...');
+
+  for(var i=0;i<entries.length;i++){
+    var date=entries[i][0],vins=entries[i][1];
+    try{
+      await sbUpsert('kpi_ingress_daily',{
+        metric_date:date,
+        compound_code:'00034',
+        source_type:'tracking_ing',
+        ingress_qty:vins.size,
+        created_at:new Date().toISOString()
+      },'metric_date,compound_code,source_type');
+    }catch(e){console.warn('ingress upsert failed:',date,e);}
+    setImportProgress(60+Math.round(i/entries.length*35),'Guardando '+date+'...');
+  }
+
+  await logKpiImport(fileName,'tracking_ing',rows.length,filtered.length,minDate,maxDate);
+  setImportProgress(100,'Tracking importado correctamente.');
+  setImportResult(true,'Tracking ING: '+entries.length+' dias · '+filtered.length+' ingresos filtrados · '+minDate+' a '+maxDate);
+  showToast('Tracking Reporting Tool importado','success');
+}
+
+// ── PATCH kpiCard TO SHOW NOTE ────────────────────────────────
+// The note field is already handled in kpiCard via o.note
+// Update kpiCard to render notes when present
+var _kpiCardOriginal = kpiCard;
+kpiCard = function(o){
+  var html = _kpiCardOriginal(o);
+  if(o.note){
+    var noteHtml = '<div style="font-size:8px;color:#E65100;background:rgba(230,81,0,.06);border-left:2px solid #E65100;padding:4px 8px;margin-top:4px;line-height:1.4;border-radius:0 4px 4px 0;">'+esc(o.note)+'</div>';
+    // Insert before closing </div>
+    html = html.slice(0,-6) + noteHtml + '</div>';
+  }
+  return html;
+};
+
 </script>
 
 <!-- MODAL SEGURIDAD -->
