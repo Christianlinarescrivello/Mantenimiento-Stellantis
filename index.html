@@ -77,9 +77,9 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);min-
 .theme-btn{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;padding:5px 10px;border-radius:6px;font-size:14px;cursor:pointer;transition:background .2s;}
 .theme-btn:hover{background:rgba(255,255,255,0.18);}
 .logout-btn{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;}
-.sidenav{width:220px;background:var(--sidenav);min-height:calc(100vh - 56px);height:calc(100vh - 56px);position:fixed;top:56px;left:0;padding:16px 0;border-right:1px solid rgba(255,255,255,0.06);overflow-y:auto;}
+.sidenav{width:220px;background:var(--sidenav);min-height:calc(100vh - 56px);height:calc(100vh - 56px);position:fixed;top:56px;left:0;padding:16px 0 60px;border-right:1px solid rgba(255,255,255,0.06);overflow-y:auto;overflow-x:hidden;}
 .nav-section{font-size:10px;font-weight:700;color:rgba(255,255,255,0.3);letter-spacing:2px;text-transform:uppercase;padding:12px 20px 6px;}
-.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;color:rgba(255,255,255,0.6);font-size:13px;font-weight:500;transition:all .15s;border-left:3px solid transparent;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;color:rgba(255,255,255,0.6);font-size:13px;font-weight:500;transition:all .15s;border-left:3px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .nav-item:hover{color:white;background:rgba(255,255,255,0.05);}
 .nav-item.active{color:var(--gold);border-left-color:var(--gold);background:rgba(200,164,74,0.08);}
 .nav-item .icon{font-size:16px;width:20px;text-align:center;}
@@ -801,13 +801,20 @@ tbody td{padding:9px 12px;color:var(--text);}
     <!-- STOCK -->
     <div class="page" id="page-stock">
       <div class="page-title">Importar archivos</div>
-      <div class="page-sub">Reconoce automáticamente si el archivo es Stock o listado de bloqueos / desbloqueos y filtra Córdoba</div>
+      <div class="page-sub">Reconoce automáticamente el tipo de archivo: Stock Playa, Bloqueos OBT, Distribución, Traslado Playa o Tracking ING</div>
       <div class="card" style="padding:32px;max-width:500px">
         <label style="display:block;border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer" id="stock-zone" for="stock-file">
-          <input type="file" id="stock-file" accept=".xlsx" style="display:none" onchange="importStock(event)">
+          <input type="file" id="stock-file" accept=".xlsx,.xls" style="display:none" onchange="importStock(event)">
           <div style="font-size:36px;margin-bottom:8px" id="stock-icon">📦</div>
-          <div style="font-weight:700;color:var(--text);margin-bottom:4px">Stock_Playa_*.xlsx o Unidades Bloqueadas*.xlsx</div>
-          <div style="font-size:12px;color:var(--text3)" id="stock-hint">Hacé clic para seleccionar. El sistema detecta el tipo de archivo automáticamente.</div>
+          <div style="font-weight:700;color:var(--text);margin-bottom:8px">Seleccioná cualquiera de estos archivos:</div>
+          <div style="font-size:11px;color:var(--text3);line-height:1.9;text-align:left;display:inline-block;">
+            📊 <b>Stock_Playa_*.xlsx</b> — genera snapshot RFT + Saturación<br>
+            🔒 <b>Unidades_Bloqueadas_*.xlsx</b> — historial de bloqueos OBT<br>
+            🚚 <b>Distribucion_Reporting_Tool*.xlsx</b> — expediciones (numerador TP)<br>
+            🔄 <b>Traslado_Playa_Reporting_Tool*.xlsx</b> — traslados entre patios<br>
+            📡 <b>Tracking_Reporting_Tool*.xlsx</b> — ingresos a Córdoba (denominador TP)
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:12px" id="stock-hint">Hacé clic para seleccionar. El sistema detecta el tipo automáticamente.</div>
         </label>
         <div id="stock-progress" style="display:none;margin-top:16px">
           <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden">
@@ -3472,7 +3479,6 @@ async function importStock(evt){
       else if(importType==="distribucion") await importDistribucionRows(rows,file.name);
       else if(importType==="traslado") await importTrasladoRows(rows,file.name);
       else if(importType==="tracking") await importTrackingRows(rows,file.name);
-      else if(importType==="tracking") await importTrackingRows(rows,file.name);
       else await importStockRows(rows);
     }catch(err){
       console.error("Import error:",err);
@@ -5139,14 +5145,6 @@ function showPage(name){
   document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active");});
   var pg=document.getElementById("page-"+name);if(pg)pg.classList.add("active");
   var ni=document.getElementById("nav-"+name);if(ni)ni.classList.add("active");
-
-  // Al cambiar de módulo, volver siempre al inicio para evitar vistas en blanco por scroll heredado.
-  window.scrollTo(0,0);
-  document.documentElement.scrollTop = 0;
-  document.body.scrollTop = 0;
-  var mainScroll = document.querySelector(".main");
-  if(mainScroll) mainScroll.scrollTop = 0;
-  if(pg && pg.scrollIntoView) pg.scrollIntoView({block:"start", behavior:"auto"});
   if(name==="dashboard")renderDashboard();
   if(name==="preventivo")renderPreventivo();
   if(name==="planificador")renderPlanificador();
@@ -7702,7 +7700,7 @@ function switchKpiTab(tab){
 }
 
 // ══════════════════════════════════════════════════════════════
-// EXCEL MÉTIER EXPORT — v4.8.4
+// EXCEL MÉTIER EXPORT — v4.8.3
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierExcel(){
   await renderKpiMetier();
@@ -7799,7 +7797,7 @@ async function exportKpiMetierExcel(){
     var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
     // Title
     h+=mkRow([hdr('KPI METIER SUPPLY CHAIN — COMPOUND CÓRDOBA',8,C.navy,C.gold,16)]);
-    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.4',8,C.blue,C.white,9)]);
+    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.3',8,C.blue,C.white,9)]);
     h+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
 
     // Period summary
@@ -8008,7 +8006,7 @@ async function exportKpiMetierExcel(){
 
     var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
     h+='<tr>'+h6('DATOS BASE CONSOLIDADOS \u2014 SOPORTE DE C\u00c1LCULO KPI',8,C2.navy,C2.gold,12)+'</tr>';
-    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.4',8,C2.blue,C2.white,9)+'</tr>';
+    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.3',8,C2.blue,C2.white,9)+'</tr>';
     h+=blk(8);
 
     // A. Stock snapshots
@@ -8168,7 +8166,7 @@ async function exportKpiMetierExcel(){
 }
 
 // ══════════════════════════════════════════════════════════════
-// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.4
+// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.3
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierPDF(){
   await renderKpiMetier();
@@ -8270,7 +8268,7 @@ async function exportKpiMetierPDF(){
     +'<div style="background:#0D1F3C;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">'
     +'<div>'
     +'<div style="font-size:18pt;font-weight:900;color:#C8A44A;letter-spacing:2px;font-family:Arial Black,Arial;">KPI METIER SUPPLY CHAIN</div>'
-    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.4</div>'
+    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.3</div>'
     +'</div>'
     +'<div style="text-align:right;font-size:8pt;color:rgba(255,255,255,.4);">STELLANTIS ARGENTINA<br>Uso interno confidencial</div>'
     +'</div>'
@@ -8358,7 +8356,7 @@ async function exportKpiMetierPDF(){
 
 
 // ══════════════════════════════════════════════════════════════
-// TRACKING REPORTING TOOL IMPORTER v4.8.4
+// TRACKING REPORTING TOOL IMPORTER v4.8.3
 // ══════════════════════════════════════════════════════════════
 async function importTrackingRows(rows, fileName){
   setImportProgress(35,'Procesando Tracking Reporting Tool: '+rows.length+' filas...');
