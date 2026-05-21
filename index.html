@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.9.0</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.9.1</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.9.0</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.9.1</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1476,7 +1476,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.9.0";
+var APP_VERSION="v4.9.1";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -7747,10 +7747,10 @@ function switchKpiTab(tab){
 }
 
 // ══════════════════════════════════════════════════════════════
-// EXCEL MÉTIER EXPORT — v4.9.0
+// EXCEL MÉTIER EXPORT — v4.9.1
 // ══════════════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════
-// EXCEL MÉTIER EXPORT — v4.9.0
+// EXCEL MÉTIER EXPORT — v4.9.1
 // Hoja 1: Dashboard ejecutivo imprimible (igual al PDF)
 // Hoja 2: Datos base consolidados
 // ══════════════════════════════════════════════════════════════
@@ -7828,7 +7828,7 @@ async function exportKpiMetierExcel(){
       +'</td>'
       +'<td style="padding:14px 20px;vertical-align:middle;text-align:right;">'
       +'<div style="font-size:13pt;font-weight:700;color:white;letter-spacing:1px;">KPI MÉTIER SUPPLY CHAIN</div>'
-      +'<div style="font-size:8pt;color:rgba(255,255,255,.55);margin-top:3px;">'+esc(genDt)+'  ·  v4.9.0</div>'
+      +'<div style="font-size:8pt;color:rgba(255,255,255,.55);margin-top:3px;">'+esc(genDt)+'  ·  v4.9.1</div>'
       +'</td>'
       +'</tr></table>'
       +'</td></tr>';
@@ -7927,7 +7927,7 @@ async function exportKpiMetierExcel(){
       +'<td style="padding:12px 18px;"><div style="font-size:18pt;font-weight:900;color:'+C2.gold+';letter-spacing:2px;">STELLANTIS</div>'
       +'<div style="font-size:8pt;color:rgba(255,255,255,.5);">Datos Base Consolidados · Compound Córdoba (00034)</div></td>'
       +'<td style="padding:12px 18px;text-align:right;"><div style="font-size:10pt;font-weight:700;color:white;">DATOS BASE — KPI MÉTIER</div>'
-      +'<div style="font-size:7pt;color:rgba(255,255,255,.5);">'+esc(genDt)+'  ·  v4.9.0  ·  Uso interno confidencial</div></td>'
+      +'<div style="font-size:7pt;color:rgba(255,255,255,.5);">'+esc(genDt)+'  ·  v4.9.1  ·  Uso interno confidencial</div></td>'
       +'</tr></table></td></tr>';
     h+=blankRow(7);
 
@@ -8089,7 +8089,7 @@ async function exportKpiMetierExcel(){
 
     // Footer
     h+='<tr><td colspan="7" style="background:'+C2.navy+';color:rgba(255,255,255,.4);font-size:7pt;padding:5px 18px;">'
-      +'Stellantis Argentina S.A.  ·  Uso interno confidencial  ·  Generado: '+esc(genDt)+'  ·  Portal v4.9.0'
+      +'Stellantis Argentina S.A.  ·  Uso interno confidencial  ·  Generado: '+esc(genDt)+'  ·  Portal v4.9.1'
       +'</td></tr>';
 
     h+='</table>';
@@ -8123,7 +8123,7 @@ async function exportKpiMetierExcel(){
 }
 
 // ══════════════════════════════════════════════════════════════
-// PDF MÉTIER — UNA SOLA HOJA A4 APAISADA — v4.9.0
+// PDF MÉTIER — UNA SOLA HOJA A4 APAISADA — v4.9.1
 // Visual ejecutivo, 7 KPI con gráficos, paleta Stellantis
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierPDF(){
@@ -8144,8 +8144,7 @@ async function exportKpiMetierPDF(){
     var grid=document.getElementById(gridId);
     if(!grid)return[];
     var out=[];
-    var cards=grid.querySelectorAll('div[style*="border:1px solid"]');
-    cards.forEach(function(card){
+    grid.querySelectorAll('div[style*="border:1px solid"]').forEach(function(card){
       var titleEl=card.querySelector('[style*="text-transform:uppercase"]');
       var valEl=card.querySelector('[style*="font-size:50px"]');
       var topBar=card.querySelector('[style*="height:4px"]');
@@ -8168,154 +8167,187 @@ async function exportKpiMetierPDF(){
     return out;
   }
 
-  var dailyCards=getGridCards('metier-daily-grid');
-  var weeklyCards=getGridCards('metier-weekly-grid');
-  var monthlyCards=getGridCards('metier-monthly-grid');
+  var dc=getGridCards('metier-daily-grid');
+  var wc=getGridCards('metier-weekly-grid');
+  var mc=getGridCards('metier-monthly-grid');
 
-  var LOGO_B64='iVBORw0KGgoAAAANSUhEUgAAA5AAAAKFCAYAAAC6IAa4AAAYKklEQVR4nO3d65KbxgKFUXQq7//KnB/OxDMaIW2goW9rVaXsJLYGWiD4xO2xrusCAAAAn/yv9gQAAADQBwEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARAQkAAAAEQEJAABAREACAAAQEZAAAABEBCQAAAARAQkAAEBEQAIAABARkAAAAEQEJAAAABEBCQAAQERAAgAAEBGQAAAARP6pPQEAwEfrv78+Kv/8mtMAQAMcgQSAtq0bvweA2wlIAGjbY+P3taYBgIk5hRUA2tdCwLUwDQBU5ggkAAAAEQEJAABAREACAAAQEZAAML51cQdXAAoQkAAwNo8BAaAYAQkA43oVjCISgMMEJAAAABEBCQCZkkfu7rom8dWzG+96nmPJeXQNJ0AjBCQAfLY+/VritUq93iePjd9fqeQ8CkeAhghIAKjrroisEY8l3DXdAAT+qT0BANCBliLmOdBamrarzDCPAF0QkABQ1544endX1RKRtXX0cM9rP968DgCdcworANyrxjWJZ+0Nwh7nEYCAI5AAcL8jUXX1UT3XLgLwkSOQAAAARAQkAPTBET0AqhOQANC/EnEpUAH4SEACQD9ePc+xZPhtvZa4BGBZFjfRAYArvLohzR2h1/prz/gMS4ChOAIJAD+t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Z98nAA5yEx0AKO/VxnX20Cl5Ex0AKnENJACU93wNYslIuiNOr5j2r9cp8ZgUACpxBBIA+lHicRpHXl/sAbAsi2sgAYDPfNsMwLIsAhIAenF1xIlEAD4SkADQB6eRAlCdgAQAlkWgAhBwF1YAuN/Ru5w+3931yGscsff1n6dRnAIMwhFIALjXc1ztvfbwOcZKxtmr1zobjwAMxBFIAMisSztH0q6cjite++zYeXYkQCMcgQSAz9anX9mnRDwC0AABCQB13XFUbV3uC7ErT7EFoLLHuvpiDwAG5oY2ABTjCCQAjOvVt8S+OQbgMAEJAABAREACwLhKPJYDAP4jIAFgbI+N3wPAbp4DCQDjE44AFOEIJAAAABEBCQAAQERAAgAAEBGQANC+dan//MbaPx+ABghIAGhbC+G2Pv0KwKQEJAC0zR1UAWiGx3gAQPtqR2Ttnw9AIxyBBAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgIiABAAAICIgAQAAiAhIAAAAIgISAACAiIAEAAAgIiABAACICEgAAAAiAhIAAICIgAQAACAiIAEAAIgISAAAACICEgAAgMj/AerwDHJ95enQAAAAAElFTkSuQmCC';
+  var LOGO='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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAk/8DVczFbKDHus4AAAAASUVORK5CYII=';
 
-  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-  // ── TANK / FILL CHART (the "pila / cilindro" visual) ─────────
-  // Fills a vertical container from bottom up with the KPI color
-  function tankChart(val, goal, color, maxVal){
+  // ── TANK SVG ──────────────────────────────────────────────────
+  // Vertical fill cylinder: value fills from bottom, goal shown as dashed line
+  function tank(val,goal,color,maxVal,w,h){
+    w=w||72; h=h||110;
     var numVal=parseFloat(val);
-    if(isNaN(numVal)||val==='N/A'){
-      return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin:10px auto 8px;">'
-        +'<div style="width:52px;height:90px;border:2px solid #E2E8F0;border-radius:6px 6px 4px 4px;background:#F8FAFC;display:flex;align-items:center;justify-content:center;">'
-        +'<span style="font-size:9pt;color:#94A3B8;">N/A</span></div></div>';
+    var isNA=isNaN(numVal)||val==='N/A';
+    var rx=7; // corner radius
+    // Colors
+    var bgFill='#EEF2F7';
+    var borderCol='#CBD5E1';
+
+    if(isNA){
+      return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'
+        +'<rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="'+rx+'" fill="'+bgFill+'" stroke="'+borderCol+'" stroke-width="1.5"/>'
+        +'<text x="'+(w/2)+'" y="'+(h/2+5)+'" text-anchor="middle" font-size="11" fill="#94A3B8" font-family="Arial">N/A</text>'
+        +'</svg>';
     }
+
     maxVal=maxVal||100;
     var pct=Math.min(Math.max(numVal/maxVal,0),1);
-    var fillH=Math.round(pct*88);
-    var goalPct=goal!==null?Math.min(goal/maxVal,1):null;
-    var goalY=goalPct!==null?Math.round((1-goalPct)*88):null;
-    return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin:10px auto 8px;">'
-      +'<svg width="56" height="96" viewBox="0 0 56 96">'
-      // Tank border
-      +'<rect x="4" y="2" width="48" height="92" rx="5" fill="#F0F4F8" stroke="#CBD5E1" stroke-width="1.5"/>'
-      // Fill from bottom
-      +'<clipPath id="cp'+Math.random().toString(36).slice(2,7)+'">'
-      +'<rect x="5" y="'+(94-fillH)+'" width="46" height="'+fillH+'"/>'
-      +'</clipPath>'
-      +'<rect x="5" y="'+(94-fillH)+'" width="46" height="'+fillH+'" rx="4" fill="'+color+'"/>'
-      // Goal line
-      +(goalY!==null?'<line x1="2" y1="'+(goalY+2)+'" x2="54" y2="'+(goalY+2)+'" stroke="rgba(0,0,0,0.35)" stroke-width="1.5" stroke-dasharray="4,3"/>'
-        +'<text x="3" y="'+(goalY-2)+'" font-size="7" fill="rgba(0,0,0,0.45)" font-family="Arial">'+goal+'%</text>':'')
-      // Value text centered
-      +'<text x="28" y="52" text-anchor="middle" font-size="13" font-weight="900" fill="'+(pct>0.3?'white':color)+'" font-family="Arial Black,Arial">'+numVal+'</text>'
-      +'<text x="28" y="63" text-anchor="middle" font-size="8" fill="'+(pct>0.3?'rgba(255,255,255,0.8)':'#94A3B8')+'" font-family="Arial">%</text>'
-      +'</svg>'
+    var innerH=h-4; // inner height available for fill
+    var fillH=Math.round(pct*innerH);
+    var fillY=2+(innerH-fillH); // y start of fill (from bottom)
+    var goalY=goal!==null?Math.round((1-Math.min(goal/maxVal,1))*innerH)+2:null;
+
+    // Gradient stops: same color, lighter at top
+    var gradId='g'+Math.round(Math.random()*99999);
+
+    var svg='<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">';
+    // Defs
+    svg+='<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
+      +'<stop offset="0%" stop-color="'+color+'" stop-opacity="0.7"/>'
+      +'<stop offset="100%" stop-color="'+color+'" stop-opacity="1"/>'
+      +'</linearGradient></defs>';
+    // Background tank body
+    svg+='<rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="'+rx+'" fill="'+bgFill+'" stroke="'+borderCol+'" stroke-width="1.5"/>';
+    // Fill clip
+    var clipId='c'+gradId;
+    svg+='<clipPath id="'+clipId+'"><rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="'+rx+'"/></clipPath>';
+    // Fill rect
+    svg+='<rect x="3" y="'+fillY+'" width="'+(w-6)+'" height="'+fillH+'" fill="url(#'+gradId+')" clip-path="url(#'+clipId+')"/>';
+    // Shine highlight on fill (subtle white strip at top of fill)
+    if(fillH>10){
+      svg+='<rect x="8" y="'+(fillY+2)+'" width="'+(w/4)+'" height="'+(Math.min(fillH-4,14))+'" rx="3" fill="rgba(255,255,255,0.18)" clip-path="url(#'+clipId+')"/>';
+    }
+    // Goal dashed line
+    if(goalY!==null){
+      svg+='<line x1="2" y1="'+goalY+'" x2="'+(w-2)+'" y2="'+goalY+'" stroke="rgba(0,0,0,0.25)" stroke-width="1.5" stroke-dasharray="4,3"/>';
+      svg+='<text x="4" y="'+(goalY-3)+'" font-size="8" fill="rgba(0,0,0,0.4)" font-family="Arial">'+goal+'%</text>';
+    }
+    // Value text
+    var textY=fillH>30?fillY+Math.floor(fillH/2)+5:fillY-8;
+    var textFill=fillH>30?'white':color;
+    svg+='<text x="'+(w/2)+'" y="'+textY+'" text-anchor="middle" font-size="16" font-weight="900" fill="'+textFill+'" font-family="Arial Black,Arial">'+numVal+'</text>';
+    svg+='<text x="'+(w/2)+'" y="'+(textY+13)+'" text-anchor="middle" font-size="9" fill="'+(fillH>30?'rgba(255,255,255,0.75)':color)+'" font-family="Arial">%</text>';
+    svg+='</svg>';
+    return svg;
+  }
+
+  // ── STATUS BADGE ─────────────────────────────────────────────
+  function badge(st){
+    var bg=st==='Completo'?'#DCFCE7':st==='Parcial'?'#FEF3C7':'#F1F5F9';
+    var fg=st==='Completo'?'#166534':st==='Parcial'?'#92400E':'#475569';
+    return '<span style="background:'+bg+';color:'+fg+';font-size:7pt;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.3px;">'+e(st||'')+'</span>';
+  }
+
+  // ── KPI CARD ─────────────────────────────────────────────────
+  function card(o,goal,maxVal){
+    var col=o.color||'#718096';
+    var isNA=!o.value||o.value==='N/A';
+    // Top accent color matches semaphore
+    return '<div style="background:white;border-radius:10px;border:1px solid #E2E8F0;border-top:4px solid '+col
+      +';padding:14px 14px 12px;display:flex;flex-direction:column;height:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,.07);">'
+      // Status + title row
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;gap:6px;">'
+      +'<div style="font-size:7.5pt;font-weight:700;color:#1A3C6E;text-transform:uppercase;letter-spacing:.4px;line-height:1.35;flex:1;">'+e(o.title)+'</div>'
+      +badge(o.status)
+      +'</div>'
+      // Badge (snapshot info)
+      +(o.badge?'<div style="font-size:6.5pt;color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;padding:2px 7px;border-radius:5px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+e(o.badge)+'</div>':'')
+      // NA warning
+      +(isNA&&o.naMsg?'<div style="font-size:7pt;color:#DC2626;font-weight:600;margin-bottom:6px;line-height:1.3;">⚠ '+e(o.naMsg)+'</div>':'')
+      // Tank chart centered
+      +'<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:4px 0;">'
+      +tank(o.value,goal,col,maxVal,72,96)
+      +'</div>'
+      // RFT note
+      +(o.note?'<div style="font-size:6pt;color:#DC2626;border-left:2px solid #DC2626;padding-left:5px;margin-top:6px;line-height:1.3;">'+e(o.note.substring(0,120))+'</div>':'')
+      // Formula footer
+      +'<div style="font-size:6.5pt;color:#94A3B8;font-style:italic;margin-top:6px;padding-top:5px;border-top:1px solid #F1F5F9;line-height:1.3;">'+e(o.formula.substring(0,80))+'</div>'
       +'</div>';
   }
 
-  // ── KPI ROW CARD ─────────────────────────────────────────────
-  function kpiCard(card, goal, maxVal, chartType, flex){
-    var col=card.color||'#718096';
-    var val=card.value||'N/A';
-    var isNA=val==='N/A'||(!val||val.trim()==='');
-    var stFg=card.status==='Completo'?'#2E7D32':card.status==='Parcial'?'#E65100':'#718096';
-    var stBg=card.status==='Completo'?'rgba(46,125,50,.1)':card.status==='Parcial'?'rgba(230,81,0,.1)':'rgba(113,128,150,.1)';
-
-    var chart=tankChart(val,goal,col,maxVal||100);
-
-    return '<div style="flex:'+(flex||1)+';background:white;border-radius:8px;border-top:4px solid '+col
-      +';padding:14px 12px 12px;box-shadow:0 2px 8px rgba(0,0,0,.08);display:flex;flex-direction:column;align-items:center;text-align:center;">'
-      // Status badge
-      +'<div style="background:'+stBg+';color:'+stFg+';font-size:7pt;font-weight:700;padding:2px 8px;border-radius:8px;margin-bottom:6px;align-self:flex-end;">'+esc(card.status||'')+'</div>'
-      // Title
-      +'<div style="font-size:8pt;font-weight:700;color:#1A3C6E;text-transform:uppercase;letter-spacing:.5px;line-height:1.3;margin-bottom:4px;">'+esc(card.title)+'</div>'
-      // Badge (snapshot date etc)
-      +(card.badge?'<div style="font-size:7pt;color:#4A5568;background:#F4F6F9;padding:2px 8px;border-radius:4px;margin-bottom:4px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(card.badge)+'</div>':'')
-      // NA message
-      +(isNA&&card.naMsg?'<div style="font-size:7.5pt;color:#E65100;font-weight:600;margin:4px 0;line-height:1.3;">⚠ '+esc(card.naMsg)+'</div>':'')
-      // Tank chart
-      +chart
-      // Note (RFT coverage warning)
-      +(card.note?'<div style="font-size:6.5pt;color:#E65100;border-left:2px solid #E65100;padding-left:5px;text-align:left;line-height:1.3;margin-top:4px;max-width:100%;">'+esc(card.note.substring(0,100))+'</div>':'')
+  // ── SECTION HEADER ───────────────────────────────────────────
+  function secH(label,color){
+    return '<div style="background:'+color+';color:white;font-size:8.5pt;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:5px 14px;border-radius:5px;margin-bottom:8px;display:flex;align-items:center;gap:8px;">'
+      +'<span>'+e(label)+'</span>'
       +'</div>';
   }
 
-  // Section header bar
-  function secHdr(label, color){
-    return '<div style="background:'+color+';color:white;font-size:9pt;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:5px 14px;border-radius:5px;margin-bottom:8px;">'+esc(label)+'</div>';
-  }
-
-  var N='#0D1F3C',B='#1A3C6E',G='#C8A44A',LB='#1565C0',PU='#6A1B9A';
+  var N='#0D1F3C', LB='#1565C0', PU='#6A1B9A';
 
   var html='<html><head><meta charset="UTF-8"><style>'
-    +'@page{size:A4 landscape;margin:.7cm;}'
-    +'@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}'
+    +'@page{size:A4 landscape;margin:.65cm;}'
+    +'@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}html,body{height:100%;}}'
     +'*{box-sizing:border-box;margin:0;padding:0;}'
-    +'body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#1A202C;background:white;height:100vh;display:flex;flex-direction:column;}'
+    +'body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#1A202C;background:#F1F5F9;'
+    +'height:100vh;display:flex;flex-direction:column;gap:6px;padding:0;}'
     +'</style></head><body>'
 
-    // ── HEADER ──────────────────────────────────────────────────
-    +'<div style="background:'+N+';padding:10px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;border-radius:6px;">'
-    // Logo
-    +'<img src="data:image/png;base64,'+LOGO_B64+'" style="height:32px;width:auto;object-fit:contain;" alt="STELLANTIS">'
-    // Title center
+    // ── HEADER ───────────────────────────────────────────────
+    +'<div style="background:'+N+';padding:9px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:7px;flex-shrink:0;">'
+    // Logo gold — large enough to see clearly
+    +'<div style="display:flex;align-items:center;gap:0;">'
+    +'<img src="data:image/png;base64,'+LOGO+'" style="height:34px;width:auto;" alt="STELLANTIS">'
+    +'</div>'
+    // Title
     +'<div style="text-align:center;">'
-    +'<div style="font-size:14pt;font-weight:700;color:white;letter-spacing:.5px;">KPI Métier Supply Chain</div>'
-    +'<div style="font-size:8pt;color:rgba(255,255,255,.5);margin-top:2px;">'+esc(genDt)+'</div>'
+    +'<div style="font-size:15pt;font-weight:700;color:white;letter-spacing:.3px;">KPI Métier Supply Chain</div>'
+    +'<div style="font-size:8pt;color:rgba(255,255,255,.5);margin-top:1px;">'+e(genDt)+'</div>'
     +'</div>'
-    // Period badges
-    +'<div style="display:flex;gap:8px;">'
-    +'<div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 12px;text-align:center;">'
-    +'<div style="font-size:6.5pt;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;">Diarios</div>'
-    +'<div style="font-size:9pt;font-weight:700;color:white;">'+esc(dDay)+'</div>'
-    +'</div>'
-    +'<div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 12px;text-align:center;">'
-    +'<div style="font-size:6.5pt;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;">Semanal</div>'
-    +'<div style="font-size:9pt;font-weight:700;color:white;">'+esc(wMon.slice(5))+' – '+esc(wSun.slice(5))+'</div>'
-    +'</div>'
-    +'<div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 12px;text-align:center;">'
-    +'<div style="font-size:6.5pt;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;">Mensual</div>'
-    +'<div style="font-size:9pt;font-weight:700;color:white;">'+esc(month)+'</div>'
-    +'</div>'
+    // Period pills
+    +'<div style="display:flex;gap:6px;">'
+    +['Diarios|'+dDay,'Semanal|'+wMon.slice(5)+' – '+wSun.slice(5),'Mensual|'+month].map(function(s){
+      var parts=s.split('|');
+      return '<div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:5px 12px;text-align:center;">'
+        +'<div style="font-size:6pt;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">'+e(parts[0])+'</div>'
+        +'<div style="font-size:9.5pt;font-weight:700;color:white;">'+e(parts[1])+'</div>'
+        +'</div>';
+    }).join('')
     +'</div>'
     +'</div>'
 
-    // ── ROW 1: KPI DIARIOS ────────────────────────────────────
-    +'<div style="flex:1;margin-bottom:8px;">'
-    +secHdr('KPI Diarios', LB)
-    +'<div style="display:flex;gap:8px;height:calc(100% - 30px);">'
-    +(dailyCards.length?dailyCards.map(function(c){
+    // ── ROW: DIARIOS ─────────────────────────────────────────
+    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'
+    +secH('KPI Diarios', LB)
+    +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
+    +(dc.length?dc.map(function(c){
       var isRFT=c.title.indexOf('RFT')>=0;
       var isSat=c.title.indexOf('atur')>=0;
       var isTP=c.title.indexOf('Daily')>=0||c.title.indexOf('Throughput')>=0;
-      return kpiCard(c, isRFT?85:isTP?90:null, isSat?150:100, 'tank');
-    }).join(''):'<div style="flex:1;background:#F8FAFC;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos</div>')
+      return '<div style="flex:1;">'+card(c,isRFT?85:isTP?90:null,isSat?150:100)+'</div>';
+    }).join(''):'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;font-size:9pt;">Sin datos diarios</div>')
     +'</div></div>'
 
-    // ── ROW 2: KPI SEMANALES ──────────────────────────────────
-    +'<div style="flex:1;margin-bottom:8px;">'
-    +secHdr('KPI Semanales', LB)
-    +'<div style="display:flex;gap:8px;height:calc(100% - 30px);">'
-    +(weeklyCards.length?weeklyCards.map(function(c){
-      var isSO=c.title.indexOf('anten')>=0||c.title.indexOf('Service')>=0||c.title.indexOf('bligat')>=0;
-      // Pad semanales to fill row nicely
-      return kpiCard(c, isSO?5:90, isSO?30:130, 'tank');
-    }).join(''):'<div style="flex:1;background:#F8FAFC;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos</div>')
-    // Add spacers so weekly cards are wider (only 2 cards)
-    +(weeklyCards.length===2?'<div style="flex:1;"></div><div style="flex:1;"></div>':'')
+    // ── ROW: SEMANALES ───────────────────────────────────────
+    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'
+    +secH('KPI Semanales', LB)
+    +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
+    +(wc.length?wc.map(function(c){
+      var isSO=c.title.indexOf('anten')>=0||c.title.indexOf('bligat')>=0;
+      return '<div style="flex:1;">'+card(c,isSO?5:90,isSO?30:130)+'</div>';
+    }).join('')+
+    // fill remaining space proportionally
+    (wc.length<3?'<div style="flex:'+(3-wc.length)+';"></div>':'')
+    :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos semanales</div>')
     +'</div></div>'
 
-    // ── ROW 3: KPI MENSUALES ──────────────────────────────────
-    +'<div style="flex:1;">'
-    +secHdr('KPI Mensuales', PU)
-    +'<div style="display:flex;gap:8px;height:calc(100% - 30px);">'
-    +(monthlyCards.length?monthlyCards.map(function(c){
-      var isDmg=c.title.indexOf('amaged')>=0||c.title.indexOf('ano')>=0||c.title.indexOf('Daño')>=0;
-      return kpiCard(c, isDmg?0.5:null, isDmg?3:10, 'tank');
-    }).join(''):'<div style="flex:1;background:#F8FAFC;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos</div>')
-    // Spacers for mensuales
-    +(monthlyCards.length===2?'<div style="flex:1;"></div><div style="flex:1;"></div>':'')
+    // ── ROW: MENSUALES ───────────────────────────────────────
+    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'
+    +secH('KPI Mensuales', PU)
+    +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
+    +(mc.length?mc.map(function(c){
+      var isDmg=c.title.indexOf('amaged')>=0||c.title.indexOf('Daño')>=0;
+      return '<div style="flex:1;">'+card(c,isDmg?0.5:null,isDmg?3:10)+'</div>';
+    }).join('')+
+    (mc.length<3?'<div style="flex:'+(3-mc.length)+';"></div>':'')
+    :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos mensuales</div>')
     +'</div></div>'
 
     +'</body></html>';
 
-  var w=window.open('','_blank','width=1100,height=780');
+  var w=window.open('','_blank','width=1120,height=800');
   if(!w){showToast('Habilitá ventanas emergentes para el PDF','info');return;}
   w.document.write(html);w.document.close();
   w.onload=function(){w.focus();setTimeout(function(){w.print();},600);};
@@ -8324,8 +8356,9 @@ async function exportKpiMetierPDF(){
 
 
 
+
 // ══════════════════════════════════════════════════════════════
-// TRACKING REPORTING TOOL IMPORTER v4.9.0
+// TRACKING REPORTING TOOL IMPORTER v4.9.1
 // ══════════════════════════════════════════════════════════════
 async function importTrackingRows(rows, fileName){
   setImportProgress(35,'Procesando Tracking Reporting Tool: '+rows.length+' filas...');
@@ -8515,7 +8548,7 @@ kpiCard = function(o){
 
 
 <script>
-/* v4.9.0 — Fix real de navegación:
+/* v4.9.1 — Fix real de navegación:
    Reubica páginas mal anidadas en la estructura HTML final para que
    "Importar archivos", "Seguridad" y pantallas de soporte se abran
    correctamente en el área central del portal. */
