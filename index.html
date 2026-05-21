@@ -6954,6 +6954,8 @@ async function opRenderMiDia(){
 // ══════════════════════════════════════════════════════════════
 
 // ── CONFIG ───────────────────────────────────────────────────
+
+var _kpiCache={daily:[],weekly:[],monthly:[],dDay:'',wMon:'',wSun:'',month:'',ready:false};
 var metierConfig={internal_capacity:4000,throughput_include_distribution:true,throughput_include_transfer:true,rft_rule:'blocked_for_shipment_n',damage_kpi_scope:'all'};
 var SEM_G='#2E7D32',SEM_O='#E65100',SEM_R='#C62828',SEM_GRAY='#718096';
 
@@ -7309,8 +7311,14 @@ async function renderMetierDaily(){
         dataStatus:tpVal===null?'na':'completo',
         numerator:totalShip,denominator:ingressQty}),
     ];
+    // Cache raw data for PDF/Excel export
+    _kpiCache.daily=[
+      {title:'% Veh Ready For Transport (RFT)',value:rftVal,color:semRFT(rftVal),status:rftVal===null?'N/A':'Completo',formula:'RFT / Total stock. Blocked for shipment = N.',source:'kpi_stock_daily',naMsg:rftSnap?null:'Importar Stock Playa.',note:'Cobertura: Blocked for shipment = N. Pendiente validar exportacion terrestre y maritima.',numerator:rftSnap?rftSnap.rft_qty:null,denominator:rftSnap?rftSnap.total_stock:null,goal:85,maxVal:100,badge:null},
+      {title:'% Saturacion Interna Compound',value:satVal,color:semSat(satVal||0),status:satVal===null?'N/A':'Completo',formula:'Total stock / Capacidad interna ('+metierConfig.internal_capacity+' uds)',source:'kpi_stock_daily',naMsg:rftSnap?null:'Importar Stock Playa.',note:null,numerator:rftSnap?rftSnap.total_stock:null,denominator:metierConfig.internal_capacity,goal:null,maxVal:150,badge:null},
+      {title:'% Daily Throughput',value:tpVal,color:semTP(tpVal),status:tpVal===null?'N/A':'Completo',formula:'Expediciones desde Cordoba D-1 / Ingresos a Cordoba D-1',source:'kpi_shipments_daily + kpi_ingress_daily',naMsg:tpMsg||null,note:null,numerator:totalShip,denominator:ingressQty,goal:90,maxVal:130,badge:tpBadge},
+    ];
+    _kpiCache.dDay=showDate;
     grid.innerHTML=cards.join('');
-    // Show ingress info panel (read-only, no manual inputs)
     renderIngressInfoPanel(showDate,totalShip,ingressQty,hasShipments);
   }catch(e){grid.innerHTML='<div style="color:var(--red);font-size:12px;padding:16px;">Error: '+esc(e.message)+'</div>';}
 }
@@ -7407,9 +7415,13 @@ async function renderMetierWeekly(){
         numerator:soNumerator,denominator:soDenominator,
         dataStatus:soVal===null?'na':(soBadge&&soBadge.indexOf('vivo')>=0?'parcial':'completo')}),
     ];
+    // Cache for PDF/Excel
+    _kpiCache.weekly=[
+      {title:'% Weekly Throughput',value:tpWVal,color:semTP(tpWVal),status:tpWVal===null?'N/A':(tpWBadge&&tpWBadge.indexOf('curso')>=0?'Parcial':'Completo'),formula:'Expediciones desde Cordoba en la semana / Ingresos a Cordoba en la semana (L-D)',source:'kpi_shipments_daily + kpi_ingress_daily',naMsg:tpWMsg||null,note:null,goal:90,maxVal:130,badge:tpWBadge},
+      {title:'% Veh con Mantenimiento Obligatorio Pendiente',value:soVal,color:semSO(soVal),status:soVal===null?'N/A':(soBadge&&soBadge.indexOf('vivo')>=0?'Parcial':'Completo'),formula:'Veh con servicio obligatorio vencido o pendiente / Total veh con servicios obligatorios debidos',source:'pendingCache / kpi_snapshots',naMsg:soMsg||null,note:null,numerator:soNumerator,denominator:soDenominator,goal:5,maxVal:30,badge:soBadge},
+    ];
+    _kpiCache.wMon=monday;_kpiCache.wSun=sunday;
     grid.innerHTML=cards.join('');
-
-    _weeklyMon=monday;_weeklyS=sunday;
     if(actEl){
       actEl.innerHTML=isCurrent
         ?'<div style="background:rgba(21,101,192,.08);border:1px solid rgba(21,101,192,.2);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span style="font-size:12px;color:var(--text2);">Semana en curso — valores provisorios.</span><button class="btn btn-primary btn-sm" id="save-weekly-btn" onclick="saveWeeklySnapshotBtn()">Fijar snapshot oficial ahora</button></div>'
@@ -7515,12 +7527,18 @@ async function renderMetierMonthly(){
         dataStatus:dmgVal===null?'na':(dmgBadge?'parcial':'completo'),
         numerator:uniqueDmgVins,denominator:totalDispMonth}),
     ];
+    // Cache for PDF/Excel
+    _kpiCache.monthly=[
+      {title:'Nb of Safety Issues',value:nbSafety,color:semSafe(nbSafety),status:'Completo',formula:'Cantidad de incidentes registrados en el mes en curso',source:'safety_incidents',naMsg:null,note:null,goal:null,maxVal:10,badge:null,severityDist:severityDist},
+      {title:'% Damaged Vehicles',value:dmgVal,color:semDmg(dmgVal),status:dmgVal===null?'N/A':(dmgBadge?'Parcial':'Completo'),formula:'VINs unicos con dano del mes / Veh despachados del mes',source:'danos + kpi_shipments_daily',naMsg:dmgMsg||null,note:null,numerator:uniqueDmgVins,denominator:totalDispMonth,goal:0.5,maxVal:3,badge:dmgBadge},
+    ];
+    _kpiCache.month=monthStr;
+    _kpiCache.ready=true;
     grid.innerHTML=cards.join('');
 
-  }catch(e){grid.innerHTML='<div style="color:var(--red);font-size:12px;padding:16px;">❌ Error: '+esc(e.message)+'</div>';}
+}catch(e){grid.innerHTML='<div style="color:var(--red);font-size:12px;padding:16px;">❌ Error: '+esc(e.message)+'</div>';}
 }
 
-// ── IMPORT FUNCTIONS ──────────────────────────────────────────
 async function importDistribucionRows(rows,fileName){
   setImportProgress(40,'Procesando Distribución: '+rows.length+' filas...');
   var byDate={};var minDate=null,maxDate=null;
@@ -7758,593 +7776,328 @@ async function exportKpiMetierExcel(){
   await renderKpiMetier();
   await new Promise(function(r){setTimeout(r,700);});
 
-  var dDate=document.getElementById('metier-daily-date');
-  var wDate=document.getElementById('metier-week-date');
-  var mSel=document.getElementById('metier-month-sel');
   var today=new Date().toISOString().slice(0,10);
-  var dDay=dDate&&dDate.value?dDate.value:today;
-  var wMon=getMondayOf(wDate&&wDate.value?wDate.value:today);
-  var wSun=getSundayOf(wMon);
-  var month=mSel&&mSel.value?mSel.value:today.slice(0,7);
+  var dDay=_kpiCache.dDay||today;
+  var wMon=_kpiCache.wMon||getMondayOf();
+  var wSun=_kpiCache.wSun||getSundayOf(wMon);
+  var month=_kpiCache.month||today.slice(0,7);
   var genDt=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  var dc=_kpiCache.daily||[];
+  var wc=_kpiCache.weekly||[];
+  var mc=_kpiCache.monthly||[];
 
-  // Gather rendered card data
-  function getGridCards(gridId){
-    var grid=document.getElementById(gridId);
-    if(!grid)return[];
-    var out=[];
-    var cards=grid.querySelectorAll('div[style*="border:1px solid"]');
-    cards.forEach(function(card){
-      var titleEl=card.querySelector('[style*="text-transform:uppercase"]');
-      var valEl=card.querySelector('[style*="font-size:50px"]');
-      var topBar=card.querySelector('[style*="height:4px"]');
-      var statusEls=card.querySelectorAll('[style*="border-radius:8px"]');
-      var formulaEl=card.querySelector('[style*="font-style:italic"]');
-      var naEl=card.querySelector('[style*="#E65100"][style*="font-weight:600"]');
-      var badgeEl=card.querySelector('[style*="max-width:100%"]');
-      var sourceEl=Array.from(card.querySelectorAll('[style*="font-size:8px"]')).find(function(e){return e.textContent.indexOf('Fuente:')>=0;});
-      var noteEl=Array.from(card.querySelectorAll('[style*="border-left:2px"]')).find(function(e){return e;});
-      out.push({
-        title:titleEl?titleEl.textContent.trim():'',
-        value:valEl?valEl.textContent.trim():'N/A',
-        color:topBar?topBar.style.background:'#718096',
-        status:statusEls&&statusEls[0]?statusEls[0].textContent.trim():'',
-        freq:statusEls&&statusEls[1]?statusEls[1].textContent.trim():'',
-        formula:formulaEl?formulaEl.textContent.trim():'',
-        naMsg:naEl?naEl.textContent.replace(/^[⚠\s]+/,''):'',
-        badge:badgeEl?badgeEl.textContent.trim():'',
-        source:sourceEl?sourceEl.textContent.replace(/^Fuente:\s*/,''):'',
-        note:noteEl?noteEl.textContent.trim():'',
-      });
-    });
-    return out;
-  }
-
-  var dailyCards=getGridCards('metier-daily-grid');
-  var weeklyCards=getGridCards('metier-weekly-grid');
-  var monthlyCards=getGridCards('metier-monthly-grid');
-
-  // ── STELLANTIS COLOR PALETTE ──────────────────────────────────
-  var C={
-    navy:'#0D1F3C', blue:'#1A3C6E', gold:'#C8A44A',
-    green:'#2E7D32', red:'#C62828', orange:'#E65100',
-    lgray:'#F4F6F9', mgray:'#E2E8F0', dgray:'#4A5568',
-    white:'#FFFFFF', lblue:'#1565C0', purple:'#6A1B9A'
-  };
+  var C={navy:'#0D1F3C',blue:'#1A3C6E',gold:'#C8A44A',green:'#2E7D32',red:'#C62828',
+         orange:'#E65100',lgray:'#F4F6F9',mgray:'#E2E8F0',dgray:'#4A5568',white:'#FFFFFF',
+         lblue:'#1565C0',purple:'#6A1B9A'};
 
   function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function h(val,colspan,bg,fg,sz){return '<td'+(colspan?' colspan="'+colspan+'"':'')+' style="background:'+(bg||C.navy)+';color:'+(fg||C.white)+';font-weight:700;font-size:'+(sz||9)+'pt;padding:6px 10px;border:1px solid '+C.blue+';">'+esc(val)+'</td>';}
+  function td(val,bg,fg,bold,sz){return '<td style="background:'+(bg||C.white)+';color:'+(fg||C.dgray)+';'+(bold?'font-weight:700;':'')+'font-size:'+(sz||9)+'pt;border:1px solid '+C.mgray+';padding:5px 9px;">'+esc(String(val===null||val===undefined?'—':val))+'</td>';}
+  function stBg(st){return st==='Completo'?'#2E7D3215':st==='Parcial'?'#E6510015':'#71809615';}
+  function stFg(st){return st==='Completo'?C.green:st==='Parcial'?C.orange:'#718096';}
+  function blk(cols){return '<tr><td colspan="'+cols+'" style="height:8px;"></td></tr>';}
+  function secHdr(label,cols,color){return '<tr><td colspan="'+cols+'" style="background:'+(color||C.blue)+';color:white;font-weight:700;font-size:10pt;padding:6px 12px;letter-spacing:.5px;">'+esc(label)+'</td></tr>';}
 
-  // ── SHEET 1: DASHBOARD EJECUTIVO (imprimible, igual al PDF) ───
-  function buildDashboard(){
-    var h='<table style="font-family:Calibri,Arial;font-size:9pt;border-collapse:collapse;width:100%;max-width:280mm;">';
+  // ── SHEET 1: DASHBOARD (imprimible) ──────────────────────────
+  var s1='<table style="font-family:Calibri,Arial;border-collapse:collapse;width:100%;">';
+  // Header
+  s1+='<tr><td colspan="7" style="background:'+C.navy+';padding:12px 18px;">'
+    +'<table style="width:100%;border-collapse:collapse;"><tr>'
+    +'<td style="padding:0;"><div style="font-size:18pt;font-weight:900;color:'+C.gold+';letter-spacing:3px;">STELLANTIS</div>'
+    +'<div style="font-size:8pt;color:rgba(255,255,255,.4);">Compound Córdoba (00034)</div></td>'
+    +'<td style="text-align:right;padding:0;"><div style="font-size:13pt;font-weight:700;color:white;">KPI Métier Supply Chain</div>'
+    +'<div style="font-size:8pt;color:rgba(255,255,255,.5);">'+esc(genDt)+'  ·  v4.9.1</div></td>'
+    +'</tr></table></td></tr>';
+  s1+='<tr><td colspan="7" style="background:'+C.blue+';color:rgba(255,255,255,.6);font-size:8pt;padding:4px 18px;">'
+    +'Diarios: '+esc(dDay)+'   |   Semanal: '+esc(wMon)+' al '+esc(wSun)+'   |   Mensual: '+esc(month)
+    +'</td></tr>';
+  s1+=blk(7);
 
-    // Header banner
-    h+='<tr><td colspan="8" style="background:'+C.navy+';padding:0;">'
-      +'<table style="width:100%;border-collapse:collapse;">'
-      +'<tr>'
-      +'<td style="padding:14px 20px;vertical-align:middle;">'
-      +'<div style="font-size:22pt;font-weight:900;color:'+C.gold+';letter-spacing:3px;font-family:Arial Black,Arial;">STELLANTIS</div>'
-      +'<div style="font-size:8pt;color:rgba(255,255,255,.5);letter-spacing:2px;text-transform:uppercase;margin-top:2px;">Portal de Gestión · Compound Córdoba</div>'
-      +'</td>'
-      +'<td style="padding:14px 20px;vertical-align:middle;text-align:right;">'
-      +'<div style="font-size:13pt;font-weight:700;color:white;letter-spacing:1px;">KPI MÉTIER SUPPLY CHAIN</div>'
-      +'<div style="font-size:8pt;color:rgba(255,255,255,.55);margin-top:3px;">'+esc(genDt)+'  ·  v4.9.1</div>'
-      +'</td>'
-      +'</tr></table>'
-      +'</td></tr>';
-
-    // Period strip
-    h+='<tr><td colspan="8" style="background:'+C.blue+';padding:5px 20px;">'
-      +'<span style="color:rgba(255,255,255,.5);font-size:8pt;">Diarios: '+esc(dDay)+'  |  Semanal: '+esc(wMon)+' al '+esc(wSun)+'  |  Mensual: '+esc(month)+'</span>'
-      +'</td></tr>';
-
-    // Section: Diarios
-    h+='<tr><td colspan="8" style="background:'+C.lblue+';color:white;font-weight:700;font-size:8pt;padding:5px 12px;text-transform:uppercase;letter-spacing:1px;">KPI DIARIOS</td></tr>';
-    h+='<tr>';
-    (dailyCards.length?dailyCards:[{title:'Sin datos',value:'N/A',color:'#718096',status:'',formula:'',naMsg:'Importar archivos',badge:'',source:'',note:''}]).forEach(function(card){
-      h+=kpiXlsCell(card,C);
-    });
-    // Pad to 8 cols if needed
-    for(var i=dailyCards.length;i<3;i++) h+='<td style="background:'+C.lgray+'"></td>';
-    h+='<td colspan="'+(8-Math.min(dailyCards.length,3))+'" style="background:'+C.lgray+'"></td>';
-    h+='</tr>';
-
-    // Section: Semanales
-    h+='<tr><td colspan="8" style="background:'+C.lblue+';color:white;font-weight:700;font-size:8pt;padding:5px 12px;text-transform:uppercase;letter-spacing:1px;border-top:2px solid '+C.navy+';">KPI SEMANALES</td></tr>';
-    h+='<tr>';
-    (weeklyCards.length?weeklyCards:[]).forEach(function(card){
-      h+=kpiXlsCell(card,C);
-    });
-    for(var i2=weeklyCards.length;i2<4;i2++) h+='<td colspan="2" style="background:'+C.lgray+'"></td>';
-    h+='</tr>';
-
-    // Section: Mensuales
-    h+='<tr><td colspan="8" style="background:'+C.lblue+';color:white;font-weight:700;font-size:8pt;padding:5px 12px;text-transform:uppercase;letter-spacing:1px;border-top:2px solid '+C.navy+';">KPI MENSUALES</td></tr>';
-    h+='<tr>';
-    (monthlyCards.length?monthlyCards:[]).forEach(function(card){
-      h+=kpiXlsCell(card,C);
-    });
-    for(var i3=monthlyCards.length;i3<4;i3++) h+='<td colspan="2" style="background:'+C.lgray+'"></td>';
-    h+='</tr>';
-
-    // Config footer
-    h+='<tr><td colspan="8" style="background:'+C.navy+';color:rgba(255,255,255,.4);font-size:7pt;padding:5px 20px;border-top:2px solid '+C.gold+';">'
-      +'Config: Cap. '+metierConfig.internal_capacity+' uds  ·  RFT: '+(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment=N':'Avail Date not null')
-      +'  ·  TP: '+(metierConfig.throughput_include_distribution?'Distrib.':'')+' '+(metierConfig.throughput_include_transfer?'Traslado':'')
-      +'  ·  Daños: '+(metierConfig.damage_kpi_scope==='all'?'Todos':'Solo Compound')
-      +'  ·  Uso interno confidencial'
-      +'</td></tr>';
-
-    h+='</table>';
-    return h;
-  }
-
-  function kpiXlsCell(card, C){
-    var col=card.color||'#718096';
-    var val=card.value||'N/A';
-    var isNA=val==='N/A'||card.naMsg;
-    var numVal=parseFloat(val);
-    var barW=(!isNA&&!isNaN(numVal))?Math.min(numVal,130):0;
-    var maxW=130;
-    var pctW=Math.round(barW/maxW*100);
-
-    // Status badge color
-    var stBg=card.status==='Completo'?'#2E7D3215':card.status==='Parcial'?'#E6510015':'#71809615';
-    var stFg=card.status==='Completo'?C.green:card.status==='Parcial'?C.orange:'#718096';
-
-    return '<td style="background:white;border-left:4px solid '+col+';border:1px solid '+C.mgray+';border-left:4px solid '+col+';padding:10px 12px;vertical-align:top;min-width:80px;">'
-      +'<div style="font-size:7pt;font-weight:700;color:'+C.dgray+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;line-height:1.3;">'+esc(card.title)+'</div>'
-      +'<div style="font-size:8pt;font-weight:700;background:'+stBg+';color:'+stFg+';display:inline-block;padding:1px 6px;border-radius:6px;margin-bottom:4px;">'+esc(card.status||'')+'</div>'
-      +'<div style="font-size:22pt;font-weight:900;color:'+col+';font-family:Arial Black,Arial;line-height:1;margin:3px 0 5px;">'+esc(val)+'</div>'
-      +(card.naMsg?'<div style="font-size:7pt;color:'+C.orange+';font-weight:600;margin-bottom:3px;">⚠ '+esc(card.naMsg)+'</div>':'')
-      +(card.badge?'<div style="font-size:7pt;color:'+C.dgray+';background:'+C.lgray+';padding:2px 5px;border-radius:3px;margin-bottom:3px;">'+esc(card.badge)+'</div>':'')
-      // Visual bar
-      +(!isNA&&!isNaN(numVal)?
-        '<div style="background:'+C.mgray+';height:8px;border-radius:4px;overflow:hidden;margin:4px 0;">'
-        +'<div style="background:'+col+';height:8px;width:'+pctW+'%;border-radius:4px;"></div></div>'
-        :'<div style="height:8px;margin:4px 0;"></div>')
-      +'<div style="font-size:7pt;color:#94A3B8;font-style:italic;line-height:1.3;margin-top:3px;">'+esc((card.formula||'').substring(0,80))+'</div>'
-      +'</td>';
-  }
-
-  // ── SHEET 2: DATOS BASE CONSOLIDADOS ─────────────────────────
-  async function buildDatosBase(){
-    var C2=C;
-    function h2(val,colspan,bg,fg,sz){
-      return '<td'+(colspan?' colspan="'+colspan+'"':'')+' style="background:'+(bg||C2.navy)+';color:'+(fg||C2.white)+';font-weight:700;font-size:'+(sz||9)+'pt;padding:6px 10px;border:1px solid '+C2.blue+';">'+esc(val)+'</td>';
-    }
-    function td2(val,bg,fg,bold,sz){
-      return '<td style="background:'+(bg||C2.white)+';color:'+(fg||C2.dgray)+';'+(bold?'font-weight:700;':'')+'font-size:'+(sz||9)+'pt;border:1px solid '+C2.mgray+';padding:5px 10px;">'+esc(String(val===null||val===undefined?'—':val))+'</td>';
-    }
-    function sectionHdr(label,cols,color){return '<tr>'+h2(label,cols,color||C2.blue,'#FFFFFF',10)+'</tr>';}
-    function blankRow(cols){return '<tr><td colspan="'+cols+'" style="height:8px;"></td></tr>';}
-
-    var h='<table style="font-family:Calibri,Arial;font-size:9pt;border-collapse:collapse;width:100%;">';
-
-    // Header
-    h+='<tr><td colspan="7" style="background:'+C2.navy+';padding:0;">'
-      +'<table style="width:100%;border-collapse:collapse;"><tr>'
-      +'<td style="padding:12px 18px;"><div style="font-size:18pt;font-weight:900;color:'+C2.gold+';letter-spacing:2px;">STELLANTIS</div>'
-      +'<div style="font-size:8pt;color:rgba(255,255,255,.5);">Datos Base Consolidados · Compound Córdoba (00034)</div></td>'
-      +'<td style="padding:12px 18px;text-align:right;"><div style="font-size:10pt;font-weight:700;color:white;">DATOS BASE — KPI MÉTIER</div>'
-      +'<div style="font-size:7pt;color:rgba(255,255,255,.5);">'+esc(genDt)+'  ·  v4.9.1  ·  Uso interno confidencial</div></td>'
-      +'</tr></table></td></tr>';
-    h+=blankRow(7);
-
-    // A. KPI Summary table
-    h+=sectionHdr('A. RESUMEN KPI — TODOS LOS INDICADORES',7,'#1A3C6E');
-    h+='<tr>'+h2('KPI',1)+h2('Periodicidad',1)+h2('Período',1)+h2('Valor',1)+h2('Estado',1)+h2('Fórmula',1)+h2('Observación',1)+'</tr>';
-    var allCards=[].concat(
-      dailyCards.map(function(c){return{c:c,period:dDay,freq:'Diario'};}),
-      weeklyCards.map(function(c){return{c:c,period:wMon+' al '+wSun,freq:'Semanal'};}),
-      monthlyCards.map(function(c){return{c:c,period:month,freq:'Mensual'};}));
-    allCards.forEach(function(item,i){
-      var card=item.c;
-      var bg=i%2===0?C2.lgray:C2.white;
-      var stFg=card.status==='Completo'?C2.green:card.status==='Parcial'?C2.orange:'#718096';
-      var obs=card.naMsg||card.badge||card.note||'';
-      h+='<tr>'+td2(card.title,bg,C2.navy,true)
-        +td2(item.freq,bg)
-        +td2(item.period,bg)
-        +'<td style="background:'+bg+';color:'+card.color+';font-weight:900;font-size:12pt;border:1px solid '+C2.mgray+';padding:5px 10px;text-align:center;">'+esc(card.value)+'</td>'
-        +'<td style="background:'+stBgFn(card.status)+';color:'+stFg+';font-weight:700;font-size:8pt;border:1px solid '+C2.mgray+';padding:5px 10px;text-align:center;">'+esc(card.status)+'</td>'
-        +td2(card.formula.substring(0,100),bg,C2.dgray,false,8)
-        +td2(obs,bg,obs?C2.orange:C2.dgray,false,8)
+  // KPI sections
+  function kpiSection(cards,label,color,period){
+    var rows='';
+    rows+=secHdr(label+' — '+esc(period),7,color);
+    rows+='<tr>'+h('Indicador',2)+h('Valor',1)+h('Estado',1)+h('Semáforo',1)+h('Fórmula',1)+h('Observación',1)+'</tr>';
+    cards.forEach(function(o,i){
+      var bg=i%2===0?C.lgray:C.white;
+      var col=o.color||'#718096';
+      rows+='<tr>'
+        +'<td colspan="2" style="background:'+bg+';color:'+C.navy+';font-weight:700;font-size:9pt;border:1px solid '+C.mgray+';padding:5px 9px;border-left:4px solid '+col+';">'+esc(o.title)+'</td>'
+        +'<td style="background:'+bg+';color:'+col+';font-weight:900;font-size:14pt;border:1px solid '+C.mgray+';padding:5px 9px;text-align:center;">'+esc(String(o.value===null||o.value===undefined?'N/A':o.value))+'</td>'
+        +'<td style="background:'+stBg(o.status)+';color:'+stFg(o.status)+';font-weight:700;font-size:8pt;border:1px solid '+C.mgray+';padding:5px 9px;text-align:center;">'+esc(o.status||'')+'</td>'
+        +'<td style="background:'+bg+';color:'+col+';font-size:10pt;border:1px solid '+C.mgray+';padding:5px 9px;text-align:center;">●</td>'
+        +td((o.formula||'').substring(0,80),bg,C.dgray,false,8)
+        +td(o.naMsg||o.badge||o.note||'',bg,o.naMsg?C.orange:C.dgray,false,8)
         +'</tr>';
     });
-    h+=blankRow(7);
-
-    // B-G sections from Supabase
-    var mStart=month+'-01';
-
-    // B. Stock snapshots
-    h+=sectionHdr('B. SNAPSHOTS DE STOCK — kpi_stock_daily (últimos 15 días)',7,'#1A3C6E');
-    h+='<tr>'+h2('Fecha',1)+h2('Total Stock',1)+h2('RFT qty',1)+h2('No-RFT qty',1)+h2('Capacidad',1)+h2('% RFT',1)+h2('% Saturación',1)+'</tr>';
-    try{
-      var snapD=await sbGet('kpi_stock_daily','compound_code=eq.00034&order=snapshot_date.desc&limit=15');
-      if(Array.isArray(snapD)&&snapD.length){
-        snapD.forEach(function(s,i){
-          var bg=i%2===0?C2.lgray:C2.white;
-          var rc=parseFloat(s.rft_pct)>=85?C2.green:C2.red;
-          var sc=parseFloat(s.saturation_pct)<=80?C2.green:parseFloat(s.saturation_pct)<90?C2.orange:C2.red;
-          h+='<tr>'+td2(s.snapshot_date,bg)
-            +td2(s.total_stock,bg)+td2(s.rft_qty,bg)+td2(s.non_rft_qty,bg)+td2(s.capacity_internal,bg)
-            +'<td style="background:'+bg+';color:'+rc+';font-weight:700;font-size:9pt;border:1px solid '+C2.mgray+';padding:5px 10px;">'+(s.rft_pct||0)+'%</td>'
-            +'<td style="background:'+bg+';color:'+sc+';font-weight:700;font-size:9pt;border:1px solid '+C2.mgray+';padding:5px 10px;">'+(s.saturation_pct||0)+'%</td>'
-            +'</tr>';
-        });
-      }else{h+='<tr>'+td2('Sin snapshots — importar Stock Playa',C2.lgray,C2.orange,false,9)+'</tr>';}
-    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blankRow(7);
-
-    // C. Expediciones + Ingresos lado a lado
-    h+=sectionHdr('C. EXPEDICIONES E INGRESOS DIARIOS — kpi_shipments_daily + kpi_ingress_daily',7,'#1565C0');
-    h+='<tr>'+h2('Fecha',1)+h2('Distribución',1)+h2('Traslado Playa',1)+h2('Total Expedido',1)+h2('Ingresos Tracking ING',1)+h2('% Throughput día',1)+td2('',C2.white)+'</tr>';
-    try{
-      var shipA=await sbGet('kpi_shipments_daily','compound_code=eq.00034&order=metric_date.desc&limit=30');
-      var ingA=await sbGet('kpi_ingress_daily','compound_code=eq.00034&order=metric_date.desc&limit=30');
-      if(!Array.isArray(shipA))shipA=[];if(!Array.isArray(ingA))ingA=[];
-      var sByDate={};
-      shipA.forEach(function(s){if(!sByDate[s.metric_date])sByDate[s.metric_date]={d:null,t:null};if(s.source_type==='distribution')sByDate[s.metric_date].d=s.shipments_qty;else if(s.source_type==='transfer_playa')sByDate[s.metric_date].t=s.shipments_qty;});
-      var iByDate={};ingA.forEach(function(s){iByDate[s.metric_date]=s.ingress_qty;});
-      var allDates=Object.keys(sByDate).sort().reverse();
-      allDates.forEach(function(date,i){
-        var bg=i%2===0?C2.lgray:C2.white;
-        var dq=metierConfig.throughput_include_distribution?(sByDate[date].d||0):0;
-        var tq=metierConfig.throughput_include_transfer?(sByDate[date].t||0):0;
-        var total=dq+tq;
-        var ing=iByDate[date]||null;
-        var tpD=ing&&ing>0?Math.round(total/ing*1000)/10:null;
-        var tpC=tpD===null?C2.dgray:tpD>=90?C2.green:tpD>80?C2.orange:C2.red;
-        h+='<tr>'+td2(date,bg)
-          +td2(sByDate[date].d===null?'—':sByDate[date].d,bg)
-          +td2(sByDate[date].t===null?'—':sByDate[date].t,bg)
-          +'<td style="background:'+bg+';color:'+C2.blue+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+total+'</td>'
-          +td2(ing===null?'Sin datos':ing,bg,ing===null?C2.orange:C2.dgray,false)
-          +'<td style="background:'+bg+';color:'+tpC+';font-weight:'+(tpD!==null?'700':'400')+';border:1px solid '+C2.mgray+';padding:5px 10px;">'+(tpD!==null?tpD+'%':'—')+'</td>'
-          +td2('',C2.white)+'</tr>';
-      });
-      if(!allDates.length){h+='<tr>'+td2('Sin datos',C2.lgray,C2.orange)+'</tr>';}
-    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blankRow(7);
-
-    // D. Snapshots semanales
-    h+=sectionHdr('D. SNAPSHOTS SEMANALES — kpi_snapshots',7,'#1565C0');
-    h+='<tr>'+h2('Semana inicio',1)+h2('Semana fin',1)+h2('Expedido',1)+h2('Ingresado',1)+h2('% TP',1)+h2('% Mantenimiento pendiente',1)+h2('Guardado por',1)+'</tr>';
-    try{
-      var snW=await sbGet('kpi_snapshots','compound_code=eq.00034&period_type=eq.weekly&order=period.desc&limit=8');
-      if(!Array.isArray(snW))snW=[];
-      var weekMap={};snW.forEach(function(s){if(!weekMap[s.period])weekMap[s.period]={};weekMap[s.period][s.kpi_name]=s;});
-      Object.keys(weekMap).sort().reverse().forEach(function(wk,i){
-        var bg=i%2===0?C2.lgray:C2.white;
-        var tp=weekMap[wk]['weekly_throughput'];
-        var so=weekMap[wk]['service_order_not_done'];
-        var tpV=tp&&tp.value!==null?tp.value+'%':'N/A';
-        var soV=so&&so.value!==null?so.value+'%':'N/A';
-        var tpC=tp&&tp.value!==null?(tp.value>=90?C2.green:tp.value>80?C2.orange:C2.red):C2.dgray;
-        var soC=so&&so.value!==null?(so.value<=5?C2.green:so.value<10?C2.orange:C2.red):C2.dgray;
-        var det=(tp&&tp.detail?tp.detail:'').split('/');
-        h+='<tr>'+td2(wk,bg)
-          +td2(tp&&tp.period_end?tp.period_end:'',bg)
-          +td2(det[0]?det[0].trim():'',bg)
-          +td2(det[1]?det[1].trim():'',bg)
-          +'<td style="background:'+bg+';color:'+tpC+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+tpV+'</td>'
-          +'<td style="background:'+bg+';color:'+soC+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+soV+'</td>'
-          +td2(tp&&tp.computed_by?tp.computed_by:'',bg)
-          +'</tr>';
-      });
-      if(!Object.keys(weekMap).length){h+='<tr>'+td2('Sin snapshots semanales aún',C2.lgray,C2.orange)+'</tr>';}
-    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blankRow(7);
-
-    // E. Daños del mes
-    h+=sectionHdr('E. DAÑOS DEL MES ('+month+') — tabla danos',7,'#C62828');
-    h+='<tr>'+h2('VINs únicos',1)+h2('Total registros',1)+h2('Expediciones mes',1)+h2('% Damaged',1)+h2('Config scope',1)+h2('Desglose responsabilidad',2)+'</tr>';
-    try{
-      var danosM=await sbGet('danos','compound_code=eq.00034&damage_date=gte.'+mStart+'&select=vin,responsabilidad,damage_date&limit=5000');
-      if(!Array.isArray(danosM))danosM=[];
-      var dmgF=metierConfig.damage_kpi_scope==='compound_only'?danosM.filter(function(d){return d.responsabilidad==='Compound';}):danosM;
-      var uVins=new Set(dmgF.map(function(d){return d.vin;})).size;
-      var sM=await sbGet('kpi_shipments_daily','compound_code=eq.00034&metric_date=gte.'+mStart+'&limit=200');
-      if(!Array.isArray(sM))sM=[];
-      var tSM=sM.reduce(function(a,s){return a+(s.shipments_qty||0);},0);
-      var dp=tSM>0?(uVins/tSM*100).toFixed(2)+'%':'N/A';
-      var dc=tSM===0?C2.dgray:parseFloat(dp)<0.5?C2.green:C2.red;
-      var byR={};danosM.forEach(function(d){var r=d.responsabilidad||'Sin clasificar';byR[r]=(byR[r]||0)+1;});
-      var respStr=Object.entries(byR).map(function(e){return e[0]+': '+e[1];}).join(' | ');
-      h+='<tr>'+td2(uVins,C2.lgray,C2.red,true)
-        +td2(danosM.length,C2.lgray)
-        +td2(tSM||'Sin datos',C2.lgray)
-        +'<td style="background:'+C2.lgray+';color:'+dc+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+esc(dp)+'</td>'
-        +td2(metierConfig.damage_kpi_scope==='all'?'Todos los daños':'Solo Compound',C2.lgray)
-        +td2(respStr||'—',C2.lgray,C2.dgray,false,8)
-        +td2('',C2.white)+'</tr>';
-    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blankRow(7);
-
-    // F. Seguridad + Mantenimiento
-    h+=sectionHdr('F. SEGURIDAD + MANTENIMIENTO ('+month+')',7,'#6A1B9A');
-    h+='<tr>'+h2('Incidentes mes',1)+h2('Abiertos',1)+h2('Críticos',1)+h2('Veh mant. pendiente',1)+h2('Total con servicio debido',1)+h2('% Service Order',1)+h2('Fuente mantenimiento',1)+'</tr>';
-    try{
-      var safM=await sbGet('safety_incidents','compound_code=eq.00034&incident_date=gte.'+mStart+'&order=incident_date.desc');
-      if(!Array.isArray(safM))safM=[];
-      var safeColor=safM.length===0?C2.green:C2.red;
-      var vM={};
-      if(typeof pendingCache!=='undefined'&&pendingCache&&pendingCache.length){
-        pendingCache.forEach(function(p){if(!vM[p.vin])vM[p.vin]={ov:false};if(p.urgency==='overdue'||p.urgency==='urgent')vM[p.vin].ov=true;});
-      }
-      var dueN=Object.keys(vM).length;
-      var pendN=Object.values(vM).filter(function(v){return v.ov;}).length;
-      var soVal2=dueN>0?(pendN/dueN*100).toFixed(1)+'%':'—';
-      var soC2=dueN===0?C2.dgray:parseFloat(soVal2)<=5?C2.green:parseFloat(soVal2)<10?C2.orange:C2.red;
-      h+='<tr>'
-        +'<td style="background:'+C2.lgray+';color:'+safeColor+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+safM.length+'</td>'
-        +td2(safM.filter(function(s){return s.status==='abierto';}).length,C2.lgray)
-        +td2(safM.filter(function(s){return s.severity==='Crítica';}).length,C2.lgray,safM.filter(function(s){return s.severity==='Crítica';}).length>0?C2.red:C2.green,true)
-        +'<td style="background:'+C2.lgray+';color:'+C2.red+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+pendN+'</td>'
-        +td2(dueN,C2.lgray)
-        +'<td style="background:'+C2.lgray+';color:'+soC2+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+soVal2+'</td>'
-        +td2('pendingCache (en vivo)',C2.lgray,C2.dgray,false,8)+'</tr>';
-    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-
-    // Footer
-    h+='<tr><td colspan="7" style="background:'+C2.navy+';color:rgba(255,255,255,.4);font-size:7pt;padding:5px 18px;">'
-      +'Stellantis Argentina S.A.  ·  Uso interno confidencial  ·  Generado: '+esc(genDt)+'  ·  Portal v4.9.1'
-      +'</td></tr>';
-
-    h+='</table>';
-    return h;
+    rows+=blk(7);
+    return rows;
   }
 
-  function stBgFn(st){return st==='Completo'?'#2E7D3215':st==='Parcial'?'#E6510015':'#71809615';}
+  s1+=kpiSection(dc,'KPI DIARIOS',C.lblue,dDay);
+  s1+=kpiSection(wc,'KPI SEMANALES',C.lblue,wMon+' al '+wSun);
+  s1+=kpiSection(mc,'KPI MENSUALES',C.purple,month);
 
-  var sheet2=await buildDatosBase();
+  // Config footer
+  s1+='<tr><td colspan="7" style="background:'+C.navy+';color:rgba(255,255,255,.4);font-size:7pt;padding:5px 18px;">'
+    +'Config: Cap. '+metierConfig.internal_capacity+' uds  ·  RFT: '+(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment=N':'AvailDate')
+    +'  ·  Daños: '+(metierConfig.damage_kpi_scope==='all'?'Todos':'Solo Compound')
+    +'  ·  Stellantis Argentina S.A.  ·  Uso interno confidencial'
+    +'</td></tr>';
+  s1+='</table>';
 
-  var fullHtml='<html xmlns:o="urn:schemas-microsoft-com:office:office" '
-    +'xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">'
+  // ── SHEET 2: DATOS BASE ───────────────────────────────────────
+  var s2='<table style="font-family:Calibri,Arial;border-collapse:collapse;width:100%;">';
+  var mStart=month+'-01';
+
+  // Header
+  s2+='<tr><td colspan="7" style="background:'+C.navy+';padding:12px 18px;">'
+    +'<div style="font-size:14pt;font-weight:900;color:'+C.gold+';letter-spacing:2px;">STELLANTIS  —  DATOS BASE CONSOLIDADOS</div>'
+    +'<div style="font-size:8pt;color:rgba(255,255,255,.4);">Compound Córdoba (00034)  ·  '+esc(genDt)+'  ·  v4.9.1</div>'
+    +'</td></tr>';
+  s2+=blk(7);
+
+  // B. Stock snapshots
+  s2+=secHdr('STOCK DIARIO — kpi_stock_daily (últimos 15 días)',7,C.lblue);
+  s2+='<tr>'+h('Fecha')+h('Total Stock')+h('RFT')+h('No-RFT')+h('Capacidad')+h('% RFT')+h('% Saturación')+'</tr>';
+  try{
+    var snapD=await sbGet('kpi_stock_daily','compound_code=eq.00034&order=snapshot_date.desc&limit=15');
+    if(Array.isArray(snapD)&&snapD.length){
+      snapD.forEach(function(s3,i){
+        var bg=i%2===0?C.lgray:C.white;
+        var rc=parseFloat(s3.rft_pct)>=85?C.green:C.red;
+        var sc=parseFloat(s3.saturation_pct)<=80?C.green:parseFloat(s3.saturation_pct)<90?C.orange:C.red;
+        s2+='<tr>'+td(s3.snapshot_date,bg)+td(s3.total_stock,bg)+td(s3.rft_qty,bg)+td(s3.non_rft_qty,bg)+td(s3.capacity_internal,bg)
+          +'<td style="background:'+bg+';color:'+rc+';font-weight:700;border:1px solid '+C.mgray+';padding:5px 9px;">'+(s3.rft_pct||0)+'%</td>'
+          +'<td style="background:'+bg+';color:'+sc+';font-weight:700;border:1px solid '+C.mgray+';padding:5px 9px;">'+(s3.saturation_pct||0)+'%</td>'
+          +'</tr>';
+      });
+    }else{s2+='<tr>'+td('Sin snapshots — importar Stock Playa',C.lgray,C.orange,false,9)+'</tr>';}
+  }catch(ex){s2+='<tr>'+td('Error: '+ex.message,C.lgray,C.red)+'</tr>';}
+  s2+=blk(7);
+
+  // C. Expediciones e Ingresos
+  s2+=secHdr('EXPEDICIONES E INGRESOS DIARIOS',7,C.lblue);
+  s2+='<tr>'+h('Fecha')+h('Distribución')+h('Traslado Playa')+h('Total Expedido')+h('Ingresos Tracking ING')+h('% Throughput día')+h('Fuente')+'</tr>';
+  try{
+    var shipA=await sbGet('kpi_shipments_daily','compound_code=eq.00034&order=metric_date.desc&limit=30');
+    var ingA=await sbGet('kpi_ingress_daily','compound_code=eq.00034&order=metric_date.desc&limit=30');
+    if(!Array.isArray(shipA))shipA=[];if(!Array.isArray(ingA))ingA=[];
+    var sByDate={};shipA.forEach(function(x){if(!sByDate[x.metric_date])sByDate[x.metric_date]={d:null,t:null};if(x.source_type==='distribution')sByDate[x.metric_date].d=x.shipments_qty;else if(x.source_type==='transfer_playa')sByDate[x.metric_date].t=x.shipments_qty;});
+    var iByDate={};ingA.forEach(function(x){iByDate[x.metric_date]=x.ingress_qty;});
+    Object.keys(sByDate).sort().reverse().forEach(function(date,i){
+      var bg=i%2===0?C.lgray:C.white;
+      var dq=metierConfig.throughput_include_distribution?(sByDate[date].d||0):0;
+      var tq=metierConfig.throughput_include_transfer?(sByDate[date].t||0):0;
+      var tot=dq+tq;var ing=iByDate[date]||null;
+      var tpD=ing&&ing>0?Math.round(tot/ing*1000)/10:null;
+      var tpC=tpD===null?C.dgray:tpD>=90?C.green:tpD>80?C.orange:C.red;
+      s2+='<tr>'+td(date,bg)+td(sByDate[date].d===null?'—':sByDate[date].d,bg)+td(sByDate[date].t===null?'—':sByDate[date].t,bg)
+        +'<td style="background:'+bg+';color:'+C.blue+';font-weight:700;border:1px solid '+C.mgray+';padding:5px 9px;">'+tot+'</td>'
+        +td(ing===null?'Sin datos':ing,bg,ing===null?C.orange:C.dgray)
+        +'<td style="background:'+bg+';color:'+tpC+';font-weight:'+(tpD!==null?'700':'400')+';border:1px solid '+C.mgray+';padding:5px 9px;">'+(tpD!==null?tpD+'%':'—')+'</td>'
+        +td('Distrib.+Traslado / Tracking ING',bg,C.dgray,false,7)+'</tr>';
+    });
+    if(!Object.keys(sByDate).length){s2+='<tr>'+td('Sin expediciones importadas',C.lgray,C.orange)+'</tr>';}
+  }catch(ex){s2+='<tr>'+td('Error: '+ex.message,C.lgray,C.red)+'</tr>';}
+  s2+=blk(7);
+
+  // D. Snapshots semanales
+  s2+=secHdr('SNAPSHOTS SEMANALES — kpi_snapshots',7,C.lblue);
+  s2+='<tr>'+h('Semana inicio')+h('Semana fin')+h('Expedido')+h('Ingresado')+h('% TP')+h('% Mantenimiento')+h('Guardado por')+'</tr>';
+  try{
+    var snW=await sbGet('kpi_snapshots','compound_code=eq.00034&period_type=eq.weekly&order=period.desc&limit=8');
+    if(!Array.isArray(snW))snW=[];
+    var wkMap={};snW.forEach(function(x){if(!wkMap[x.period])wkMap[x.period]={};wkMap[x.period][x.kpi_name]=x;});
+    Object.keys(wkMap).sort().reverse().forEach(function(wk,i){
+      var bg=i%2===0?C.lgray:C.white;
+      var tp=wkMap[wk]['weekly_throughput'];var so=wkMap[wk]['service_order_not_done'];
+      var tpV=tp&&tp.value!==null?tp.value+'%':'N/A';var soV=so&&so.value!==null?so.value+'%':'N/A';
+      var tpC=tp&&tp.value!==null?(tp.value>=90?C.green:tp.value>80?C.orange:C.red):C.dgray;
+      var soC=so&&so.value!==null?(so.value<=5?C.green:so.value<10?C.orange:C.red):C.dgray;
+      var det=(tp&&tp.detail?tp.detail:'').split('/');
+      s2+='<tr>'+td(wk,bg)+td(tp&&tp.period_end?tp.period_end:'',bg)+td(det[0]?det[0].trim():'',bg)+td(det[1]?det[1].trim():'',bg)
+        +'<td style="background:'+bg+';color:'+tpC+';font-weight:700;border:1px solid '+C.mgray+';padding:5px 9px;">'+tpV+'</td>'
+        +'<td style="background:'+bg+';color:'+soC+';font-weight:700;border:1px solid '+C.mgray+';padding:5px 9px;">'+soV+'</td>'
+        +td(tp&&tp.computed_by?tp.computed_by:'',bg)+'</tr>';
+    });
+    if(!Object.keys(wkMap).length){s2+='<tr>'+td('Sin snapshots semanales guardados aún',C.lgray,C.orange)+'</tr>';}
+  }catch(ex){s2+='<tr>'+td('Error: '+ex.message,C.lgray,C.red)+'</tr>';}
+  s2+=blk(7);
+
+  // E. Daños del mes
+  s2+=secHdr('DAÑOS DEL MES ('+month+') — tabla danos',7,'#C62828');
+  s2+='<tr>'+h('VINs únicos')+h('Total registros')+h('Expediciones mes')+h('% Damaged')+h('Scope')+h('Por responsabilidad',2)+'</tr>';
+  try{
+    var dM=await sbGet('danos','compound_code=eq.00034&damage_date=gte.'+mStart+'&select=vin,responsabilidad&limit=5000');
+    if(!Array.isArray(dM))dM=[];
+    var dmgF=metierConfig.damage_kpi_scope==='compound_only'?dM.filter(function(d){return d.responsabilidad==='Compound';}):dM;
+    var uV=new Set(dmgF.map(function(d){return d.vin;})).size;
+    var sM2=await sbGet('kpi_shipments_daily','compound_code=eq.00034&metric_date=gte.'+mStart+'&limit=200');
+    if(!Array.isArray(sM2))sM2=[];
+    var tSM=sM2.reduce(function(a,x){return a+(x.shipments_qty||0);},0);
+    var dp=tSM>0?(uV/tSM*100).toFixed(2)+'%':'N/A';
+    var dc2=tSM===0?C.dgray:parseFloat(dp)<0.5?C.green:C.red;
+    var byR={};dM.forEach(function(d){var r=d.responsabilidad||'Sin clasificar';byR[r]=(byR[r]||0)+1;});
+    var respStr=Object.entries(byR).map(function(e){return e[0]+': '+e[1];}).join(' | ');
+    s2+='<tr>'+td(uV,C.lgray,C.red,true)+td(dM.length,C.lgray)+td(tSM||'Sin datos',C.lgray)
+      +'<td style="background:'+C.lgray+';color:'+dc2+';font-weight:700;border:1px solid '+C.mgray+';padding:5px 9px;">'+esc(dp)+'</td>'
+      +td(metierConfig.damage_kpi_scope==='all'?'Todos los daños':'Solo Compound',C.lgray)
+      +td(respStr||'—',C.lgray,C.dgray,false,8)
+      +td('',C.white)+'</tr>';
+  }catch(ex){s2+='<tr>'+td('Error: '+ex.message,C.lgray,C.red)+'</tr>';}
+  s2+=blk(7);
+
+  // F. Seguridad + Mantenimiento
+  s2+=secHdr('SEGURIDAD Y MANTENIMIENTO ('+month+')',7,'#6A1B9A');
+  s2+='<tr>'+h('Incidentes mes')+h('Abiertos')+h('Críticos')+h('Veh mant. pendiente')+h('Total con servicio debido')+h('% Service Order')+h('Fuente')+'</tr>';
+  try{
+    var sfM=await sbGet('safety_incidents','compound_code=eq.00034&incident_date=gte.'+mStart);
+    if(!Array.isArray(sfM))sfM=[];
+    var sfColor=sfM.length===0?C.green:C.red;
+    var vMaint={};
+    if(typeof pendingCache!=='undefined'&&pendingCache&&pendingCache.length){
+      pendingCache.forEach(function(p){if(!vMaint[p.vin])vMaint[p.vin]={ov:false};if(p.urgency==='overdue'||p.urgency==='urgent')vMaint[p.vin].ov=true;});
+    }
+    var dueN=Object.keys(vMaint).length,pendN=Object.values(vMaint).filter(function(v){return v.ov;}).length;
+    var soV2=dueN>0?(pendN/dueN*100).toFixed(1)+'%':'—';
+    var soC2=dueN===0?C.dgray:parseFloat(soV2)<=5?C.green:parseFloat(soV2)<10?C.orange:C.red;
+    s2+='<tr>'
+      +'<td style="background:'+C.lgray+';color:'+sfColor+';font-weight:700;border:1px solid '+C.mgray+';padding:5px 9px;">'+sfM.length+'</td>'
+      +td(sfM.filter(function(x){return x.status==='abierto';}).length,C.lgray)
+      +td(sfM.filter(function(x){return x.severity==='Crítica';}).length,C.lgray,sfM.filter(function(x){return x.severity==='Crítica';}).length>0?C.red:C.green,true)
+      +'<td style="background:'+C.lgray+';color:'+C.red+';font-weight:700;border:1px solid '+C.mgray+';padding:5px 9px;">'+pendN+'</td>'
+      +td(dueN,C.lgray)
+      +'<td style="background:'+C.lgray+';color:'+soC2+';font-weight:700;border:1px solid '+C.mgray+';padding:5px 9px;">'+soV2+'</td>'
+      +td('pendingCache + safety_incidents',C.lgray,C.dgray,false,8)+'</tr>';
+  }catch(ex){s2+='<tr>'+td('Error: '+ex.message,C.lgray,C.red)+'</tr>';}
+
+  // Footer
+  s2+='<tr><td colspan="7" style="background:'+C.navy+';color:rgba(255,255,255,.4);font-size:7pt;padding:5px 18px;">Stellantis Argentina S.A.  ·  Uso interno confidencial  ·  Generado: '+esc(genDt)+'  ·  Portal v4.9.1</td></tr>';
+  s2+='</table>';
+
+  // Build file
+  var fullHtml='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">'
     +'<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>'
-    +'<x:ExcelWorksheet><x:Name>Dashboard KPI</x:Name>'
-    +'<x:WorksheetOptions><x:Print><x:Landscape/><x:FitToPage/><x:FitWidth>1</x:FitWidth><x:FitHeight>1</x:FitHeight></x:Print></x:WorksheetOptions>'
-    +'</x:ExcelWorksheet>'
+    +'<x:ExcelWorksheet><x:Name>Dashboard KPI</x:Name><x:WorksheetOptions><x:Print><x:Landscape/><x:FitToPage/><x:FitWidth>1</x:FitWidth><x:FitHeight>1</x:FitHeight></x:Print></x:WorksheetOptions></x:ExcelWorksheet>'
     +'<x:ExcelWorksheet><x:Name>Datos Base Consolidados</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
     +'</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->'
-    +'<style>td,th{mso-number-format:"@";} @page{orientation:landscape;}</style>'
-    +'</head><body>'
-    +'<table><tr><td>'+buildDashboard()+'</td></tr></table>'
-    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+sheet2+'</td></tr></table>'
+    +'<style>td,th{mso-number-format:"@";}</style></head><body>'
+    +'<table><tr><td>'+s1+'</td></tr></table>'
+    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+s2+'</td></tr></table>'
     +'</body></html>';
 
   var blob=new Blob(['\ufeff'+fullHtml],{type:'application/vnd.ms-excel;charset=utf-8'});
   var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url;a.download='KPI_Metier_Cordoba_'+today+'.xls';
+  var a=document.createElement('a');a.href=url;a.download='KPI_Metier_Cordoba_'+today+'.xls';
   document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   showToast('Excel KPI Métier exportado (2 hojas)','success');
 }
 
 // ══════════════════════════════════════════════════════════════
-// PDF MÉTIER — UNA SOLA HOJA A4 APAISADA — v4.9.1
-// Visual ejecutivo, 7 KPI con gráficos, paleta Stellantis
+// PDF MÉTIER — A4 APAISADA — v4.9.1
+// Lee de _kpiCache (no DOM scraping)
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierPDF(){
   await renderKpiMetier();
-  await new Promise(function(r){setTimeout(r,800);});
+  await new Promise(function(r){setTimeout(r,900);});
 
-  var dDate=document.getElementById('metier-daily-date');
-  var wDate=document.getElementById('metier-week-date');
-  var mSel=document.getElementById('metier-month-sel');
-  var today=new Date().toISOString().slice(0,10);
-  var dDay=dDate&&dDate.value?dDate.value:today;
-  var wMon=getMondayOf(wDate&&wDate.value?wDate.value:today);
-  var wSun=getSundayOf(wMon);
-  var month=mSel&&mSel.value?mSel.value:today.slice(0,7);
+  if(!_kpiCache.ready){showToast('KPIs no disponibles, intentá en 2 segundos','info');return;}
+
+  var dc=_kpiCache.daily||[];
+  var wc=_kpiCache.weekly||[];
+  var mc=_kpiCache.monthly||[];
+  var dDay=_kpiCache.dDay||new Date().toISOString().slice(0,10);
+  var wMon=_kpiCache.wMon||getMondayOf();
+  var wSun=_kpiCache.wSun||getSundayOf(wMon);
+  var month=_kpiCache.month||new Date().toISOString().slice(0,7);
   var genDt=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-
-  function getGridCards(gridId){
-    var grid=document.getElementById(gridId);
-    if(!grid)return[];
-    var out=[];
-    grid.querySelectorAll('div[style*="border:1px solid"]').forEach(function(card){
-      var titleEl=card.querySelector('[style*="text-transform:uppercase"]');
-      var valEl=card.querySelector('[style*="font-size:50px"]');
-      var topBar=card.querySelector('[style*="height:4px"]');
-      var statusEls=card.querySelectorAll('[style*="border-radius:8px"]');
-      var formulaEl=card.querySelector('[style*="font-style:italic"]');
-      var naEl=card.querySelector('[style*="#E65100"][style*="font-weight:600"]');
-      var badgeEl=card.querySelector('[style*="max-width:100%"]');
-      var noteEl=Array.from(card.querySelectorAll('[style*="border-left:2px"]')).find(function(e){return e;});
-      out.push({
-        title:titleEl?titleEl.textContent.trim():'',
-        value:valEl?valEl.textContent.trim():'N/A',
-        color:topBar?topBar.style.background:'#718096',
-        status:statusEls&&statusEls[0]?statusEls[0].textContent.trim():'',
-        formula:formulaEl?formulaEl.textContent.trim():'',
-        naMsg:naEl?naEl.textContent.replace(/^[⚠\s]+/,''):'',
-        badge:badgeEl?badgeEl.textContent.trim():'',
-        note:noteEl?noteEl.textContent.trim():'',
-      });
-    });
-    return out;
-  }
-
-  var dc=getGridCards('metier-daily-grid');
-  var wc=getGridCards('metier-weekly-grid');
-  var mc=getGridCards('metier-monthly-grid');
-
   var LOGO='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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAk/8DVczFbKDHus4AAAAASUVORK5CYII=';
 
   function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-  // ── TANK SVG ──────────────────────────────────────────────────
-  // Vertical fill cylinder: value fills from bottom, goal shown as dashed line
-  function tank(val,goal,color,maxVal,w,h){
-    w=w||72; h=h||110;
+  function tank(val,goal,color,maxVal,w,h2){
+    w=w||72;h2=h2||100;
     var numVal=parseFloat(val);
-    var isNA=isNaN(numVal)||val==='N/A';
-    var rx=7; // corner radius
-    // Colors
-    var bgFill='#EEF2F7';
-    var borderCol='#CBD5E1';
-
-    if(isNA){
-      return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'
-        +'<rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="'+rx+'" fill="'+bgFill+'" stroke="'+borderCol+'" stroke-width="1.5"/>'
-        +'<text x="'+(w/2)+'" y="'+(h/2+5)+'" text-anchor="middle" font-size="11" fill="#94A3B8" font-family="Arial">N/A</text>'
-        +'</svg>';
-    }
-
+    var isNA=isNaN(numVal)||(val===null||val===undefined||String(val).trim()==='N/A');
+    if(isNA){return '<svg width="'+w+'" height="'+h2+'" viewBox="0 0 '+w+' '+h2+'"><rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7" fill="#EEF2F7" stroke="#CBD5E1" stroke-width="1.5"/><text x="'+(w/2)+'" y="'+(h2/2+4)+'" text-anchor="middle" font-size="10" fill="#94A3B8" font-family="Arial">N/A</text></svg>';}
     maxVal=maxVal||100;
     var pct=Math.min(Math.max(numVal/maxVal,0),1);
-    var innerH=h-4; // inner height available for fill
-    var fillH=Math.round(pct*innerH);
-    var fillY=2+(innerH-fillH); // y start of fill (from bottom)
+    var innerH=h2-4;var fillH=Math.max(Math.round(pct*innerH),2);var fillY=2+(innerH-fillH);
     var goalY=goal!==null?Math.round((1-Math.min(goal/maxVal,1))*innerH)+2:null;
-
-    // Gradient stops: same color, lighter at top
-    var gradId='g'+Math.round(Math.random()*99999);
-
-    var svg='<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">';
-    // Defs
-    svg+='<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
-      +'<stop offset="0%" stop-color="'+color+'" stop-opacity="0.7"/>'
-      +'<stop offset="100%" stop-color="'+color+'" stop-opacity="1"/>'
-      +'</linearGradient></defs>';
-    // Background tank body
-    svg+='<rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="'+rx+'" fill="'+bgFill+'" stroke="'+borderCol+'" stroke-width="1.5"/>';
-    // Fill clip
-    var clipId='c'+gradId;
-    svg+='<clipPath id="'+clipId+'"><rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="'+rx+'"/></clipPath>';
-    // Fill rect
-    svg+='<rect x="3" y="'+fillY+'" width="'+(w-6)+'" height="'+fillH+'" fill="url(#'+gradId+')" clip-path="url(#'+clipId+')"/>';
-    // Shine highlight on fill (subtle white strip at top of fill)
-    if(fillH>10){
-      svg+='<rect x="8" y="'+(fillY+2)+'" width="'+(w/4)+'" height="'+(Math.min(fillH-4,14))+'" rx="3" fill="rgba(255,255,255,0.18)" clip-path="url(#'+clipId+')"/>';
-    }
-    // Goal dashed line
-    if(goalY!==null){
-      svg+='<line x1="2" y1="'+goalY+'" x2="'+(w-2)+'" y2="'+goalY+'" stroke="rgba(0,0,0,0.25)" stroke-width="1.5" stroke-dasharray="4,3"/>';
-      svg+='<text x="4" y="'+(goalY-3)+'" font-size="8" fill="rgba(0,0,0,0.4)" font-family="Arial">'+goal+'%</text>';
-    }
-    // Value text
-    var textY=fillH>30?fillY+Math.floor(fillH/2)+5:fillY-8;
-    var textFill=fillH>30?'white':color;
-    svg+='<text x="'+(w/2)+'" y="'+textY+'" text-anchor="middle" font-size="16" font-weight="900" fill="'+textFill+'" font-family="Arial Black,Arial">'+numVal+'</text>';
-    svg+='<text x="'+(w/2)+'" y="'+(textY+13)+'" text-anchor="middle" font-size="9" fill="'+(fillH>30?'rgba(255,255,255,0.75)':color)+'" font-family="Arial">%</text>';
-    svg+='</svg>';
-    return svg;
+    var gId='g'+Math.round(Math.random()*99999);var cId='c'+gId;
+    var ti=fillH>28;var tY=ti?fillY+Math.floor(fillH/2)+5:fillY-9;var tF=ti?'white':color;
+    return '<svg width="'+w+'" height="'+h2+'" viewBox="0 0 '+w+' '+h2+'">'
+      +'<defs><linearGradient id="'+gId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.75"/><stop offset="100%" stop-color="'+color+'" stop-opacity="1"/></linearGradient></defs>'
+      +'<rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7" fill="#EEF2F7" stroke="#D1D9E6" stroke-width="1.5"/>'
+      +'<clipPath id="'+cId+'"><rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7"/></clipPath>'
+      +'<rect x="3" y="'+fillY+'" width="'+(w-6)+'" height="'+fillH+'" fill="url(#'+gId+')" clip-path="url(#'+cId+')"/>'
+      +(fillH>12?'<rect x="8" y="'+(fillY+2)+'" width="'+(Math.round(w*0.28))+'" height="'+Math.min(fillH-4,12)+'" rx="3" fill="rgba(255,255,255,0.2)" clip-path="url(#'+cId+')"/>':'')
+      +(goalY!==null?'<line x1="2" y1="'+goalY+'" x2="'+(w-2)+'" y2="'+goalY+'" stroke="rgba(0,0,0,.28)" stroke-width="1.5" stroke-dasharray="4,3"/><text x="4" y="'+(goalY-3)+'" font-size="7.5" fill="rgba(0,0,0,.4)" font-family="Arial">'+goal+'%</text>':'')
+      +'<text x="'+(w/2)+'" y="'+tY+'" text-anchor="middle" font-size="15" font-weight="900" fill="'+tF+'" font-family="Arial Black,Arial">'+numVal+'</text>'
+      +'<text x="'+(w/2)+'" y="'+(tY+13)+'" text-anchor="middle" font-size="8.5" fill="'+(ti?'rgba(255,255,255,0.75)':color)+'" font-family="Arial">%</text>'
+      +'</svg>';
   }
 
-  // ── STATUS BADGE ─────────────────────────────────────────────
   function badge(st){
     var bg=st==='Completo'?'#DCFCE7':st==='Parcial'?'#FEF3C7':'#F1F5F9';
     var fg=st==='Completo'?'#166534':st==='Parcial'?'#92400E':'#475569';
-    return '<span style="background:'+bg+';color:'+fg+';font-size:7pt;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.3px;">'+e(st||'')+'</span>';
+    return '<span style="background:'+bg+';color:'+fg+';font-size:7pt;font-weight:700;padding:2px 8px;border-radius:10px;">'+e(st||'—')+'</span>';
   }
 
-  // ── KPI CARD ─────────────────────────────────────────────────
-  function card(o,goal,maxVal){
+  function card(o){
     var col=o.color||'#718096';
-    var isNA=!o.value||o.value==='N/A';
-    // Top accent color matches semaphore
-    return '<div style="background:white;border-radius:10px;border:1px solid #E2E8F0;border-top:4px solid '+col
-      +';padding:14px 14px 12px;display:flex;flex-direction:column;height:100%;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,.07);">'
-      // Status + title row
-      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;gap:6px;">'
+    var isNA=o.value===null||o.value===undefined||String(o.value).trim()==='N/A';
+    return '<div style="flex:1;background:white;border-radius:10px;border:1px solid #E8EDF3;border-top:4px solid '+col+';padding:14px 14px 10px;display:flex;flex-direction:column;height:100%;box-sizing:border-box;box-shadow:0 1px 6px rgba(0,0,0,.07);">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:7px;gap:4px;">'
       +'<div style="font-size:7.5pt;font-weight:700;color:#1A3C6E;text-transform:uppercase;letter-spacing:.4px;line-height:1.35;flex:1;">'+e(o.title)+'</div>'
       +badge(o.status)
       +'</div>'
-      // Badge (snapshot info)
-      +(o.badge?'<div style="font-size:6.5pt;color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;padding:2px 7px;border-radius:5px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+e(o.badge)+'</div>':'')
-      // NA warning
-      +(isNA&&o.naMsg?'<div style="font-size:7pt;color:#DC2626;font-weight:600;margin-bottom:6px;line-height:1.3;">⚠ '+e(o.naMsg)+'</div>':'')
-      // Tank chart centered
+      +(o.badge?'<div style="font-size:6.5pt;color:#64748B;background:#F8FAFC;border:1px solid #E8EDF3;padding:2px 6px;border-radius:4px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+e(o.badge)+'</div>':'')
+      +(isNA&&o.naMsg?'<div style="font-size:7pt;color:#DC2626;font-weight:600;margin-bottom:5px;line-height:1.3;">⚠ '+e(o.naMsg)+'</div>':'')
       +'<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:4px 0;">'
-      +tank(o.value,goal,col,maxVal,72,96)
+      +tank(o.value,o.goal||null,col,o.maxVal||100,72,96)
       +'</div>'
-      // RFT note
-      +(o.note?'<div style="font-size:6pt;color:#DC2626;border-left:2px solid #DC2626;padding-left:5px;margin-top:6px;line-height:1.3;">'+e(o.note.substring(0,120))+'</div>':'')
-      // Formula footer
-      +'<div style="font-size:6.5pt;color:#94A3B8;font-style:italic;margin-top:6px;padding-top:5px;border-top:1px solid #F1F5F9;line-height:1.3;">'+e(o.formula.substring(0,80))+'</div>'
+      +(o.note?'<div style="font-size:6pt;color:#DC2626;border-left:2px solid #DC2626;padding-left:4px;margin-top:5px;line-height:1.3;">'+e(o.note.substring(0,100))+'</div>':'')
+      +'<div style="font-size:6.5pt;color:#94A3B8;font-style:italic;margin-top:5px;padding-top:4px;border-top:1px solid #F1F5F9;line-height:1.3;">'+e((o.formula||'').substring(0,80))+'</div>'
       +'</div>';
   }
 
-  // ── SECTION HEADER ───────────────────────────────────────────
-  function secH(label,color){
-    return '<div style="background:'+color+';color:white;font-size:8.5pt;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:5px 14px;border-radius:5px;margin-bottom:8px;display:flex;align-items:center;gap:8px;">'
-      +'<span>'+e(label)+'</span>'
-      +'</div>';
-  }
+  function secH(label,color){return '<div style="background:'+color+';color:white;font-size:8.5pt;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:5px 14px;border-radius:5px;margin-bottom:7px;">'+e(label)+'</div>';}
 
-  var N='#0D1F3C', LB='#1565C0', PU='#6A1B9A';
-
+  var N='#0D1F3C',LB='#1565C0',PU='#6A1B9A';
   var html='<html><head><meta charset="UTF-8"><style>'
     +'@page{size:A4 landscape;margin:.65cm;}'
     +'@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}html,body{height:100%;}}'
     +'*{box-sizing:border-box;margin:0;padding:0;}'
-    +'body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#1A202C;background:#F1F5F9;'
-    +'height:100vh;display:flex;flex-direction:column;gap:6px;padding:0;}'
+    +'body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#1A202C;background:#F0F4F8;height:100vh;display:flex;flex-direction:column;gap:7px;}'
     +'</style></head><body>'
-
-    // ── HEADER ───────────────────────────────────────────────
     +'<div style="background:'+N+';padding:9px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:7px;flex-shrink:0;">'
-    // Logo gold — large enough to see clearly
-    +'<div style="display:flex;align-items:center;gap:0;">'
-    +'<img src="data:image/png;base64,'+LOGO+'" style="height:34px;width:auto;" alt="STELLANTIS">'
-    +'</div>'
-    // Title
-    +'<div style="text-align:center;">'
-    +'<div style="font-size:15pt;font-weight:700;color:white;letter-spacing:.3px;">KPI Métier Supply Chain</div>'
-    +'<div style="font-size:8pt;color:rgba(255,255,255,.5);margin-top:1px;">'+e(genDt)+'</div>'
-    +'</div>'
-    // Period pills
+    +'<img src="data:image/png;base64,'+LOGO+'" style="height:30px;width:auto;" alt="STELLANTIS">'
+    +'<div style="text-align:center;"><div style="font-size:14pt;font-weight:700;color:white;">KPI Métier Supply Chain</div>'
+    +'<div style="font-size:8pt;color:rgba(255,255,255,.5);margin-top:1px;">'+e(genDt)+'</div></div>'
     +'<div style="display:flex;gap:6px;">'
-    +['Diarios|'+dDay,'Semanal|'+wMon.slice(5)+' – '+wSun.slice(5),'Mensual|'+month].map(function(s){
-      var parts=s.split('|');
-      return '<div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:5px 12px;text-align:center;">'
-        +'<div style="font-size:6pt;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">'+e(parts[0])+'</div>'
-        +'<div style="font-size:9.5pt;font-weight:700;color:white;">'+e(parts[1])+'</div>'
-        +'</div>';
+    +[['Diarios',dDay],['Semanal',wMon.slice(5)+' \u2013 '+wSun.slice(5)],['Mensual',month]].map(function(p){
+      return '<div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:4px 12px;text-align:center;">'
+        +'<div style="font-size:6pt;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;margin-bottom:1px;">'+e(p[0])+'</div>'
+        +'<div style="font-size:9pt;font-weight:700;color:white;">'+e(p[1])+'</div></div>';
     }).join('')
-    +'</div>'
-    +'</div>'
-
-    // ── ROW: DIARIOS ─────────────────────────────────────────
-    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'
-    +secH('KPI Diarios', LB)
-    +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
-    +(dc.length?dc.map(function(c){
-      var isRFT=c.title.indexOf('RFT')>=0;
-      var isSat=c.title.indexOf('atur')>=0;
-      var isTP=c.title.indexOf('Daily')>=0||c.title.indexOf('Throughput')>=0;
-      return '<div style="flex:1;">'+card(c,isRFT?85:isTP?90:null,isSat?150:100)+'</div>';
-    }).join(''):'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;font-size:9pt;">Sin datos diarios</div>')
     +'</div></div>'
-
-    // ── ROW: SEMANALES ───────────────────────────────────────
-    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'
-    +secH('KPI Semanales', LB)
+    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'+secH('KPI Diarios',LB)
     +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
-    +(wc.length?wc.map(function(c){
-      var isSO=c.title.indexOf('anten')>=0||c.title.indexOf('bligat')>=0;
-      return '<div style="flex:1;">'+card(c,isSO?5:90,isSO?30:130)+'</div>';
-    }).join('')+
-    // fill remaining space proportionally
-    (wc.length<3?'<div style="flex:'+(3-wc.length)+';"></div>':'')
-    :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos semanales</div>')
+    +(dc.length?dc.map(function(o){return card(o);}).join('')+'<div style="flex:'+(3-dc.length)+';"></div>'
+      :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos</div>')
     +'</div></div>'
-
-    // ── ROW: MENSUALES ───────────────────────────────────────
-    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'
-    +secH('KPI Mensuales', PU)
+    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'+secH('KPI Semanales',LB)
     +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
-    +(mc.length?mc.map(function(c){
-      var isDmg=c.title.indexOf('amaged')>=0||c.title.indexOf('Daño')>=0;
-      return '<div style="flex:1;">'+card(c,isDmg?0.5:null,isDmg?3:10)+'</div>';
-    }).join('')+
-    (mc.length<3?'<div style="flex:'+(3-mc.length)+';"></div>':'')
-    :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos mensuales</div>')
+    +(wc.length?wc.map(function(o){return card(o);}).join('')+'<div style="flex:'+(3-wc.length)+';"></div>'
+      :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos</div>')
     +'</div></div>'
-
+    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'+secH('KPI Mensuales',PU)
+    +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
+    +(mc.length?mc.map(function(o){return card(o);}).join('')+'<div style="flex:'+(3-mc.length)+';"></div>'
+      :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos</div>')
+    +'</div></div>'
     +'</body></html>';
 
   var w=window.open('','_blank','width=1120,height=800');
@@ -8352,6 +8105,8 @@ async function exportKpiMetierPDF(){
   w.document.write(html);w.document.close();
   w.onload=function(){w.focus();setTimeout(function(){w.print();},600);};
 }
+
+
 
 
 
