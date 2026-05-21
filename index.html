@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.8.9</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.9.0</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.8.9</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.9.0</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1476,7 +1476,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.8.9";
+var APP_VERSION="v4.9.0";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -6997,7 +6997,7 @@ function normalizeDate(val){
   }
   return null;
 }
-function fmtDate(s){if(!s)return'—';try{return new Date(s+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}catch(e){return s;}}
+function fmtDate(s){if(!s)return'—';try{var ds=String(s).slice(0,10);return new Date(ds+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}catch(e){return String(s).slice(0,10);}}
 
 // ── KPI CARD ─────────────────────────────────────────────────
 var _kpiCardCounter=0;
@@ -7247,7 +7247,7 @@ async function renderMetierDaily(){
     // Check saved snapshot
     var savedSnap=await sbGet('kpi_snapshots','compound_code=eq.00034&period=eq.'+showDate+'&period_type=eq.daily&kpi_name=eq.daily_throughput');
     if(Array.isArray(savedSnap)&&savedSnap.length&&savedSnap[0].value!==null){
-      tpVal=parseFloat(savedSnap[0].value);tpBadge='Snapshot oficial '+fmtDate(savedSnap[0].computed_at);tpBadgeColor='#1A3C6E';tpDetail=savedSnap[0].detail||tpDetail;tpMsg=null;
+      var _tpRaw=savedSnap[0].value;tpVal=(_tpRaw!==null&&_tpRaw!==undefined&&!isNaN(parseFloat(_tpRaw)))?parseFloat(_tpRaw):null;tpBadge='Snapshot oficial '+fmtDate(savedSnap[0].computed_at);tpBadgeColor='#1A3C6E';tpDetail=savedSnap[0].detail||tpDetail;tpMsg=null;
     }
     var lastAvailMsg=null;
     if(!hasShipments){
@@ -7328,7 +7328,7 @@ async function renderMetierWeekly(){
     var tpWSnap=snapByName['weekly_throughput'];
     var tpWVal=null,tpWDetail='',tpWMsg=null,tpWBadge=null,tpWBadgeColor=null;
     if(tpWSnap&&!isCurrent){
-      tpWVal=parseFloat(tpWSnap.value);tpWBadge='Snapshot oficial '+fmtDate(tpWSnap.computed_at);tpWBadgeColor='#1A3C6E';tpWDetail=tpWSnap.detail||'';
+      var _tpWRaw=tpWSnap.value;tpWVal=(_tpWRaw!==null&&_tpWRaw!==undefined&&!isNaN(parseFloat(_tpWRaw)))?parseFloat(_tpWRaw):null;tpWBadge='Snapshot oficial '+fmtDate(tpWSnap.computed_at);tpWBadgeColor='#1A3C6E';tpWDetail=tpWSnap.detail||'';
     } else {
       var allShip=await sbGet('kpi_shipments_daily','compound_code=eq.00034&metric_date=gte.'+monday+'&metric_date=lte.'+sunday+'&order=metric_date');
       var allIng=await sbGet('kpi_ingress_daily','compound_code=eq.00034&metric_date=gte.'+monday+'&metric_date=lte.'+sunday+'&order=metric_date');
@@ -7353,7 +7353,7 @@ async function renderMetierWeekly(){
     var soVal=null,soDetail='',soMsg=null,soBadge=null,soBadgeColor=null;
     var soNumerator=null,soDenominator=null;
     if(soSnap&&!isCurrent){
-      soVal=parseFloat(soSnap.value);soBadge='Snapshot oficial '+fmtDate(soSnap.computed_at);soBadgeColor='#1A3C6E';soDetail=soSnap.detail||'';
+      var _soRaw=soSnap.value;soVal=(_soRaw!==null&&_soRaw!==undefined&&!isNaN(parseFloat(_soRaw)))?parseFloat(_soRaw):null;soBadge='Snapshot oficial '+fmtDate(soSnap.computed_at);soBadgeColor='#1A3C6E';soDetail=soSnap.detail||'';
     } else {
       if(pendingCache&&pendingCache.length){
         var vinMap={};
@@ -7725,7 +7725,12 @@ function switchKpiTab(tab){
 }
 
 // ══════════════════════════════════════════════════════════════
-// EXCEL MÉTIER EXPORT — v4.8.9
+// EXCEL MÉTIER EXPORT — v4.9.0
+// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// EXCEL MÉTIER EXPORT — v4.9.0
+// Hoja 1: Dashboard ejecutivo imprimible (igual al PDF)
+// Hoja 2: Datos base consolidados
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierExcel(){
   await renderKpiMetier();
@@ -7741,30 +7746,33 @@ async function exportKpiMetierExcel(){
   var month=mSel&&mSel.value?mSel.value:today.slice(0,7);
   var genDt=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-  // Gather rendered values
+  // Gather rendered card data
   function getGridCards(gridId){
     var grid=document.getElementById(gridId);
     if(!grid)return[];
     var out=[];
-    var cards=grid.querySelectorAll('[style*="border:1px solid"]');
+    var cards=grid.querySelectorAll('div[style*="border:1px solid"]');
     cards.forEach(function(card){
       var titleEl=card.querySelector('[style*="text-transform:uppercase"]');
       var valEl=card.querySelector('[style*="font-size:50px"]');
       var topBar=card.querySelector('[style*="height:4px"]');
-      var statusEl=card.querySelectorAll('[style*="border-radius:8px"]')[0];
+      var statusEls=card.querySelectorAll('[style*="border-radius:8px"]');
       var formulaEl=card.querySelector('[style*="font-style:italic"]');
-      var sourceEl=Array.from(card.querySelectorAll('[style*="font-size:8px"]')).find(function(e){return e.textContent.indexOf('Fuente:')>=0;});
       var naEl=card.querySelector('[style*="#E65100"][style*="font-weight:600"]');
       var badgeEl=card.querySelector('[style*="max-width:100%"]');
+      var sourceEl=Array.from(card.querySelectorAll('[style*="font-size:8px"]')).find(function(e){return e.textContent.indexOf('Fuente:')>=0;});
+      var noteEl=Array.from(card.querySelectorAll('[style*="border-left:2px"]')).find(function(e){return e;});
       out.push({
         title:titleEl?titleEl.textContent.trim():'',
         value:valEl?valEl.textContent.trim():'N/A',
         color:topBar?topBar.style.background:'#718096',
-        status:statusEl?statusEl.textContent.trim():'',
+        status:statusEls&&statusEls[0]?statusEls[0].textContent.trim():'',
+        freq:statusEls&&statusEls[1]?statusEls[1].textContent.trim():'',
         formula:formulaEl?formulaEl.textContent.trim():'',
-        source:sourceEl?sourceEl.textContent.replace(/^Fuente:\s*/,''):'',
-        naMsg:naEl?naEl.textContent.replace(/^⚠\s*/,''):'',
+        naMsg:naEl?naEl.textContent.replace(/^[⚠\s]+/,''):'',
         badge:badgeEl?badgeEl.textContent.trim():'',
+        source:sourceEl?sourceEl.textContent.replace(/^Fuente:\s*/,''):'',
+        note:noteEl?noteEl.textContent.trim():'',
       });
     });
     return out;
@@ -7774,338 +7782,242 @@ async function exportKpiMetierExcel(){
   var weeklyCards=getGridCards('metier-weekly-grid');
   var monthlyCards=getGridCards('metier-monthly-grid');
 
-  // Stellantis colors
-  var C={navy:'#0D1F3C',blue:'#1A3C6E',gold:'#C8A44A',green:'#2E7D32',red:'#C62828',
-         orange:'#E65100',lgray:'#F4F6F9',mgray:'#E2E8F0',dgray:'#4A5568',white:'#FFFFFF',
-         daily:'#EFF6FF',weekly:'#F0F4FF',monthly:'#FAF5FF'};
+  // ── STELLANTIS COLOR PALETTE ──────────────────────────────────
+  var C={
+    navy:'#0D1F3C', blue:'#1A3C6E', gold:'#C8A44A',
+    green:'#2E7D32', red:'#C62828', orange:'#E65100',
+    lgray:'#F4F6F9', mgray:'#E2E8F0', dgray:'#4A5568',
+    white:'#FFFFFF', lblue:'#1565C0', purple:'#6A1B9A'
+  };
 
-  function cellStyle(bg,fg,bold,size,border,align,wrap){
-    var s='background:'+bg+';color:'+fg+';';
-    if(bold)s+='font-weight:700;';if(size)s+='font-size:'+size+'pt;';
-    if(border)s+='border:1px solid '+C.mgray+';';if(align)s+='text-align:'+align+';';
-    if(wrap)s+='white-space:normal;';
-    return s;
-  }
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-  function semBar(val,maxVal,color,width){
-    // SVG bar chart inline
-    width=width||120;var h=12;
-    var pct=maxVal>0?Math.min(val/maxVal,1):0;
-    var fill=Math.round(pct*(width-2));
-    return '<td style="'+cellStyle(C.lgray,C.dgray,false,9,true)+'padding:4px 8px;">'
-      +'<svg width="'+width+'" height="'+h+'" viewBox="0 0 '+width+' '+h+'">'
-      +'<rect x="1" y="1" width="'+(width-2)+'" height="'+(h-2)+'" rx="3" fill="#E2E8F0"/>'
-      +'<rect x="1" y="1" width="'+fill+'" height="'+(h-2)+'" rx="3" fill="'+color+'"/>'
-      +'</svg>'
-      +'</td>';
-  }
+  // ── SHEET 1: DASHBOARD EJECUTIVO (imprimible, igual al PDF) ───
+  function buildDashboard(){
+    var h='<table style="font-family:Calibri,Arial;font-size:9pt;border-collapse:collapse;width:100%;max-width:280mm;">';
 
-  function semDot(color){
-    return '<td style="'+cellStyle(C.lgray,color,true,11,true,'center')+'padding:4px;">●</td>';
-  }
+    // Header banner
+    h+='<tr><td colspan="8" style="background:'+C.navy+';padding:0;">'
+      +'<table style="width:100%;border-collapse:collapse;">'
+      +'<tr>'
+      +'<td style="padding:14px 20px;vertical-align:middle;">'
+      +'<div style="font-size:22pt;font-weight:900;color:'+C.gold+';letter-spacing:3px;font-family:Arial Black,Arial;">STELLANTIS</div>'
+      +'<div style="font-size:8pt;color:rgba(255,255,255,.5);letter-spacing:2px;text-transform:uppercase;margin-top:2px;">Portal de Gestión · Compound Córdoba</div>'
+      +'</td>'
+      +'<td style="padding:14px 20px;vertical-align:middle;text-align:right;">'
+      +'<div style="font-size:13pt;font-weight:700;color:white;letter-spacing:1px;">KPI MÉTIER SUPPLY CHAIN</div>'
+      +'<div style="font-size:8pt;color:rgba(255,255,255,.55);margin-top:3px;">'+esc(genDt)+'  ·  v4.9.0</div>'
+      +'</td>'
+      +'</tr></table>'
+      +'</td></tr>';
 
-  function mkRow(cells){
-    return '<tr>'+cells.join('')+'</tr>';
-  }
+    // Period strip
+    h+='<tr><td colspan="8" style="background:'+C.blue+';padding:5px 20px;">'
+      +'<span style="color:rgba(255,255,255,.5);font-size:8pt;">Diarios: '+esc(dDay)+'  |  Semanal: '+esc(wMon)+' al '+esc(wSun)+'  |  Mensual: '+esc(month)+'</span>'
+      +'</td></tr>';
 
-  function td(val,style,colspan){
-    return '<td'+(colspan?' colspan="'+colspan+'"':'')+' style="'+style+';padding:5px 10px;">'+String(val||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</td>';
-  }
+    // Section: Diarios
+    h+='<tr><td colspan="8" style="background:'+C.lblue+';color:white;font-weight:700;font-size:8pt;padding:5px 12px;text-transform:uppercase;letter-spacing:1px;">KPI DIARIOS</td></tr>';
+    h+='<tr>';
+    (dailyCards.length?dailyCards:[{title:'Sin datos',value:'N/A',color:'#718096',status:'',formula:'',naMsg:'Importar archivos',badge:'',source:'',note:''}]).forEach(function(card){
+      h+=kpiXlsCell(card,C);
+    });
+    // Pad to 8 cols if needed
+    for(var i=dailyCards.length;i<3;i++) h+='<td style="background:'+C.lgray+'"></td>';
+    h+='<td colspan="'+(8-Math.min(dailyCards.length,3))+'" style="background:'+C.lgray+'"></td>';
+    h+='</tr>';
 
-  function hdr(val,colspan,bg,fg,size){
-    bg=bg||C.navy;fg=fg||C.white;size=size||9;
-    return '<td'+(colspan?' colspan="'+colspan+'"':'')+' style="background:'+bg+';color:'+fg+';font-weight:700;font-size:'+size+'pt;padding:7px 10px;border:1px solid '+C.blue+';">'+String(val||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</td>';
-  }
+    // Section: Semanales
+    h+='<tr><td colspan="8" style="background:'+C.lblue+';color:white;font-weight:700;font-size:8pt;padding:5px 12px;text-transform:uppercase;letter-spacing:1px;border-top:2px solid '+C.navy+';">KPI SEMANALES</td></tr>';
+    h+='<tr>';
+    (weeklyCards.length?weeklyCards:[]).forEach(function(card){
+      h+=kpiXlsCell(card,C);
+    });
+    for(var i2=weeklyCards.length;i2<4;i2++) h+='<td colspan="2" style="background:'+C.lgray+'"></td>';
+    h+='</tr>';
 
-  // ── SHEET 1: RESUMEN EJECUTIVO ──────────────────────────────
-  function buildSheet1(){
-    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
-    // Title
-    h+=mkRow([hdr('KPI METIER SUPPLY CHAIN — COMPOUND CÓRDOBA',8,C.navy,C.gold,16)]);
-    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.9',8,C.blue,C.white,9)]);
-    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
-
-    // Period summary
-    h+=mkRow([hdr('PERÍODO CONSULTADO',8,C.blue,C.white,10)]);
-    h+=mkRow([hdr('KPI Diarios',1,C.lgray,C.navy,9),td('Referencia: '+dDay,cellStyle(C.white,C.dgray,false,9,true)),
-              hdr('KPI Semanales',1,C.lgray,C.navy,9),td('Semana: '+wMon+' al '+wSun,cellStyle(C.white,C.dgray,false,9,true)),
-              hdr('KPI Mensuales',1,C.lgray,C.navy,9),td('Mes: '+month,cellStyle(C.white,C.dgray,false,9,true,'',true)),
-              td('',cellStyle(C.white,C.white),2)]);
-    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
-
-    // KPI blocks
-    function kpiBlock(cards, groupLabel, groupColor, period){
-      var rows='';
-      rows+=mkRow([hdr(groupLabel,8,groupColor,C.white,10)]);
-      rows+=mkRow([hdr('KPI',2,C.navy,C.white,9),hdr('Período',1,C.navy,C.white,9),hdr('Valor',1,C.navy,C.white,9),
-                   hdr('Estado',1,C.navy,C.white,9),hdr('Objetivo',1,C.navy,C.white,9),
-                   hdr('Fuente',1,C.navy,C.white,9),hdr('Observación',1,C.navy,C.white,9)]);
-      cards.forEach(function(card,i){
-        var bg=i%2===0?C.lgray:C.white;
-        var obs=card.naMsg||card.badge||'';
-        // Semáforo color
-        var semColor=card.color||'#718096';
-        rows+=mkRow([
-          td('●',cellStyle(bg,semColor,true,14,true,'center')),
-          td(card.title,cellStyle(bg,C.navy,true,9,true)),
-          td(period,cellStyle(bg,C.dgray,false,9,true)),
-          td(card.value,cellStyle(bg,semColor,true,14,true,'center')),
-          td(card.status||'',cellStyle(bg,semColor,false,9,true,'center')),
-          td(card.formula?card.formula.split('.')[0]:'',cellStyle(bg,C.dgray,false,8,true,'','true')),
-          td(card.source||'',cellStyle(bg,C.dgray,false,8,true,'','true')),
-          td(obs,cellStyle(bg,C.orange,false,8,true,'','true')),
-        ]);
-      });
-      rows+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
-      return rows;
-    }
-
-    h+=kpiBlock(dailyCards,'KPI DIARIOS','#1A3C6E',dDay);
-    h+=kpiBlock(weeklyCards,'KPI SEMANALES','#1565C0',wMon+' al '+wSun);
-    h+=kpiBlock(monthlyCards,'KPI MENSUALES','#6A1B9A',month);
+    // Section: Mensuales
+    h+='<tr><td colspan="8" style="background:'+C.lblue+';color:white;font-weight:700;font-size:8pt;padding:5px 12px;text-transform:uppercase;letter-spacing:1px;border-top:2px solid '+C.navy+';">KPI MENSUALES</td></tr>';
+    h+='<tr>';
+    (monthlyCards.length?monthlyCards:[]).forEach(function(card){
+      h+=kpiXlsCell(card,C);
+    });
+    for(var i3=monthlyCards.length;i3<4;i3++) h+='<td colspan="2" style="background:'+C.lgray+'"></td>';
+    h+='</tr>';
 
     // Config footer
-    h+=mkRow([hdr('CONFIGURACIÓN ACTIVA',8,C.dgray,C.white,9)]);
-    h+=mkRow([td('Capacidad interna:',cellStyle(C.lgray,C.blue,true,9,true)),
-              td(metierConfig.internal_capacity+' unidades',cellStyle(C.white,C.dgray,false,9,true)),
-              td('Regla RFT:',cellStyle(C.lgray,C.blue,true,9,true)),
-              td(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment = N':'Availability Date no nula',cellStyle(C.white,C.dgray,false,9,true)),
-              td('TP incluye Distribucion:',cellStyle(C.lgray,C.blue,true,9,true)),
-              td(metierConfig.throughput_include_distribution?'Si':'No',cellStyle(C.white,C.dgray,false,9,true)),
-              td('TP incluye Traslado:',cellStyle(C.lgray,C.blue,true,9,true)),
-              td(metierConfig.throughput_include_transfer?'Si':'No',cellStyle(C.white,C.dgray,false,9,true))]);
+    h+='<tr><td colspan="8" style="background:'+C.navy+';color:rgba(255,255,255,.4);font-size:7pt;padding:5px 20px;border-top:2px solid '+C.gold+';">'
+      +'Config: Cap. '+metierConfig.internal_capacity+' uds  ·  RFT: '+(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment=N':'Avail Date not null')
+      +'  ·  TP: '+(metierConfig.throughput_include_distribution?'Distrib.':'')+' '+(metierConfig.throughput_include_transfer?'Traslado':'')
+      +'  ·  Daños: '+(metierConfig.damage_kpi_scope==='all'?'Todos':'Solo Compound')
+      +'  ·  Uso interno confidencial'
+      +'</td></tr>';
+
     h+='</table>';
     return h;
   }
 
-  // ── SHEET 2: KPI DIARIOS ────────────────────────────────────
-  function buildSheet2(){
-    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
-    h+=mkRow([hdr('KPI DIARIOS — Detalle',7,C.navy,C.gold,12)]);
-    h+=mkRow([hdr('Período de referencia: '+dDay,7,C.blue,C.white,9)]);
-    h+=mkRow([hdr('KPI',1),hdr('Fecha',1),hdr('Numerador',1),hdr('Denominador',1),hdr('Valor',1),hdr('Estado',1),hdr('Fuente',1)]);
-    var labels={
-      'RFT':['Stock importado hoy',metierConfig.rft_rule==='blocked_for_shipment_n'?'Regla: Blocked for shipment = N':'Regla: Availability Date no nula'],
-      'Saturacion':['Stock importado hoy','Capacidad interna: '+metierConfig.internal_capacity+' uds'],
-      'Throughput':['Expediciones (Distribucion + Traslado)','Ingresos (Tracking ING)'],
-    };
-    dailyCards.forEach(function(card,i){
-      var bg=i%2===0?C.lgray:C.white;
-      var lbl=Object.keys(labels).find(function(k){return card.title.indexOf(k)>=0;});
-      var num=lbl&&labels[lbl]?labels[lbl][0]:'';
-      var den=lbl&&labels[lbl]?labels[lbl][1]:'';
-      h+=mkRow([td(card.title,cellStyle(bg,C.navy,true,9,true)),
-                td(dDay,cellStyle(bg,C.dgray,false,9,true)),
-                td(num,cellStyle(bg,C.dgray,false,8,true)),
-                td(den,cellStyle(bg,C.dgray,false,8,true)),
-                td(card.value,cellStyle(bg,card.color,true,12,true,'center')),
-                td(card.status||'',cellStyle(bg,card.color,false,9,true,'center')),
-                td(card.source||'',cellStyle(bg,C.dgray,false,8,true))]);
-      // Formula row
-      h+=mkRow([td('',cellStyle(C.white,C.white)),
-                td('Formula:',cellStyle(C.white,C.blue,true,8)),
-                td(card.formula||'',cellStyle(C.white,C.dgray,false,8,'','','true'),5)]);
-    });
-    h+='</table>';return h;
+  function kpiXlsCell(card, C){
+    var col=card.color||'#718096';
+    var val=card.value||'N/A';
+    var isNA=val==='N/A'||card.naMsg;
+    var numVal=parseFloat(val);
+    var barW=(!isNA&&!isNaN(numVal))?Math.min(numVal,130):0;
+    var maxW=130;
+    var pctW=Math.round(barW/maxW*100);
+
+    // Status badge color
+    var stBg=card.status==='Completo'?'#2E7D3215':card.status==='Parcial'?'#E6510015':'#71809615';
+    var stFg=card.status==='Completo'?C.green:card.status==='Parcial'?C.orange:'#718096';
+
+    return '<td style="background:white;border-left:4px solid '+col+';border:1px solid '+C.mgray+';border-left:4px solid '+col+';padding:10px 12px;vertical-align:top;min-width:80px;">'
+      +'<div style="font-size:7pt;font-weight:700;color:'+C.dgray+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;line-height:1.3;">'+esc(card.title)+'</div>'
+      +'<div style="font-size:8pt;font-weight:700;background:'+stBg+';color:'+stFg+';display:inline-block;padding:1px 6px;border-radius:6px;margin-bottom:4px;">'+esc(card.status||'')+'</div>'
+      +'<div style="font-size:22pt;font-weight:900;color:'+col+';font-family:Arial Black,Arial;line-height:1;margin:3px 0 5px;">'+esc(val)+'</div>'
+      +(card.naMsg?'<div style="font-size:7pt;color:'+C.orange+';font-weight:600;margin-bottom:3px;">⚠ '+esc(card.naMsg)+'</div>':'')
+      +(card.badge?'<div style="font-size:7pt;color:'+C.dgray+';background:'+C.lgray+';padding:2px 5px;border-radius:3px;margin-bottom:3px;">'+esc(card.badge)+'</div>':'')
+      // Visual bar
+      +(!isNA&&!isNaN(numVal)?
+        '<div style="background:'+C.mgray+';height:8px;border-radius:4px;overflow:hidden;margin:4px 0;">'
+        +'<div style="background:'+col+';height:8px;width:'+pctW+'%;border-radius:4px;"></div></div>'
+        :'<div style="height:8px;margin:4px 0;"></div>')
+      +'<div style="font-size:7pt;color:#94A3B8;font-style:italic;line-height:1.3;margin-top:3px;">'+esc((card.formula||'').substring(0,80))+'</div>'
+      +'</td>';
   }
 
-  // ── SHEET 3: KPI SEMANALES ──────────────────────────────────
-  function buildSheet3(){
-    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
-    h+=mkRow([hdr('KPI SEMANALES — Detalle',7,C.blue,C.gold,12)]);
-    h+=mkRow([hdr('Semana: '+wMon+' (Lunes) al '+wSun+' (Domingo)',7,C.blue,C.white,9)]);
-    h+=mkRow([hdr('KPI',1),hdr('Semana',1),hdr('Numerador',1),hdr('Denominador',1),hdr('Valor',1),hdr('Estado',1),hdr('Fuente',1)]);
-    var labels={
-      'Weekly':['Expediciones semana (Distrib.+Traslado)','Ingresos semana (Tracking ING)'],
-      'Mantenimiento':['Veh con servicio obligatorio pendiente','Total veh con servicios debidos'],
-    };
-    weeklyCards.forEach(function(card,i){
-      var bg=i%2===0?C.lgray:C.white;
-      var lbl=Object.keys(labels).find(function(k){return card.title.indexOf(k)>=0;});
-      var num=lbl&&labels[lbl]?labels[lbl][0]:'';
-      var den=lbl&&labels[lbl]?labels[lbl][1]:'';
-      h+=mkRow([td(card.title,cellStyle(bg,C.blue,true,9,true)),
-                td(wMon+' al '+wSun,cellStyle(bg,C.dgray,false,9,true)),
-                td(num,cellStyle(bg,C.dgray,false,8,true)),td(den,cellStyle(bg,C.dgray,false,8,true)),
-                td(card.value,cellStyle(bg,card.color,true,12,true,'center')),
-                td(card.status||'',cellStyle(bg,card.color,false,9,true,'center')),
-                td(card.source||'',cellStyle(bg,C.dgray,false,8,true))]);
-      if(card.badge)h+=mkRow([td('',cellStyle(C.white,C.white)),td('Nota:',cellStyle(C.white,C.orange,true,8)),td(card.badge,cellStyle(C.white,C.orange,false,8),5)]);
-    });
-    h+='</table>';return h;
-  }
-
-  // ── SHEET 4: KPI MENSUALES ──────────────────────────────────
-  function buildSheet4(){
-    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
-    h+=mkRow([hdr('KPI MENSUALES — Detalle',7,'#6A1B9A',C.gold,12)]);
-    h+=mkRow([hdr('Mes: '+month,7,'#6A1B9A',C.white,9)]);
-    h+=mkRow([hdr('KPI',1),hdr('Mes',1),hdr('Numerador',1),hdr('Denominador',1),hdr('Valor',1),hdr('Estado',1),hdr('Fuente',1)]);
-    var labels={
-      'Safety':['Incidentes del mes','N/A (conteo)'],
-      'Damaged':['VINs unicos con dano del mes','Expediciones del mes (Distrib.+Traslado)'],
-    };
-    monthlyCards.forEach(function(card,i){
-      var bg=i%2===0?C.lgray:C.white;
-      var lbl=Object.keys(labels).find(function(k){return card.title.indexOf(k)>=0;});
-      var num=lbl&&labels[lbl]?labels[lbl][0]:'';
-      var den=lbl&&labels[lbl]?labels[lbl][1]:'';
-      h+=mkRow([td(card.title,cellStyle(bg,'#6A1B9A',true,9,true)),
-                td(month,cellStyle(bg,C.dgray,false,9,true)),
-                td(num,cellStyle(bg,C.dgray,false,8,true)),td(den,cellStyle(bg,C.dgray,false,8,true)),
-                td(card.value,cellStyle(bg,card.color,true,12,true,'center')),
-                td(card.status||'',cellStyle(bg,card.color,false,9,true,'center')),
-                td(card.source||'',cellStyle(bg,C.dgray,false,8,true))]);
-      h+=mkRow([td('',cellStyle(C.white,C.white)),td('Formula:',cellStyle(C.white,C.blue,true,8)),td(card.formula||'',cellStyle(C.white,C.dgray,false,8),5)]);
-    });
-    h+='</table>';return h;
-  }
-
-  // ── SHEET 5: GRAFICO/VISUAL ─────────────────────────────────
-  function buildSheet5(){
-    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
-    h+=mkRow([hdr('PANEL DE INDICADORES — VISUAL EJECUTIVO',5,C.navy,C.gold,12)]);
-    h+=mkRow([hdr('Generado: '+genDt+'  ·  Compound Córdoba (00034)',5,C.blue,C.white,9)]);
-    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),5)]);
-
-    function visualKpi(card, period, maxVal){
-      maxVal=maxVal||100;
-      var val=parseFloat(card.value)||0;
-      var color=card.color||'#718096';
-      var pct=Math.min(val/maxVal,1);
-      var BAR_W=200;
-      var barFill=Math.round(pct*BAR_W);
-      var statusBg=card.status==='Completo'?'#2E7D3215':card.status==='Parcial'?'#E6510015':'#71809615';
-      var statusFg=card.status==='Completo'?'#2E7D32':card.status==='Parcial'?'#E65100':'#718096';
-
-      return '<tr>'
-        +'<td style="background:'+C.lgray+';border-left:5px solid '+color+';padding:10px 14px;min-width:200px;">'
-        +'<div style="font-size:8pt;font-weight:700;color:#4A5568;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">'+card.title+'</div>'
-        +'<div style="font-size:22pt;font-weight:900;color:'+color+';font-family:Arial Black;">'+card.value+'</div>'
-        +'<div style="font-size:7pt;color:#94A3B8;margin-bottom:4px;">Período: '+period+'</div>'
-        +'</td>'
-        +'<td style="background:'+C.lgray+';border:1px solid '+C.mgray+';padding:10px 14px;min-width:240px;">'
-        +'<div style="font-size:8pt;color:#4A5568;margin-bottom:6px;">Cumplimiento visual</div>'
-        +'<svg width="'+BAR_W+'" height="20" viewBox="0 0 '+BAR_W+' 20">'
-        +'<rect x="0" y="4" width="'+BAR_W+'" height="12" rx="4" fill="#E2E8F0"/>'
-        +'<rect x="0" y="4" width="'+barFill+'" height="12" rx="4" fill="'+color+'"/>'
-        +'<text x="'+Math.min(barFill+4,BAR_W-30)+'" y="14" font-size="9" fill="'+color+'" font-weight="bold">'+card.value+'</text>'
-        +'</svg>'
-        +'</td>'
-        +'<td style="background:'+C.lgray+';border:1px solid '+C.mgray+';padding:10px 14px;text-align:center;">'
-        +'<span style="background:'+statusBg+';color:'+statusFg+';font-size:8pt;font-weight:700;padding:3px 10px;border-radius:8px;">'+( card.status||'')+'</span>'
-        +'</td>'
-        +'<td style="background:'+C.white+';border:1px solid '+C.mgray+';padding:10px 14px;font-size:8pt;color:#718096;font-style:italic;">'+card.formula.substring(0,80)+'</td>'
-        +'<td style="background:'+C.white+';border:1px solid '+C.mgray+';padding:10px 14px;font-size:8pt;color:#718096;">'+( card.naMsg||card.badge||'')+'</td>'
-        +'</tr>';
+  // ── SHEET 2: DATOS BASE CONSOLIDADOS ─────────────────────────
+  async function buildDatosBase(){
+    var C2=C;
+    function h2(val,colspan,bg,fg,sz){
+      return '<td'+(colspan?' colspan="'+colspan+'"':'')+' style="background:'+(bg||C2.navy)+';color:'+(fg||C2.white)+';font-weight:700;font-size:'+(sz||9)+'pt;padding:6px 10px;border:1px solid '+C2.blue+';">'+esc(val)+'</td>';
     }
+    function td2(val,bg,fg,bold,sz){
+      return '<td style="background:'+(bg||C2.white)+';color:'+(fg||C2.dgray)+';'+(bold?'font-weight:700;':'')+'font-size:'+(sz||9)+'pt;border:1px solid '+C2.mgray+';padding:5px 10px;">'+esc(String(val===null||val===undefined?'—':val))+'</td>';
+    }
+    function sectionHdr(label,cols,color){return '<tr>'+h2(label,cols,color||C2.blue,'#FFFFFF',10)+'</tr>';}
+    function blankRow(cols){return '<tr><td colspan="'+cols+'" style="height:8px;"></td></tr>';}
 
-    h+=mkRow([hdr('INDICADORES DIARIOS',5,'#1A3C6E',C.white,10)]);
-    h+=mkRow([hdr('KPI',1),hdr('Visual',1),hdr('Estado',1),hdr('Fórmula',1),hdr('Notas',1)]);
-    dailyCards.forEach(function(c){h+=visualKpi(c,dDay,c.title.indexOf('Saturac')>=0?120:130);});
-    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),5)]);
+    var h='<table style="font-family:Calibri,Arial;font-size:9pt;border-collapse:collapse;width:100%;">';
 
-    h+=mkRow([hdr('INDICADORES SEMANALES',5,'#1565C0',C.white,10)]);
-    h+=mkRow([hdr('KPI',1),hdr('Visual',1),hdr('Estado',1),hdr('Fórmula',1),hdr('Notas',1)]);
-    weeklyCards.forEach(function(c){h+=visualKpi(c,wMon+' al '+wSun,130);});
-    h+=mkRow([td('',cellStyle(C.white,C.white,false,4),5)]);
+    // Header
+    h+='<tr><td colspan="7" style="background:'+C2.navy+';padding:0;">'
+      +'<table style="width:100%;border-collapse:collapse;"><tr>'
+      +'<td style="padding:12px 18px;"><div style="font-size:18pt;font-weight:900;color:'+C2.gold+';letter-spacing:2px;">STELLANTIS</div>'
+      +'<div style="font-size:8pt;color:rgba(255,255,255,.5);">Datos Base Consolidados · Compound Córdoba (00034)</div></td>'
+      +'<td style="padding:12px 18px;text-align:right;"><div style="font-size:10pt;font-weight:700;color:white;">DATOS BASE — KPI MÉTIER</div>'
+      +'<div style="font-size:7pt;color:rgba(255,255,255,.5);">'+esc(genDt)+'  ·  v4.9.0  ·  Uso interno confidencial</div></td>'
+      +'</tr></table></td></tr>';
+    h+=blankRow(7);
 
-    h+=mkRow([hdr('INDICADORES MENSUALES',5,'#6A1B9A',C.white,10)]);
-    h+=mkRow([hdr('KPI',1),hdr('Visual',1),hdr('Estado',1),hdr('Fórmula',1),hdr('Notas',1)]);
-    monthlyCards.forEach(function(c){h+=visualKpi(c,month,c.title.indexOf('Damaged')>=0?2:c.value==='0'?1:5);});
+    // A. KPI Summary table
+    h+=sectionHdr('A. RESUMEN KPI — TODOS LOS INDICADORES',7,'#1A3C6E');
+    h+='<tr>'+h2('KPI',1)+h2('Periodicidad',1)+h2('Período',1)+h2('Valor',1)+h2('Estado',1)+h2('Fórmula',1)+h2('Observación',1)+'</tr>';
+    var allCards=[].concat(
+      dailyCards.map(function(c){return{c:c,period:dDay,freq:'Diario'};}),
+      weeklyCards.map(function(c){return{c:c,period:wMon+' al '+wSun,freq:'Semanal'};}),
+      monthlyCards.map(function(c){return{c:c,period:month,freq:'Mensual'};}));
+    allCards.forEach(function(item,i){
+      var card=item.c;
+      var bg=i%2===0?C2.lgray:C2.white;
+      var stFg=card.status==='Completo'?C2.green:card.status==='Parcial'?C2.orange:'#718096';
+      var obs=card.naMsg||card.badge||card.note||'';
+      h+='<tr>'+td2(card.title,bg,C2.navy,true)
+        +td2(item.freq,bg)
+        +td2(item.period,bg)
+        +'<td style="background:'+bg+';color:'+card.color+';font-weight:900;font-size:12pt;border:1px solid '+C2.mgray+';padding:5px 10px;text-align:center;">'+esc(card.value)+'</td>'
+        +'<td style="background:'+stBgFn(card.status)+';color:'+stFg+';font-weight:700;font-size:8pt;border:1px solid '+C2.mgray+';padding:5px 10px;text-align:center;">'+esc(card.status)+'</td>'
+        +td2(card.formula.substring(0,100),bg,C2.dgray,false,8)
+        +td2(obs,bg,obs?C2.orange:C2.dgray,false,8)
+        +'</tr>';
+    });
+    h+=blankRow(7);
 
-    h+='</table>';return h;
-  }
+    // B-G sections from Supabase
+    var mStart=month+'-01';
 
-  // ── BUILD MULTI-SHEET XLS ────────────────────────────────────
-  // ── SHEET 6: DATOS BASE CONSOLIDADOS ───────────────────────
-  async function buildSheet6(){
-    var C2={navy:'#0D1F3C',blue:'#1A3C6E',gold:'#C8A44A',green:'#2E7D32',red:'#C62828',
-            orange:'#E65100',lgray:'#F4F6F9',mgray:'#E2E8F0',dgray:'#4A5568',white:'#FFFFFF'};
-    function h6(val,colspan,bg,fg,sz){bg=bg||C2.navy;fg=fg||C2.white;sz=sz||9;
-      return '<td'+(colspan?' colspan="'+colspan+'"':'')+' style="background:'+bg+';color:'+fg+';font-weight:700;font-size:'+sz+'pt;padding:7px 10px;border:1px solid '+C2.blue+';">'+String(val||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</td>';}
-    function td6(val,bg,fg,bold,sz){
-      return '<td style="background:'+(bg||C2.white)+';color:'+(fg||C2.dgray)+';'+(bold?'font-weight:700;':'')+'font-size:'+(sz||9)+'pt;border:1px solid '+C2.mgray+';padding:5px 10px;">'+String(val===null||val===undefined?'\u2014':val).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</td>';}
-    function sH(label,cols,color){return '<tr>'+h6(label,cols,color||C2.blue,'#FFFFFF',10)+'</tr>';}
-    function blk(cols){return '<tr><td colspan="'+cols+'" style="height:10px;"></td></tr>';}
-
-    var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
-    h+='<tr>'+h6('DATOS BASE CONSOLIDADOS \u2014 SOPORTE DE C\u00c1LCULO KPI',8,C2.navy,C2.gold,12)+'</tr>';
-    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.9',8,C2.blue,C2.white,9)+'</tr>';
-    h+=blk(8);
-
-    // A. Stock snapshots
-    h+=sH('A. SNAPSHOTS DE STOCK \u2014 kpi_stock_daily',8,'#1A3C6E');
-    h+='<tr>'+h6('Fecha',1)+h6('Total Stock',1)+h6('RFT',1)+h6('No-RFT',1)+h6('Capacidad',1)+h6('% RFT',1)+h6('% Saturaci\u00f3n',1)+h6('Regla',1)+'</tr>';
+    // B. Stock snapshots
+    h+=sectionHdr('B. SNAPSHOTS DE STOCK — kpi_stock_daily (últimos 15 días)',7,'#1A3C6E');
+    h+='<tr>'+h2('Fecha',1)+h2('Total Stock',1)+h2('RFT qty',1)+h2('No-RFT qty',1)+h2('Capacidad',1)+h2('% RFT',1)+h2('% Saturación',1)+'</tr>';
     try{
-      var snapD=await sbGet('kpi_stock_daily','compound_code=eq.00034&order=snapshot_date.desc&limit=30');
+      var snapD=await sbGet('kpi_stock_daily','compound_code=eq.00034&order=snapshot_date.desc&limit=15');
       if(Array.isArray(snapD)&&snapD.length){
         snapD.forEach(function(s,i){
           var bg=i%2===0?C2.lgray:C2.white;
-          var rc=parseFloat(s.rft_pct)>=85?C2.green:C2.red;var sc=parseFloat(s.saturation_pct)<=80?C2.green:parseFloat(s.saturation_pct)<90?C2.orange:C2.red;
-          h+='<tr>'+td6(s.snapshot_date,bg)+td6(s.total_stock,bg)+td6(s.rft_qty,bg)+td6(s.non_rft_qty,bg)
-            +td6(s.capacity_internal,bg)+td6((s.rft_pct||0)+'%',bg,rc,true)+td6((s.saturation_pct||0)+'%',bg,sc,true)
-            +td6(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment=N':'Avail Date not null',bg)+'</tr>';
+          var rc=parseFloat(s.rft_pct)>=85?C2.green:C2.red;
+          var sc=parseFloat(s.saturation_pct)<=80?C2.green:parseFloat(s.saturation_pct)<90?C2.orange:C2.red;
+          h+='<tr>'+td2(s.snapshot_date,bg)
+            +td2(s.total_stock,bg)+td2(s.rft_qty,bg)+td2(s.non_rft_qty,bg)+td2(s.capacity_internal,bg)
+            +'<td style="background:'+bg+';color:'+rc+';font-weight:700;font-size:9pt;border:1px solid '+C2.mgray+';padding:5px 10px;">'+(s.rft_pct||0)+'%</td>'
+            +'<td style="background:'+bg+';color:'+sc+';font-weight:700;font-size:9pt;border:1px solid '+C2.mgray+';padding:5px 10px;">'+(s.saturation_pct||0)+'%</td>'
+            +'</tr>';
         });
-      }else{h+='<tr>'+td6('Sin snapshots \u2014 importar Stock Playa',C2.lgray,C2.orange)+'</tr>';}
-    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blk(8);
+      }else{h+='<tr>'+td2('Sin snapshots — importar Stock Playa',C2.lgray,C2.orange,false,9)+'</tr>';}
+    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blankRow(7);
 
-    // B. Expediciones diarias
-    h+=sH('B. EXPEDICIONES DIARIAS \u2014 kpi_shipments_daily',8,'#1565C0');
-    h+='<tr>'+h6('Fecha',1)+h6('Distribuci\u00f3n',1)+h6('Traslado Playa',1)+h6('Total Expedido',1)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    // C. Expediciones + Ingresos lado a lado
+    h+=sectionHdr('C. EXPEDICIONES E INGRESOS DIARIOS — kpi_shipments_daily + kpi_ingress_daily',7,'#1565C0');
+    h+='<tr>'+h2('Fecha',1)+h2('Distribución',1)+h2('Traslado Playa',1)+h2('Total Expedido',1)+h2('Ingresos Tracking ING',1)+h2('% Throughput día',1)+td2('',C2.white)+'</tr>';
     try{
-      var shipA=await sbGet('kpi_shipments_daily','compound_code=eq.00034&order=metric_date.desc&limit=60');
-      if(Array.isArray(shipA)&&shipA.length){
-        var sByDate={};shipA.forEach(function(s){if(!sByDate[s.metric_date])sByDate[s.metric_date]={d:null,t:null};if(s.source_type==='distribution')sByDate[s.metric_date].d=s.shipments_qty;else if(s.source_type==='transfer_playa')sByDate[s.metric_date].t=s.shipments_qty;});
-        Object.entries(sByDate).sort(function(a,b){return b[0].localeCompare(a[0]);}).forEach(function(e,i){
-          var bg=i%2===0?C2.lgray:C2.white;
-          var dq=metierConfig.throughput_include_distribution?(e[1].d||0):0;var tq=metierConfig.throughput_include_transfer?(e[1].t||0):0;
-          h+='<tr>'+td6(e[0],bg)+td6(e[1].d===null?'\u2014':e[1].d,bg)+td6(e[1].t===null?'\u2014':e[1].t,bg)
-            +td6(dq+tq,bg,C2.blue,true)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
-        });
-      }else{h+='<tr>'+td6('Sin expediciones \u2014 importar Distribuci\u00f3n y Traslado Playa',C2.lgray,C2.orange)+'</tr>';}
-    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blk(8);
-
-    // C. Ingresos diarios
-    h+=sH('C. INGRESOS DIARIOS \u2014 kpi_ingress_daily (Tracking ING)',8,'#1A3C6E');
-    h+='<tr>'+h6('Fecha',1)+h6('Ingresos a C\u00f3rdoba',1)+h6('Fuente',1)+h6('Filtro aplicado',1)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
-    try{
+      var shipA=await sbGet('kpi_shipments_daily','compound_code=eq.00034&order=metric_date.desc&limit=30');
       var ingA=await sbGet('kpi_ingress_daily','compound_code=eq.00034&order=metric_date.desc&limit=30');
-      if(Array.isArray(ingA)&&ingA.length){
-        ingA.forEach(function(s,i){
-          var bg=i%2===0?C2.lgray:C2.white;
-          h+='<tr>'+td6(s.metric_date,bg)+td6(s.ingress_qty,bg,C2.blue,true)+td6('Tracking Reporting Tool',bg)
-            +td6('Mov. Type=ING, Dest=00034',bg)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
-        });
-      }else{h+='<tr>'+td6('Sin ingresos \u2014 importar Tracking Reporting Tool',C2.lgray,C2.orange)+'</tr>';}
-    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blk(8);
+      if(!Array.isArray(shipA))shipA=[];if(!Array.isArray(ingA))ingA=[];
+      var sByDate={};
+      shipA.forEach(function(s){if(!sByDate[s.metric_date])sByDate[s.metric_date]={d:null,t:null};if(s.source_type==='distribution')sByDate[s.metric_date].d=s.shipments_qty;else if(s.source_type==='transfer_playa')sByDate[s.metric_date].t=s.shipments_qty;});
+      var iByDate={};ingA.forEach(function(s){iByDate[s.metric_date]=s.ingress_qty;});
+      var allDates=Object.keys(sByDate).sort().reverse();
+      allDates.forEach(function(date,i){
+        var bg=i%2===0?C2.lgray:C2.white;
+        var dq=metierConfig.throughput_include_distribution?(sByDate[date].d||0):0;
+        var tq=metierConfig.throughput_include_transfer?(sByDate[date].t||0):0;
+        var total=dq+tq;
+        var ing=iByDate[date]||null;
+        var tpD=ing&&ing>0?Math.round(total/ing*1000)/10:null;
+        var tpC=tpD===null?C2.dgray:tpD>=90?C2.green:tpD>80?C2.orange:C2.red;
+        h+='<tr>'+td2(date,bg)
+          +td2(sByDate[date].d===null?'—':sByDate[date].d,bg)
+          +td2(sByDate[date].t===null?'—':sByDate[date].t,bg)
+          +'<td style="background:'+bg+';color:'+C2.blue+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+total+'</td>'
+          +td2(ing===null?'Sin datos':ing,bg,ing===null?C2.orange:C2.dgray,false)
+          +'<td style="background:'+bg+';color:'+tpC+';font-weight:'+(tpD!==null?'700':'400')+';border:1px solid '+C2.mgray+';padding:5px 10px;">'+(tpD!==null?tpD+'%':'—')+'</td>'
+          +td2('',C2.white)+'</tr>';
+      });
+      if(!allDates.length){h+='<tr>'+td2('Sin datos',C2.lgray,C2.orange)+'</tr>';}
+    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blankRow(7);
 
-    // D. Resumen semanal
-    h+=sH('D. RESUMEN SEMANAL THROUGHPUT \u2014 kpi_snapshots',8,'#1565C0');
-    h+='<tr>'+h6('Semana (Lunes)',1)+h6('Semana (Domingo)',1)+h6('Expedido',1)+h6('Ingresado',1)+h6('% TP',1)+h6('Estado',1)+h6('Guardado por',1)+td6('',C2.white)+'</tr>';
+    // D. Snapshots semanales
+    h+=sectionHdr('D. SNAPSHOTS SEMANALES — kpi_snapshots',7,'#1565C0');
+    h+='<tr>'+h2('Semana inicio',1)+h2('Semana fin',1)+h2('Expedido',1)+h2('Ingresado',1)+h2('% TP',1)+h2('% Mantenimiento pendiente',1)+h2('Guardado por',1)+'</tr>';
     try{
-      var snW=await sbGet('kpi_snapshots','compound_code=eq.00034&kpi_name=eq.weekly_throughput&order=period.desc&limit=8');
-      if(Array.isArray(snW)&&snW.length){
-        snW.forEach(function(s,i){
-          var bg=i%2===0?C2.lgray:C2.white;
-          var v=s.value!==null?s.value+'%':'N/A';
-          var vc=s.value===null?C2.dgray:s.value>=90?C2.green:s.value>80?C2.orange:C2.red;
-          var det=(s.detail||'').split('/');
-          h+='<tr>'+td6(s.period,bg)+td6(s.period_end||'',bg)+td6(det[0]?det[0].trim():'',bg)
-            +td6(det[1]?det[1].trim():'',bg)+td6(v,bg,vc,true)+td6(s.status||'',bg)
-            +td6(s.computed_by||'',bg)+td6('',C2.white)+'</tr>';
-        });
-      }else{h+='<tr>'+td6('Sin snapshots semanales guardados a\u00fan',C2.lgray,C2.orange)+'</tr>';}
-    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blk(8);
+      var snW=await sbGet('kpi_snapshots','compound_code=eq.00034&period_type=eq.weekly&order=period.desc&limit=8');
+      if(!Array.isArray(snW))snW=[];
+      var weekMap={};snW.forEach(function(s){if(!weekMap[s.period])weekMap[s.period]={};weekMap[s.period][s.kpi_name]=s;});
+      Object.keys(weekMap).sort().reverse().forEach(function(wk,i){
+        var bg=i%2===0?C2.lgray:C2.white;
+        var tp=weekMap[wk]['weekly_throughput'];
+        var so=weekMap[wk]['service_order_not_done'];
+        var tpV=tp&&tp.value!==null?tp.value+'%':'N/A';
+        var soV=so&&so.value!==null?so.value+'%':'N/A';
+        var tpC=tp&&tp.value!==null?(tp.value>=90?C2.green:tp.value>80?C2.orange:C2.red):C2.dgray;
+        var soC=so&&so.value!==null?(so.value<=5?C2.green:so.value<10?C2.orange:C2.red):C2.dgray;
+        var det=(tp&&tp.detail?tp.detail:'').split('/');
+        h+='<tr>'+td2(wk,bg)
+          +td2(tp&&tp.period_end?tp.period_end:'',bg)
+          +td2(det[0]?det[0].trim():'',bg)
+          +td2(det[1]?det[1].trim():'',bg)
+          +'<td style="background:'+bg+';color:'+tpC+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+tpV+'</td>'
+          +'<td style="background:'+bg+';color:'+soC+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+soV+'</td>'
+          +td2(tp&&tp.computed_by?tp.computed_by:'',bg)
+          +'</tr>';
+      });
+      if(!Object.keys(weekMap).length){h+='<tr>'+td2('Sin snapshots semanales aún',C2.lgray,C2.orange)+'</tr>';}
+    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blankRow(7);
 
     // E. Daños del mes
-    var mStart=month+'-01';
-    h+=sH('E. DA\u00d1OS DEL MES \u2014 tabla danos (damage_date)',8,'#C62828');
-    h+='<tr>'+h6('VINs \u00fanicos con da\u00f1o',1)+h6('Da\u00f1os totales',1)+h6('Mes',1)+h6('Scope',1)+h6('Expediciones mes',1)+h6('% Damaged',1)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    h+=sectionHdr('E. DAÑOS DEL MES ('+month+') — tabla danos',7,'#C62828');
+    h+='<tr>'+h2('VINs únicos',1)+h2('Total registros',1)+h2('Expediciones mes',1)+h2('% Damaged',1)+h2('Config scope',1)+h2('Desglose responsabilidad',2)+'</tr>';
     try{
       var danosM=await sbGet('danos','compound_code=eq.00034&damage_date=gte.'+mStart+'&select=vin,responsabilidad,damage_date&limit=5000');
       if(!Array.isArray(danosM))danosM=[];
@@ -8116,82 +8028,81 @@ async function exportKpiMetierExcel(){
       var tSM=sM.reduce(function(a,s){return a+(s.shipments_qty||0);},0);
       var dp=tSM>0?(uVins/tSM*100).toFixed(2)+'%':'N/A';
       var dc=tSM===0?C2.dgray:parseFloat(dp)<0.5?C2.green:C2.red;
-      h+='<tr>'+td6(uVins,C2.lgray,C2.red,true)+td6(danosM.length,C2.lgray)+td6(month,C2.lgray)
-        +td6(metierConfig.damage_kpi_scope==='all'?'Todos los da\u00f1os':'Solo Compound',C2.lgray)
-        +td6(tSM||'Sin datos',C2.lgray)+td6(dp,C2.lgray,dc,true)+td6('',C2.white)+td6('',C2.white)+'</tr>';
-      if(danosM.length){
-        var byR={};danosM.forEach(function(d){var r=d.responsabilidad||'Sin clasificar';byR[r]=(byR[r]||0)+1;});
-        Object.entries(byR).forEach(function(e,i){
-          h+='<tr>'+td6(e[0],i%2===0?C2.lgray:C2.white,C2.dgray,false,8)+td6(e[1]+' registros',i%2===0?C2.lgray:C2.white,C2.dgray,false,8)
-            +td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
-        });
-      }
-    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blk(8);
+      var byR={};danosM.forEach(function(d){var r=d.responsabilidad||'Sin clasificar';byR[r]=(byR[r]||0)+1;});
+      var respStr=Object.entries(byR).map(function(e){return e[0]+': '+e[1];}).join(' | ');
+      h+='<tr>'+td2(uVins,C2.lgray,C2.red,true)
+        +td2(danosM.length,C2.lgray)
+        +td2(tSM||'Sin datos',C2.lgray)
+        +'<td style="background:'+C2.lgray+';color:'+dc+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+esc(dp)+'</td>'
+        +td2(metierConfig.damage_kpi_scope==='all'?'Todos los daños':'Solo Compound',C2.lgray)
+        +td2(respStr||'—',C2.lgray,C2.dgray,false,8)
+        +td2('',C2.white)+'</tr>';
+    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
+    h+=blankRow(7);
 
-    // F. Incidentes de seguridad
-    h+=sH('F. INCIDENTES DE SEGURIDAD DEL MES \u2014 safety_incidents',8,'#6A1B9A');
-    h+='<tr>'+h6('Total',1)+h6('Abiertos',1)+h6('En an\u00e1lisis',1)+h6('Cerrados',1)+h6('Cr\u00edticos',1)+h6('Mes',1)+td6('',C2.white)+td6('',C2.white)+'</tr>';
+    // F. Seguridad + Mantenimiento
+    h+=sectionHdr('F. SEGURIDAD + MANTENIMIENTO ('+month+')',7,'#6A1B9A');
+    h+='<tr>'+h2('Incidentes mes',1)+h2('Abiertos',1)+h2('Críticos',1)+h2('Veh mant. pendiente',1)+h2('Total con servicio debido',1)+h2('% Service Order',1)+h2('Fuente mantenimiento',1)+'</tr>';
     try{
       var safM=await sbGet('safety_incidents','compound_code=eq.00034&incident_date=gte.'+mStart+'&order=incident_date.desc');
       if(!Array.isArray(safM))safM=[];
       var safeColor=safM.length===0?C2.green:C2.red;
-      h+='<tr>'+td6(safM.length,C2.lgray,safeColor,true)
-        +td6(safM.filter(function(s){return s.status==='abierto';}).length,C2.lgray)
-        +td6(safM.filter(function(s){return s.status==='en_analisis';}).length,C2.lgray)
-        +td6(safM.filter(function(s){return s.status==='cerrado';}).length,C2.lgray)
-        +td6(safM.filter(function(s){return s.severity==='Cr\u00edtica';}).length,C2.lgray,safM.filter(function(s){return s.severity==='Cr\u00edtica';}).length>0?C2.red:C2.green,true)
-        +td6(month,C2.lgray)+td6('',C2.white)+td6('',C2.white)+'</tr>';
-    }catch(e){h+='<tr>'+td6('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
-    h+=blk(8);
+      var vM={};
+      if(typeof pendingCache!=='undefined'&&pendingCache&&pendingCache.length){
+        pendingCache.forEach(function(p){if(!vM[p.vin])vM[p.vin]={ov:false};if(p.urgency==='overdue'||p.urgency==='urgent')vM[p.vin].ov=true;});
+      }
+      var dueN=Object.keys(vM).length;
+      var pendN=Object.values(vM).filter(function(v){return v.ov;}).length;
+      var soVal2=dueN>0?(pendN/dueN*100).toFixed(1)+'%':'—';
+      var soC2=dueN===0?C2.dgray:parseFloat(soVal2)<=5?C2.green:parseFloat(soVal2)<10?C2.orange:C2.red;
+      h+='<tr>'
+        +'<td style="background:'+C2.lgray+';color:'+safeColor+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+safM.length+'</td>'
+        +td2(safM.filter(function(s){return s.status==='abierto';}).length,C2.lgray)
+        +td2(safM.filter(function(s){return s.severity==='Crítica';}).length,C2.lgray,safM.filter(function(s){return s.severity==='Crítica';}).length>0?C2.red:C2.green,true)
+        +'<td style="background:'+C2.lgray+';color:'+C2.red+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+pendN+'</td>'
+        +td2(dueN,C2.lgray)
+        +'<td style="background:'+C2.lgray+';color:'+soC2+';font-weight:700;border:1px solid '+C2.mgray+';padding:5px 10px;">'+soVal2+'</td>'
+        +td2('pendingCache (en vivo)',C2.lgray,C2.dgray,false,8)+'</tr>';
+    }catch(e){h+='<tr>'+td2('Error: '+e.message,C2.lgray,C2.red)+'</tr>';}
 
-    // G. Mantenimiento
-    h+=sH('G. MANTENIMIENTO OBLIGATORIO \u2014 pendingCache',8,'#1A3C6E');
-    h+='<tr>'+h6('Pendientes/Vencidos',1)+h6('Total con servicio debido',1)+h6('% No Done',1)+h6('Fuente',1)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
-    if(typeof pendingCache!=='undefined'&&pendingCache&&pendingCache.length){
-      var vM={};pendingCache.forEach(function(p){if(!vM[p.vin])vM[p.vin]={due:true,ov:false};if(p.urgency==='overdue'||p.urgency==='urgent')vM[p.vin].ov=true;});
-      var dN=Object.keys(vM).length,pN=Object.values(vM).filter(function(v){return v.ov;}).length;
-      var soV=dN>0?(pN/dN*100).toFixed(1)+'%':'0%';
-      var soC=parseFloat(soV)<=5?C2.green:parseFloat(soV)<10?C2.orange:C2.red;
-      h+='<tr>'+td6(pN,C2.lgray,C2.red,true)+td6(dN,C2.lgray)+td6(soV,C2.lgray,soC,true)
-        +td6('pendingCache (en vivo)',C2.lgray)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+td6('',C2.white)+'</tr>';
-    }else{h+='<tr>'+td6('Sin datos de mantenimiento \u2014 importar stock y bloqueos',C2.lgray,C2.orange)+'</tr>';}
+    // Footer
+    h+='<tr><td colspan="7" style="background:'+C2.navy+';color:rgba(255,255,255,.4);font-size:7pt;padding:5px 18px;">'
+      +'Stellantis Argentina S.A.  ·  Uso interno confidencial  ·  Generado: '+esc(genDt)+'  ·  Portal v4.9.0'
+      +'</td></tr>';
 
-    h+='</table>';return h;
+    h+='</table>';
+    return h;
   }
 
-  var sheet6=await buildSheet6();
+  function stBgFn(st){return st==='Completo'?'#2E7D3215':st==='Parcial'?'#E6510015':'#71809615';}
+
+  var sheet2=await buildDatosBase();
+
   var fullHtml='<html xmlns:o="urn:schemas-microsoft-com:office:office" '
     +'xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">'
     +'<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>'
-    +'<x:ExcelWorksheet><x:Name>Resumen Ejecutivo</x:Name><x:WorksheetOptions><x:FitToPage/></x:WorksheetOptions></x:ExcelWorksheet>'
-    +'<x:ExcelWorksheet><x:Name>KPI Diarios</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
-    +'<x:ExcelWorksheet><x:Name>KPI Semanales</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
-    +'<x:ExcelWorksheet><x:Name>KPI Mensuales</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
-    +'<x:ExcelWorksheet><x:Name>Panel Visual</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
+    +'<x:ExcelWorksheet><x:Name>Dashboard KPI</x:Name>'
+    +'<x:WorksheetOptions><x:Print><x:Landscape/><x:FitToPage/><x:FitWidth>1</x:FitWidth><x:FitHeight>1</x:FitHeight></x:Print></x:WorksheetOptions>'
+    +'</x:ExcelWorksheet>'
     +'<x:ExcelWorksheet><x:Name>Datos Base Consolidados</x:Name><x:WorksheetOptions/></x:ExcelWorksheet>'
     +'</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->'
-    +'<style>td,th{mso-number-format:"@";}</style>'
+    +'<style>td,th{mso-number-format:"@";} @page{orientation:landscape;}</style>'
     +'</head><body>'
-    +'<table><tr><td>'+buildSheet1()+'</td></tr></table>'
-    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+buildSheet2()+'</td></tr></table>'
-    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+buildSheet3()+'</td></tr></table>'
-    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+buildSheet4()+'</td></tr></table>'
-    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+buildSheet5()+'</td></tr></table>'
-    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+sheet6+'</td></tr></table>'
+    +'<table><tr><td>'+buildDashboard()+'</td></tr></table>'
+    +'<br clear="all"><table style="page-break-before:always"><tr><td>'+sheet2+'</td></tr></table>'
     +'</body></html>';
 
   var blob=new Blob(['\ufeff'+fullHtml],{type:'application/vnd.ms-excel;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
   a.href=url;a.download='KPI_Metier_Cordoba_'+today+'.xls';
-  document.body.appendChild(a);a.click();
-  document.body.removeChild(a);URL.revokeObjectURL(url);
-  showToast('Excel Metier exportado (6 hojas)','success');
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  showToast('Excel KPI Métier exportado (2 hojas)','success');
 }
 
 // ══════════════════════════════════════════════════════════════
-// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.9
+// PDF MÉTIER — UNA SOLA HOJA A4 APAISADA — v4.9.0
+// Visual ejecutivo, 7 KPI con gráficos, paleta Stellantis
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierPDF(){
   await renderKpiMetier();
@@ -8205,183 +8116,219 @@ async function exportKpiMetierPDF(){
   var wMon=getMondayOf(wDate&&wDate.value?wDate.value:today);
   var wSun=getSundayOf(wMon);
   var month=mSel&&mSel.value?mSel.value:today.slice(0,7);
+  var genDt=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-  function semColor(col){return col===SEM_G?'#2E7D32':col===SEM_O?'#E65100':col===SEM_R?'#C62828':'#718096';}
-
-  // Gather rendered card data
-  function getCards(gridId){
+  function getGridCards(gridId){
     var grid=document.getElementById(gridId);
     if(!grid)return[];
     var out=[];
-    var cards=grid.querySelectorAll('[style*="border:1px solid"]');
+    var cards=grid.querySelectorAll('div[style*="border:1px solid"]');
     cards.forEach(function(card){
       var titleEl=card.querySelector('[style*="text-transform:uppercase"]');
       var valEl=card.querySelector('[style*="font-size:50px"]');
-      var freqEl=card.querySelectorAll('[style*="border-radius:8px"]')[1];
-      var statusEl=card.querySelectorAll('[style*="border-radius:8px"]')[0];
       var topBar=card.querySelector('[style*="height:4px"]');
+      var statusEls=card.querySelectorAll('[style*="border-radius:8px"]');
+      var formulaEl=card.querySelector('[style*="font-style:italic"]');
       var naEl=card.querySelector('[style*="#E65100"][style*="font-weight:600"]');
-      var badgeEl=card.querySelector('[style*="font-size:9px;font-weight:700"][style*="max-width"]');
-      var detailEl=card.querySelector('[style*="font-size:8px;color:var(--text3)"][style*="font-style:italic"]');
-      var sourceEl=card.querySelector('[style*="font-size:8px;color:var(--text3)"][style*="Fuente"]');
+      var badgeEl=card.querySelector('[style*="max-width:100%"]');
+      var noteEl=Array.from(card.querySelectorAll('[style*="border-left:2px"]')).find(function(e){return e;});
       out.push({
         title:titleEl?titleEl.textContent.trim():'',
         value:valEl?valEl.textContent.trim():'N/A',
-        freq:freqEl?freqEl.textContent.trim():'',
-        status:statusEl?statusEl.textContent.trim():'',
         color:topBar?topBar.style.background:'#718096',
-        naMsg:naEl?naEl.textContent.replace(/^⚠\s*/,''):'',
+        status:statusEls&&statusEls[0]?statusEls[0].textContent.trim():'',
+        freq:statusEls&&statusEls[1]?statusEls[1].textContent.trim():'',
+        formula:formulaEl?formulaEl.textContent.trim():'',
+        naMsg:naEl?naEl.textContent.replace(/^[⚠\s]+/,''):'',
         badge:badgeEl?badgeEl.textContent.trim():'',
-        formula:detailEl?detailEl.textContent.trim():'',
-        source:sourceEl?sourceEl.textContent.replace(/^Fuente:\s*/,''):'',
+        note:noteEl?noteEl.textContent.trim():'',
       });
     });
     return out;
   }
 
-  var dailyCards=getCards('metier-daily-grid');
-  var weeklyCards=getCards('metier-weekly-grid');
-  var monthlyCards=getCards('metier-monthly-grid');
+  var dailyCards=getGridCards('metier-daily-grid');
+  var weeklyCards=getGridCards('metier-weekly-grid');
+  var monthlyCards=getGridCards('metier-monthly-grid');
 
-  function pdfCard(card,w){
-    var col=card.color||'#718096';
-    var statusBg={Completo:'#2E7D3215',Parcial:'#E6510015',Parcial:'#E6510015','N/A':'#71809615'};
-    var statusFg={Completo:'#2E7D32',Parcial:'#E65100','N/A':'#718096'};
-    var st=card.status||'';
-    return '<div style="width:'+w+';box-sizing:border-box;padding:6px;display:inline-block;vertical-align:top;">'
-      +'<div style="background:#F8FAFC;border-radius:8px;border-left:4px solid '+col+';padding:12px 14px;height:100%;box-sizing:border-box;">'
-      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'
-      +'<div style="font-size:8pt;font-weight:700;color:#4A5568;text-transform:uppercase;letter-spacing:.5px;line-height:1.4;max-width:160px;">'+card.title+'</div>'
-      +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">'
-      +'<span style="background:'+(statusBg[st]||'#71809615')+';color:'+(statusFg[st]||'#718096')+';font-size:7pt;font-weight:700;padding:1px 5px;border-radius:6px;">'+st+'</span>'
-      +'<span style="background:rgba(0,0,0,.06);color:#718096;font-size:7pt;font-weight:700;padding:1px 5px;border-radius:6px;">'+card.freq+'</span>'
-      +'</div></div>'
-      +'<div style="font-size:30pt;font-weight:900;color:'+col+';line-height:1;margin:4px 0 6px;font-family:Arial Black,Arial;">'+card.value+'</div>'
-      +(card.badge?'<div style="font-size:7pt;font-weight:700;color:#4A5568;background:#E2E8F0;padding:2px 7px;border-radius:4px;margin-bottom:5px;display:inline-block;">'+card.badge+'</div>':'')
-      +(card.naMsg?'<div style="font-size:8pt;color:#E65100;font-weight:600;margin-bottom:4px;">⚠ '+card.naMsg+'</div>':'')
-      // Visual chart via SVG
-      +pdfChartSVG(card, col)
-      +'<div style="font-size:7pt;color:#94A3B8;font-style:italic;margin-top:6px;padding-top:5px;border-top:1px solid #E2E8F0;line-height:1.4;">'+card.formula+'</div>'
-      +'</div></div>';
+  // Stellantis palette
+  var N='#0D1F3C',B='#1A3C6E',G='#C8A44A';
+  var SG='#2E7D32',SR='#C62828',SO='#E65100',SGR='#718096';
+  var LB='#1565C0',PU='#6A1B9A';
+
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  // SVG bar chart for PDF
+  function svgBar(val, maxVal, color, goalVal, w, h2){
+    w=w||180; h2=h2||14;
+    var numVal=parseFloat(val);
+    if(isNaN(numVal)) return '<svg width="'+w+'" height="'+h2+'"><rect x="0" y="2" width="'+w+'" height="'+(h2-4)+'" rx="3" fill="#E2E8F0"/><text x="'+(w/2)+'" y="11" text-anchor="middle" font-size="9" fill="#94A3B8">N/A</text></svg>';
+    var pct=Math.min(numVal/maxVal,1);
+    var fill=Math.round(pct*w);
+    var goalPx=goalVal!==null?Math.round(goalVal/maxVal*w):null;
+    var svg='<svg width="'+w+'" height="'+h2+'" viewBox="0 0 '+w+' '+h2+'">'
+      +'<rect x="0" y="2" width="'+w+'" height="'+(h2-4)+'" rx="3" fill="#E2E8F0"/>'
+      +'<rect x="0" y="2" width="'+fill+'" height="'+(h2-4)+'" rx="3" fill="'+color+'"/>';
+    if(goalPx!==null){
+      svg+='<line x1="'+goalPx+'" y1="0" x2="'+goalPx+'" y2="'+h2+'" stroke="rgba(0,0,0,.4)" stroke-width="2" stroke-dasharray="3,2"/>';
+    }
+    svg+='</svg>';
+    return svg;
   }
 
-  function pdfChartSVG(card, col){
-    var val=parseFloat(card.value);
-    if(isNaN(val))return '';
-    var W=200,H=14;
-    var pct=Math.min(val/100*W,W);
-    return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;margin:6px 0;">'
-      +'<rect x="0" y="0" width="'+W+'" height="'+H+'" rx="4" fill="rgba(0,0,0,.07)"/>'
-      +'<rect x="0" y="0" width="'+pct+'" height="'+H+'" rx="4" fill="'+col+'"/>'
+  // SVG donut
+  function svgDonut(val, color, r){
+    r=r||28;
+    var numVal=parseFloat(val)||0;
+    var pct=Math.min(numVal/100,1);
+    var circ=2*Math.PI*r;
+    var fill=circ*pct;
+    var cx=r+4, cy=r+4, size=(r+4)*2;
+    return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
+      +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#E2E8F0" stroke-width="8"/>'
+      +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="8"'
+      +' stroke-dasharray="'+fill+' '+(circ-fill)+'" stroke-dashoffset="'+(circ*0.25)+'" stroke-linecap="round"/>'
+      +'<text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" font-size="'+(r>20?11:9)+'" font-weight="900" fill="'+color+'" font-family="Arial Black,Arial">'+val+'</text>'
       +'</svg>';
   }
 
-  function sectionHeader(label, color){
-    return '<div style="background:'+color+';color:white;padding:8px 16px;border-radius:6px;margin:16px 0 10px;">'
-      +'<span style="font-size:10pt;font-weight:700;letter-spacing:.5px;">'+label+'</span></div>';
+  // KPI card block for PDF
+  function pdfCard(card, goal, maxVal, chartType){
+    var col=card.color||SGR;
+    var val=card.value||'N/A';
+    var numVal=parseFloat(val);
+    var isNA=val==='N/A'||card.naMsg;
+    maxVal=maxVal||100;
+
+    var stFg=card.status==='Completo'?SG:card.status==='Parcial'?SO:SGR;
+    var stBg=card.status==='Completo'?'rgba(46,125,50,.12)':card.status==='Parcial'?'rgba(230,81,0,.12)':'rgba(113,128,150,.12)';
+
+    var chartHtml='';
+    if(!isNA&&!isNaN(numVal)){
+      if(chartType==='donut'){
+        chartHtml='<div style="margin:5px 0;">'+svgDonut(val,col,22)+'</div>';
+      } else {
+        chartHtml='<div style="margin:6px 0 2px;">'+svgBar(val,maxVal,col,goal,170,12)+'</div>'
+          +(goal!==null?'<div style="font-size:7pt;color:rgba(0,0,0,.3);margin-bottom:2px;">objetivo: '+goal+'%</div>':'');
+      }
+    }
+
+    return '<div style="flex:1;min-width:0;background:white;border-top:5px solid '+col+';border-radius:6px;padding:10px 11px;box-shadow:0 1px 6px rgba(0,0,0,.1);display:flex;flex-direction:column;">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">'
+      +'<div style="font-size:7.5pt;font-weight:700;color:#4A5568;text-transform:uppercase;letter-spacing:.5px;line-height:1.3;flex:1;">'+esc(card.title)+'</div>'
+      +'<span style="background:'+stBg+';color:'+stFg+';font-size:7pt;font-weight:700;padding:1px 6px;border-radius:6px;white-space:nowrap;margin-left:4px;">'+esc(card.status||'')+'</span>'
+      +'</div>'
+      +(card.badge?'<div style="font-size:7pt;color:#4A5568;background:#F4F6F9;padding:2px 6px;border-radius:3px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(card.badge)+'</div>':'')
+      +'<div style="font-size:'+(isNA?'18':'28')+'pt;font-weight:900;color:'+col+';font-family:Arial Black,Arial;line-height:1;margin:2px 0 4px;">'+esc(val)+'</div>'
+      +(isNA&&card.naMsg?'<div style="font-size:7pt;color:#E65100;font-weight:600;margin-bottom:3px;">'+esc(card.naMsg)+'</div>':'')
+      +chartHtml
+      +(card.note?'<div style="font-size:6.5pt;color:#E65100;border-left:2px solid #E65100;padding-left:5px;margin-top:3px;line-height:1.3;">'+esc(card.note.substring(0,120))+'</div>':'')
+      +'<div style="font-size:6.5pt;color:#94A3B8;font-style:italic;margin-top:auto;padding-top:4px;border-top:1px solid #F0F0F0;line-height:1.3;">'+esc(card.formula.substring(0,90))+'</div>'
+      +'</div>';
   }
 
-  var genDt=new Date().toLocaleString('es-AR',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  function sectionLabel(label, color){
+    return '<div style="font-size:8pt;font-weight:700;color:white;background:'+color+';padding:4px 10px;border-radius:4px;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;display:inline-block;">'+esc(label)+'</div>';
+  }
 
   var html='<html><head><meta charset="UTF-8"><style>'
-    +'@page{size:A4 landscape;margin:1.5cm;}'
-    +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}'
-    +'*{box-sizing:border-box;margin:0;padding:0;} body{font-family:Arial,sans-serif;font-size:10pt;color:#1A202C;}'
+    +'@page{size:A4 landscape;margin:.8cm;}'
+    +'@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}'
+    +'*{box-sizing:border-box;margin:0;padding:0;}'
+    +'body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#1A202C;background:white;}'
     +'</style></head><body>'
 
-    // ── PAGE 1: RESUMEN EJECUTIVO ──────────────────────────────
-    +'<div style="background:#0D1F3C;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">'
+    // ── HEADER ───────────────────────────────────────────────
+    +'<div style="background:'+N+';padding:10px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+    // Logo text STELLANTIS
+    +'<div style="display:flex;align-items:center;gap:16px;">'
     +'<div>'
-    +'<div style="font-size:18pt;font-weight:900;color:#C8A44A;letter-spacing:2px;font-family:Arial Black,Arial;">KPI METIER SUPPLY CHAIN</div>'
-    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.9</div>'
+    +'<div style="font-size:20pt;font-weight:900;color:'+G+';letter-spacing:4px;font-family:Arial Black,Arial;line-height:1;">STELLANTIS</div>'
+    +'<div style="font-size:7pt;color:rgba(255,255,255,.45);letter-spacing:1.5px;text-transform:uppercase;margin-top:1px;">Portal de Gestión · Compound Córdoba (00034)</div>'
     +'</div>'
-    +'<div style="text-align:right;font-size:8pt;color:rgba(255,255,255,.4);">STELLANTIS ARGENTINA<br>Uso interno confidencial</div>'
+    +'<div style="width:1px;height:36px;background:rgba(255,255,255,.2);margin:0 4px;"></div>'
+    +'<div>'
+    +'<div style="font-size:14pt;font-weight:700;color:white;letter-spacing:.5px;">KPI Métier Supply Chain</div>'
+    +'<div style="font-size:7.5pt;color:rgba(255,255,255,.5);margin-top:2px;">'+esc(genDt)+'  ·  v4.9.0</div>'
     +'</div>'
-
-    +sectionHeader('KPI DIARIOS — Referencia: '+fmtDate(dDay),'#1A3C6E')
-    +'<div style="display:flex;">'
-    +dailyCards.map(function(c){return pdfCard(c,'33.33%');}).join('')
     +'</div>'
-
-    +sectionHeader('KPI SEMANALES — Semana: '+fmtDate(wMon)+' al '+fmtDate(wSun),'#1565C0')
-    +'<div style="display:flex;">'
-    +weeklyCards.map(function(c){return pdfCard(c,'50%');}).join('')
+    // Period badges
+    +'<div style="display:flex;gap:8px;align-items:center;">'
+    +'<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:5px;padding:5px 10px;text-align:center;">'
+    +'<div style="font-size:7pt;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px;">Diarios</div>'
+    +'<div style="font-size:9pt;font-weight:700;color:white;">'+esc(dDay)+'</div>'
     +'</div>'
-
-    +sectionHeader('KPI MENSUALES — Periodo: '+month,'#6A1B9A')
-    +'<div style="display:flex;">'
-    +monthlyCards.map(function(c){return pdfCard(c,'50%');}).join('')
+    +'<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:5px;padding:5px 10px;text-align:center;">'
+    +'<div style="font-size:7pt;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px;">Semanal</div>'
+    +'<div style="font-size:9pt;font-weight:700;color:white;">'+esc(wMon.slice(5))+' – '+esc(wSun.slice(5))+'</div>'
     +'</div>'
-
-    // ── PAGE BREAK ─────────────────────────────────────────────
-    +'<div style="page-break-before:always;"></div>'
-
-    // ── PAGE 2: DETALLE DE SOPORTE ─────────────────────────────
-    +'<div style="background:#0D1F3C;padding:14px 24px;margin-bottom:20px;">'
-    +'<div style="font-size:14pt;font-weight:900;color:#C8A44A;">DETALLE DE SOPORTE — KPI METIER</div>'
-    +'<div style="font-size:8pt;color:rgba(255,255,255,.5);">Trazabilidad del calculo para respaldo ante Direccion  ·  '+genDt+'</div>'
+    +'<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:5px;padding:5px 10px;text-align:center;">'
+    +'<div style="font-size:7pt;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px;">Mensual</div>'
+    +'<div style="font-size:9pt;font-weight:700;color:white;">'+esc(month)+'</div>'
+    +'</div>'
+    +'</div>'
     +'</div>'
 
-    // Detail table
-    +'<table style="width:100%;border-collapse:collapse;font-size:8.5pt;">'
-    +'<thead><tr style="background:#0D1F3C;color:white;">'
-    +'<th style="padding:7px 9px;text-align:left;">KPI</th>'
-    +'<th style="padding:7px 9px;text-align:left;">Periodo</th>'
-    +'<th style="padding:7px 9px;text-align:right;">Valor</th>'
-    +'<th style="padding:7px 9px;text-align:left;">Formula</th>'
-    +'<th style="padding:7px 9px;text-align:left;">Fuente</th>'
-    +'<th style="padding:7px 9px;text-align:left;">Estado</th>'
-    +'<th style="padding:7px 9px;text-align:left;">Observaciones</th>'
-    +'</tr></thead><tbody>';
+    // ── BODY: 3 columns (Diarios | Semanales | Mensuales) ────
+    +'<div style="display:flex;gap:8px;align-items:stretch;">'
 
-  var allCards=[].concat(
-    dailyCards.map(function(c){return Object.assign({},c,{period:dDay});}),
-    weeklyCards.map(function(c){return Object.assign({},c,{period:wMon+' al '+wSun});}),
-    monthlyCards.map(function(c){return Object.assign({},c,{period:month});})
-  );
-  var observations={
-    'Ready For Transport':'Regla RFT pendiente validacion con metier',
-    'Saturacion':'Capacidad interna configurable (default: '+metierConfig.internal_capacity+' uds)',
-    'Daily Throughput':'Denominador automatico: ingresos a Cordoba importados desde Tracking Reporting Tool (Mov. Type = ING, Destination = 00034 - Cordoba).',
-    'Weekly Throughput':'Semana L-D. Valor provisorio mientras la semana esta en curso',
-    'Service Order':'Semana en curso = valor en vivo. Snapshot oficial al cierre de semana',
-    'Safety':'Registrar incidentes en modulo Seguridad',
-    'Damaged':'N/A si no hay despachos del mes importados',
-  };
-  allCards.forEach(function(c,i){
-    var obs='';
-    Object.keys(observations).forEach(function(k){if(c.title.indexOf(k)>=0)obs=observations[k];});
-    if(c.badge)obs=(obs?obs+' · ':'')+c.badge;
-    if(c.naMsg)obs=(obs?obs+' · ':'')+c.naMsg;
-    html+='<tr style="background:'+(i%2===0?'#F8FAFC':'#FFFFFF')+';border-bottom:1px solid #E2E8F0;">'
-      +'<td style="padding:6px 9px;font-weight:700;color:#0D1F3C;">'+c.title+'</td>'
-      +'<td style="padding:6px 9px;color:#4A5568;">'+c.period+'</td>'
-      +'<td style="padding:6px 9px;font-weight:900;color:'+c.color+';text-align:right;font-size:11pt;">'+c.value+'</td>'
-      +'<td style="padding:6px 9px;color:#718096;font-style:italic;font-size:8pt;">'+c.formula+'</td>'
-      +'<td style="padding:6px 9px;color:#4A5568;font-size:8pt;">'+c.source+'</td>'
-      +'<td style="padding:6px 9px;"><span style="background:'+(c.status==='Completo'?'#2E7D3215':c.status==='Parcial'?'#E6510015':'#71809615')+';color:'+(c.status==='Completo'?'#2E7D32':c.status==='Parcial'?'#E65100':'#718096')+';font-size:7.5pt;font-weight:700;padding:2px 7px;border-radius:5px;">'+c.status+'</span></td>'
-      +'<td style="padding:6px 9px;color:#718096;font-size:8pt;">'+obs+'</td>'
-      +'</tr>';
-  });
+    // DIARIOS
+    +'<div style="flex:3;display:flex;flex-direction:column;">'
+    +sectionLabel('KPI Diarios', LB)
+    +'<div style="display:flex;gap:6px;flex:1;">'
+    +(dailyCards.length?dailyCards.map(function(c){
+      var isRFT=c.title.indexOf('RFT')>=0;
+      var isSat=c.title.indexOf('atur')>=0;
+      var isTP=c.title.indexOf('Daily')>=0;
+      return pdfCard(c, isRFT?85:isTP?90:null, isSat?130:100, 'bar');
+    }).join(''):'<div style="flex:1;background:#F4F6F9;border-radius:6px;padding:16px;color:#94A3B8;font-size:9pt;">Sin datos diarios</div>')
+    +'</div></div>'
 
-  html+='</tbody></table>'
-    // Config footer
-    +'<div style="margin-top:16px;background:#F4F6F9;padding:10px 14px;border-radius:6px;border-top:2px solid #C8A44A;">'
-    +'<span style="font-size:8pt;font-weight:700;color:#0D1F3C;">CONFIG ACTIVA:  </span>'
-    +'<span style="font-size:8pt;color:#4A5568;">Capacidad '+metierConfig.internal_capacity+' uds  ·  RFT: '+(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment=N':'AvailDate not null')+'  ·  TP incluye: '+(metierConfig.throughput_include_distribution?'Distrib.':'')+' '+(metierConfig.throughput_include_transfer?'Traslado':'')+' · Danos: '+(metierConfig.damage_kpi_scope==='all'?'Todos':'Solo Compound')+'</span>'
+    // Divider
+    +'<div style="width:1px;background:#E2E8F0;margin:0 2px;align-self:stretch;"></div>'
+
+    // SEMANALES
+    +'<div style="flex:2;display:flex;flex-direction:column;">'
+    +sectionLabel('KPI Semanales', LB)
+    +'<div style="display:flex;gap:6px;flex:1;">'
+    +(weeklyCards.length?weeklyCards.map(function(c){
+      var isSO=c.title.indexOf('anten')>=0||c.title.indexOf('Service')>=0;
+      return pdfCard(c, isSO?5:90, isSO?30:130, isSO?'donut':'bar');
+    }).join(''):'<div style="flex:1;background:#F4F6F9;border-radius:6px;padding:16px;color:#94A3B8;font-size:9pt;">Sin datos semanales</div>')
+    +'</div></div>'
+
+    // Divider
+    +'<div style="width:1px;background:#E2E8F0;margin:0 2px;align-self:stretch;"></div>'
+
+    // MENSUALES
+    +'<div style="flex:2;display:flex;flex-direction:column;">'
+    +sectionLabel('KPI Mensuales', PU)
+    +'<div style="display:flex;gap:6px;flex:1;">'
+    +(monthlyCards.length?monthlyCards.map(function(c){
+      var isDmg=c.title.indexOf('amaged')>=0||c.title.indexOf('ano')>=0;
+      return pdfCard(c, isDmg?0.5:null, isDmg?3:10, isDmg?'bar':'bar');
+    }).join(''):'<div style="flex:1;background:#F4F6F9;border-radius:6px;padding:16px;color:#94A3B8;font-size:9pt;">Sin datos mensuales</div>')
+    +'</div></div>'
     +'</div>'
-    +'<div style="margin-top:12px;font-size:8pt;color:#94A3B8;text-align:center;">Stellantis Argentina S.A.  ·  Uso interno confidencial  ·  Generado: '+genDt+'</div>'
+
+    // ── FOOTER ────────────────────────────────────────────────
+    +'<div style="background:'+N+';margin-top:7px;padding:4px 16px;display:flex;justify-content:space-between;align-items:center;">'
+    +'<div style="font-size:7pt;color:rgba(255,255,255,.35);">Config: Cap. '+metierConfig.internal_capacity+' uds  ·  RFT: '+(metierConfig.rft_rule==='blocked_for_shipment_n'?'Blocked for shipment=N':'Avail Date not null')+'  ·  Daños: '+(metierConfig.damage_kpi_scope==='all'?'Todos':'Solo Compound')+'</div>'
+    +'<div style="font-size:7pt;color:rgba(255,255,255,.35);">Stellantis Argentina S.A.  ·  Uso interno confidencial  ·  Portal v4.9.0</div>'
+    +'</div>'
+
     +'</body></html>';
 
-  var w=window.open('','_blank','width=1100,height=900');
-  if(!w){showToast('Habilitar ventanas emergentes para PDF','info');return;}
+  var w=window.open('','_blank','width=1100,height=750');
+  if(!w){showToast('Habilitá ventanas emergentes para el PDF','info');return;}
   w.document.write(html);w.document.close();
   w.onload=function(){w.focus();setTimeout(function(){w.print();},600);};
 }
 
 
+
 // ══════════════════════════════════════════════════════════════
-// TRACKING REPORTING TOOL IMPORTER v4.8.9
+// TRACKING REPORTING TOOL IMPORTER v4.9.0
 // ══════════════════════════════════════════════════════════════
 async function importTrackingRows(rows, fileName){
   setImportProgress(35,'Procesando Tracking Reporting Tool: '+rows.length+' filas...');
@@ -8571,7 +8518,7 @@ kpiCard = function(o){
 
 
 <script>
-/* v4.8.9 — Fix real de navegación:
+/* v4.9.0 — Fix real de navegación:
    Reubica páginas mal anidadas en la estructura HTML final para que
    "Importar archivos", "Seguridad" y pantallas de soporte se abran
    correctamente en el área central del portal. */
