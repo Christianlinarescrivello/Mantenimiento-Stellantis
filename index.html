@@ -211,7 +211,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="login-logo">
       <div class="brand">STELLANTIS</div>
       <div class="sub">Portal de Mantenimiento Stellantis</div>
-      <div class="login-version">Build <span id="login-version-code">v4.8.8</span></div>
+      <div class="login-version">Build <span id="login-version-code">v4.8.9</span></div>
     </div>
     <h2>Iniciar Sesión</h2>
     <div class="lfield">
@@ -263,7 +263,7 @@ tbody td{padding:9px 12px;color:var(--text);}
     <div class="topbar-brand">STELLANTIS</div>
     <div class="topbar-sep"></div>
     <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px">PORTAL DE MANTENIMIENTO</span>
-    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.8.8</span></div>
+    <div class="version-badge" title="Versión cargada">Build <span id="top-version-code">v4.8.9</span></div>
     <div class="topbar-user">Hola, <span id="top-user">—</span></div>
     <div id="top-patio-wrap" style="display:none;align-items:center;gap:6px;">
       <span style="font-size:11px;color:rgba(255,255,255,0.4)">Patio:</span>
@@ -1476,7 +1476,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.8.8";
+var APP_VERSION="v4.8.9";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -3231,15 +3231,19 @@ function detectImportType(rows,fileName){
   var lc=String(fileName||"").toLowerCase();
   // Tracking Reporting Tool: Mov. Type + Destination + Date Mov.
   if(has("mov. type")||has("mov type")||has("date mov.")||has("date mov")||lc.indexOf("tracking")>=0)return"tracking";
-  // Traslado Playa — debe evaluarse ANTES de Blocks.
-  // Algunos reportes de traslado pueden traer columnas o textos que disparan falsos positivos de "block".
+
+  // Traslado Playa
   if(has("compound origin")||has("compound destination")||lc.indexOf("traslado")>=0||lc.indexOf("transfer")>=0)return"traslado";
-  // Stock Playa — debe evaluarse ANTES de Distribución y Blocks.
-  // El Stock Playa comparte algunas columnas con otros reportes; si queda después, puede clasificarse mal.
-  if(has("assignment date")||has("boxatura")||has("blocks")||has("blocked for shipment"))return"stock";
-  // Distribución
-  if(has("delivery compound")||has("carrier descr")||(has("list date")&&has("delivery to dealer date")&&!has("compound origin"))||lc.indexOf("distribuc")>=0)return"distribucion";
-  // Blocks / bloqueos de mantenimiento — después de distinguir Traslado, Stock y Distribución.
+
+  // Distribución: debe evaluarse ANTES de Stock.
+  // Este reporte puede traer "Assignment date", por eso NO debe usarse ese campo para identificar Stock.
+  if(has("delivery compound")||has("carrier descr")||has("carrier code")||has("aggregation list number")||has("list date")||lc.indexOf("distribuc")>=0)return"distribucion";
+
+  // Stock Playa: se identifica por campos propios de stock/patio.
+  // No usar "Assignment date" como criterio porque también aparece en Distribución.
+  if(has("compound code")||has("compound descr")||has("boxatura")||has("blocked for shipment")||has("blocks"))return"stock";
+
+  // Blocks / bloqueos de mantenimiento
   if(has("block")||has("block date")||has("unblock date")||has("unblocked/deleted")||lc.indexOf("bloquead")>=0||lc.indexOf("block")>=0)return"blocks";
   return"stock";
 }
@@ -7721,7 +7725,7 @@ function switchKpiTab(tab){
 }
 
 // ══════════════════════════════════════════════════════════════
-// EXCEL MÉTIER EXPORT — v4.8.8
+// EXCEL MÉTIER EXPORT — v4.8.9
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierExcel(){
   await renderKpiMetier();
@@ -7818,7 +7822,7 @@ async function exportKpiMetierExcel(){
     var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
     // Title
     h+=mkRow([hdr('KPI METIER SUPPLY CHAIN — COMPOUND CÓRDOBA',8,C.navy,C.gold,16)]);
-    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.8',8,C.blue,C.white,9)]);
+    h+=mkRow([hdr('Stellantis Argentina S.A.  ·  Generado: '+genDt+'  ·  v4.8.9',8,C.blue,C.white,9)]);
     h+=mkRow([td('',cellStyle(C.white,C.white,false,4),8)]);
 
     // Period summary
@@ -8027,7 +8031,7 @@ async function exportKpiMetierExcel(){
 
     var h='<table style="font-family:Calibri,Arial;font-size:10pt;border-collapse:collapse;width:100%;">';
     h+='<tr>'+h6('DATOS BASE CONSOLIDADOS \u2014 SOPORTE DE C\u00c1LCULO KPI',8,C2.navy,C2.gold,12)+'</tr>';
-    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.8',8,C2.blue,C2.white,9)+'</tr>';
+    h+='<tr>'+h6('Compound C\u00f3rdoba (00034)  \u00b7  Generado: '+genDt+'  \u00b7  Portal v4.8.9',8,C2.blue,C2.white,9)+'</tr>';
     h+=blk(8);
 
     // A. Stock snapshots
@@ -8187,7 +8191,7 @@ async function exportKpiMetierExcel(){
 }
 
 // ══════════════════════════════════════════════════════════════
-// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.8
+// PDF MÉTIER — VERSIÓN EJECUTIVA v4.8.9
 // ══════════════════════════════════════════════════════════════
 async function exportKpiMetierPDF(){
   await renderKpiMetier();
@@ -8289,7 +8293,7 @@ async function exportKpiMetierPDF(){
     +'<div style="background:#0D1F3C;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">'
     +'<div>'
     +'<div style="font-size:18pt;font-weight:900;color:#C8A44A;letter-spacing:2px;font-family:Arial Black,Arial;">KPI METIER SUPPLY CHAIN</div>'
-    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.8</div>'
+    +'<div style="font-size:9pt;color:rgba(255,255,255,.6);margin-top:4px;">Compound Cordoba (00034)  ·  '+genDt+'  ·  Portal v4.8.9</div>'
     +'</div>'
     +'<div style="text-align:right;font-size:8pt;color:rgba(255,255,255,.4);">STELLANTIS ARGENTINA<br>Uso interno confidencial</div>'
     +'</div>'
@@ -8377,7 +8381,7 @@ async function exportKpiMetierPDF(){
 
 
 // ══════════════════════════════════════════════════════════════
-// TRACKING REPORTING TOOL IMPORTER v4.8.8
+// TRACKING REPORTING TOOL IMPORTER v4.8.9
 // ══════════════════════════════════════════════════════════════
 async function importTrackingRows(rows, fileName){
   setImportProgress(35,'Procesando Tracking Reporting Tool: '+rows.length+' filas...');
@@ -8567,7 +8571,7 @@ kpiCard = function(o){
 
 
 <script>
-/* v4.8.8 — Fix real de navegación:
+/* v4.8.9 — Fix real de navegación:
    Reubica páginas mal anidadas en la estructura HTML final para que
    "Importar archivos", "Seguridad" y pantallas de soporte se abran
    correctamente en el área central del portal. */
