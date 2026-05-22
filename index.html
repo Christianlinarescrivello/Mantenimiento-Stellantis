@@ -1480,7 +1480,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.9.10";
+var APP_VERSION="v4.9.11";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var _stockLoadedForPatio=null; // tracks which patio the current stockCache belongs to
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
@@ -7347,6 +7347,8 @@ async function saveMetierConfig(){
 // ── MAIN ENTRY ────────────────────────────────────────────────
 async function renderKpiMetier(){
   await loadMetierConfig();
+  // Ensure stock is loaded for Service Order KPI — uses pendingCache
+  if(!pendingCache||!pendingCache.length)await loadStock();
   var today=new Date();var todayStr=today.toISOString().slice(0,10);
   var yest=new Date(today);yest.setDate(yest.getDate()-1);var yestStr=yest.toISOString().slice(0,10);
   // Set defaults if empty
@@ -8264,9 +8266,11 @@ async function exportKpiMetierPDF(){
 // ══════════════════════════════════════════════════════════════
 // TRACKING REPORTING TOOL IMPORTER v4.9.2
 // ══════════════════════════════════════════════════════════════
+
 async function exportKpiMetierPDFStellantisFmt(){
   await renderKpiMetier();
   await new Promise(function(r){setTimeout(r,900);});
+
   if(!_kpiCache.ready){showToast('KPIs no disponibles, intentá en 2 segundos','info');return;}
 
   var dc=_kpiCache.daily||[];
@@ -8277,162 +8281,99 @@ async function exportKpiMetierPDFStellantisFmt(){
   var wSun=_kpiCache.wSun||getSundayOf(wMon);
   var month=_kpiCache.month||new Date().toISOString().slice(0,7);
   var genDt=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  var LOGO='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';
 
   function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-  // === TANQUE SVG — idéntico al PDF Métier actual ===
   function tank(val,goal,color,maxVal,w,h2){
-    w=w||60; h2=h2||80;
+    w=w||72;h2=h2||100;
     var numVal=parseFloat(val);
     var isNA=isNaN(numVal)||(val===null||val===undefined||String(val).trim()==='N/A');
-    if(isNA){
-      return '<svg width="'+w+'" height="'+h2+'" viewBox="0 0 '+w+' '+h2+'">'
-        +'<rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7" fill="#EEF2F7" stroke="#CBD5E1" stroke-width="1.5"/>'
-        +'<text x="'+(w/2)+'" y="'+(h2/2+4)+'" text-anchor="middle" font-size="10" fill="#94A3B8" font-family="Arial">N/A</text>'
-        +'</svg>';
-    }
+    if(isNA){return '<svg width="'+w+'" height="'+h2+'" viewBox="0 0 '+w+' '+h2+'"><rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7" fill="#EEF2F7" stroke="#CBD5E1" stroke-width="1.5"/><text x="'+(w/2)+'" y="'+(h2/2+4)+'" text-anchor="middle" font-size="10" fill="#94A3B8" font-family="Arial">N/A</text></svg>';}
     maxVal=maxVal||100;
     var pct=Math.min(Math.max(numVal/maxVal,0),1);
-    var innerH=h2-4;
-    var fillH=Math.max(Math.round(pct*innerH),2);
-    var fillY=2+(innerH-fillH);
+    var innerH=h2-4;var fillH=Math.max(Math.round(pct*innerH),2);var fillY=2+(innerH-fillH);
     var goalY=goal!==null?Math.round((1-Math.min(goal/maxVal,1))*innerH)+2:null;
-    var gId='g'+Math.round(Math.random()*99999);
-    var cId='c'+gId;
-    var ti=fillH>28;
-    var tY=ti?fillY+Math.floor(fillH/2)+5:fillY-9;
-    var tF=ti?'white':color;
-    var svg='<svg width="'+w+'" height="'+h2+'" viewBox="0 0 '+w+' '+h2+'">';
-    svg+='<defs><linearGradient id="'+gId+'" x1="0" y1="0" x2="0" y2="1">';
-    svg+='<stop offset="0%" stop-color="'+color+'" stop-opacity="0.75"/>';
-    svg+='<stop offset="100%" stop-color="'+color+'" stop-opacity="1"/>';
-    svg+='</linearGradient></defs>';
-    svg+='<rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7" fill="#EEF2F7" stroke="#D1D9E6" stroke-width="1.5"/>';
-    svg+='<clipPath id="'+cId+'"><rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7"/></clipPath>';
-    svg+='<rect x="3" y="'+fillY+'" width="'+(w-6)+'" height="'+fillH+'" fill="url(#'+gId+')" clip-path="url(#'+cId+')"/>';
-    if(fillH>12) svg+='<rect x="8" y="'+(fillY+2)+'" width="'+Math.round(w*0.28)+'" height="'+Math.min(fillH-4,12)+'" rx="3" fill="rgba(255,255,255,0.2)" clip-path="url(#'+cId+')"/>';
-    if(goalY!==null){
-      svg+='<line x1="2" y1="'+goalY+'" x2="'+(w-2)+'" y2="'+goalY+'" stroke="rgba(0,0,0,.28)" stroke-width="1.5" stroke-dasharray="4,3"/>';
-      svg+='<text x="4" y="'+(goalY-3)+'" font-size="7" fill="rgba(0,0,0,.4)" font-family="Arial">'+goal+'%</text>';
-    }
-    svg+='<text x="'+(w/2)+'" y="'+tY+'" text-anchor="middle" font-size="13" font-weight="900" fill="'+tF+'" font-family="Arial Black,Arial">'+numVal+'</text>';
-    svg+='<text x="'+(w/2)+'" y="'+(tY+12)+'" text-anchor="middle" font-size="8" fill="'+(ti?'rgba(255,255,255,0.75)':color)+'" font-family="Arial">%</text>';
-    svg+='</svg>';
-    return svg;
-  }
-
-  function okko(color){
-    var isOk=color==='#2E7D32';
-    var isNA=color==='#718096'||color==='#94A3B8';
-    if(isNA) return '<span style="color:#94A3B8;font-size:9pt;">\u2014</span>';
-    return isOk
-      ? '<span style="color:#2E7D32;font-size:11pt;">\u25b2</span><span style="font-size:6pt;color:#2E7D32;vertical-align:middle;margin-left:2px;">OK</span>'
-      : '<span style="color:#C62828;font-size:11pt;">\u25bc</span><span style="font-size:6pt;color:#C62828;vertical-align:middle;margin-left:2px;">KO</span>';
+    var gId='g'+Math.round(Math.random()*99999);var cId='c'+gId;
+    var ti=fillH>28;var tY=ti?fillY+Math.floor(fillH/2)+5:fillY-9;var tF=ti?'white':color;
+    return '<svg width="'+w+'" height="'+h2+'" viewBox="0 0 '+w+' '+h2+'">'
+      +'<defs><linearGradient id="'+gId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.75"/><stop offset="100%" stop-color="'+color+'" stop-opacity="1"/></linearGradient></defs>'
+      +'<rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7" fill="#EEF2F7" stroke="#D1D9E6" stroke-width="1.5"/>'
+      +'<clipPath id="'+cId+'"><rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7"/></clipPath>'
+      +'<rect x="3" y="'+fillY+'" width="'+(w-6)+'" height="'+fillH+'" fill="url(#'+gId+')" clip-path="url(#'+cId+')"/>'
+      +(fillH>12?'<rect x="8" y="'+(fillY+2)+'" width="'+(Math.round(w*0.28))+'" height="'+Math.min(fillH-4,12)+'" rx="3" fill="rgba(255,255,255,0.2)" clip-path="url(#'+cId+')"/>':'')
+      +(goalY!==null?'<line x1="2" y1="'+goalY+'" x2="'+(w-2)+'" y2="'+goalY+'" stroke="rgba(0,0,0,.28)" stroke-width="1.5" stroke-dasharray="4,3"/><text x="4" y="'+(goalY-3)+'" font-size="7.5" fill="rgba(0,0,0,.4)" font-family="Arial">'+goal+'%</text>':'')
+      +'<text x="'+(w/2)+'" y="'+tY+'" text-anchor="middle" font-size="15" font-weight="900" fill="'+tF+'" font-family="Arial Black,Arial">'+numVal+'</text>'
+      +'<text x="'+(w/2)+'" y="'+(tY+13)+'" text-anchor="middle" font-size="8.5" fill="'+(ti?'rgba(255,255,255,0.75)':color)+'" font-family="Arial">%</text>'
+      +'</svg>';
   }
 
   function badge(st){
     var bg=st==='Completo'?'#DCFCE7':st==='Parcial'?'#FEF3C7':'#F1F5F9';
     var fg=st==='Completo'?'#166534':st==='Parcial'?'#92400E':'#475569';
-    return '<span style="background:'+bg+';color:'+fg+';font-size:7pt;font-weight:700;padding:2px 7px;border-radius:10px;">'+e(st||'\u2014')+'</span>';
+    return '<span style="background:'+bg+';color:'+fg+';font-size:7pt;font-weight:700;padding:2px 8px;border-radius:10px;">'+e(st||'—')+'</span>';
   }
 
-  function kpiRow(o,freq,odd){
-    var rowBg=odd?'#F7F9FC':'#FFFFFF';
-    var targetStr=o.goal!=null?o.goal+'%':'\u2014';
-    var numDen='';
-    if(o.numerator!=null&&o.denominator!=null){
-      numDen='<div style="font-size:6pt;color:#94A3B8;margin-top:3px;">'+o.numerator+' / '+o.denominator+'</div>';
-    }
-    var naMsg='';
-    if((o.value===null||o.value===undefined)&&o.naMsg){
-      naMsg='<div style="font-size:6.5pt;color:#DC2626;font-weight:600;margin-top:3px;">\u26a0 '+e(o.naMsg)+'</div>';
-    }
-    var badgeHtml=badge(o.status);
-    var row='<tr style="background:'+rowBg+';">';
-    // KPI title + badge
-    row+='<td style="padding:8px 12px;border-bottom:1px solid #E8EDF3;vertical-align:middle;">';
-    row+='<div style="font-weight:700;color:#1A3C6E;font-size:8.5pt;">'+e(o.title)+'</div>';
-    row+='<div style="margin-top:3px;">'+badgeHtml+'</div>';
-    if(o.badge) row+='<div style="font-size:6.5pt;color:#64748B;background:#F8FAFC;border:1px solid #E8EDF3;padding:2px 5px;border-radius:4px;margin-top:3px;display:inline-block;">'+e(o.badge)+'</div>';
-    row+='</td>';
-    // Frecuencia
-    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;text-align:center;font-size:8pt;color:#64748B;vertical-align:middle;">'+e(freq)+'</td>';
-    // Fórmula
-    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;font-size:7.5pt;color:#475569;vertical-align:middle;max-width:220px;">'+e(o.formula||'\u2014')+'</td>';
-    // Target
-    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;text-align:center;font-size:9pt;font-weight:700;color:#1A3C6E;vertical-align:middle;">'+e(targetStr)+'</td>';
-    // Tanque SVG
-    row+='<td style="padding:6px 10px;border-bottom:1px solid #E8EDF3;text-align:center;vertical-align:middle;">';
-    row+=tank(o.value,o.goal||null,o.color||'#718096',o.maxVal||100,55,68);
-    row+=numDen+naMsg;
-    row+='</td>';
-    // OK/KO
-    row+='<td style="padding:8px 14px;border-bottom:1px solid #E8EDF3;text-align:center;vertical-align:middle;">'+okko(o.color)+'</td>';
-    row+='</tr>';
-    return row;
+  function card(o){
+    var col=o.color||'#718096';
+    var isNA=o.value===null||o.value===undefined||String(o.value).trim()==='N/A';
+    return '<div style="flex:1;background:white;border-radius:10px;border:1px solid #E8EDF3;border-top:4px solid '+col+';padding:14px 14px 10px;display:flex;flex-direction:column;height:100%;box-sizing:border-box;box-shadow:0 1px 6px rgba(0,0,0,.07);">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:7px;gap:4px;">'
+      +'<div style="font-size:7.5pt;font-weight:700;color:#1A3C6E;text-transform:uppercase;letter-spacing:.4px;line-height:1.35;flex:1;">'+e(o.title)+'</div>'
+      +badge(o.status)
+      +'</div>'
+      +(o.badge?'<div style="font-size:6.5pt;color:#64748B;background:#F8FAFC;border:1px solid #E8EDF3;padding:2px 6px;border-radius:4px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+e(o.badge)+'</div>':'')
+      +(isNA&&o.naMsg?'<div style="font-size:7pt;color:#DC2626;font-weight:600;margin-bottom:5px;line-height:1.3;">⚠ '+e(o.naMsg)+'</div>':'')
+      +'<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:4px 0;">'
+      +tank(o.value,o.goal||null,col,o.maxVal||100,72,96)
+      +'</div>'
+      +(o.note?'<div style="font-size:6pt;color:#DC2626;border-left:2px solid #DC2626;padding-left:4px;margin-top:5px;line-height:1.3;">'+e(o.note.substring(0,100))+'</div>':'')
+      +'<div style="font-size:6.5pt;color:#94A3B8;font-style:italic;margin-top:5px;padding-top:4px;border-top:1px solid #F1F5F9;line-height:1.3;">'+e((o.formula||'').substring(0,80))+'</div>'
+      +'</div>';
   }
 
-  function secHeader(label){
-    return '<tr><td colspan="6" style="background:#1A3C6E;color:white;font-size:9pt;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:7px 12px;">'+e(label)+'</td></tr>';
-  }
+  function secH(label,color){return '<div style="background:'+color+';color:white;font-size:8.5pt;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:5px 14px;border-radius:5px;margin-bottom:7px;">'+e(label)+'</div>';}
 
-  var LOGO='iVBORw0KGgoAAAANSUhEUgAAAw0AAACyCAYAAAAAlSPdAAALMklEQVR42u3d2XbjthIFUJGL///LvA/XThxZkjlgKtTeT52Vbg0lEDxFcHg8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcliUAICR7fu+Px6Px7IsS8/37/kZAHpblQCA0RuG5z8DoGkAgMfj8d8j+47yAwAAAAAAAAAAAAAAAAAA09i/qATAde6eBMDUDcOrPwOgaQCAl02CxgFA0wAAAGgaAOih5HUBra4xePUwuFYPiItYLwBNAwC3QmuN12oRhns8UbrkdRSuyQA0DQBoPh';
-
-  var periods='';
-  [['D\u00eda',dDay],['Semana',wMon.slice(5)+' \u2013 '+wSun.slice(5)],['Mes',month]].forEach(function(p){
-    periods+='<div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 12px;text-align:center;">';
-    periods+='<div style="font-size:6pt;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;">'+e(p[0])+'</div>';
-    periods+='<div style="font-size:9pt;font-weight:700;color:white;">'+e(p[1])+'</div>';
-    periods+='</div>';
-  });
-
-  var rows='';
-  rows+=secHeader('KPI DIARIOS');
-  dc.forEach(function(o,i){rows+=kpiRow(o,'Diario',i%2===0);});
-  rows+=secHeader('KPI SEMANALES');
-  wc.forEach(function(o,i){rows+=kpiRow(o,'Semanal',i%2===0);});
-  rows+=secHeader('KPI MENSUALES');
-  mc.forEach(function(o,i){rows+=kpiRow(o,'Mensual',i%2===0);});
-
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">';
-  html+='<style>';
-  html+='@page{size:A4 landscape;margin:.5cm;}';
-  html+='@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}html,body{height:100%;}}';
-  html+='*{box-sizing:border-box;margin:0;padding:0;}';
-  html+='body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#1A202C;background:#EEF2F7;}';
-  html+='table{border-collapse:collapse;width:100%;}';
-  html+='</style></head><body>';
-  html+='<div style="background:#0D1F3C;padding:10px 22px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;border-radius:6px;">';
-  html+='<img src="data:image/png;base64,'+LOGO+'" style="height:40px;width:auto;" alt="STELLANTIS">';
-  html+='<div style="text-align:center;">';
-  html+='<div style="font-size:13pt;font-weight:700;color:white;letter-spacing:.5px;">KPI M\u00c9TIER \u2014 SUPPLY CHAIN C\u00d3RDOBA</div>';
-  html+='<div style="font-size:8pt;color:rgba(255,255,255,.5);margin-top:2px;">Compound 00034 \u00b7 '+e(genDt)+'</div>';
-  html+='</div>';
-  html+='<div style="display:flex;gap:8px;">'+periods+'</div>';
-  html+='</div>';
-  html+='<table style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">';
-  html+='<thead><tr style="background:#1A3C6E;">';
-  html+='<th style="padding:9px 12px;color:white;font-size:8.5pt;font-weight:700;text-align:left;width:25%;">KPI</th>';
-  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:9%;">Frecuencia</th>';
-  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:left;width:30%;">F\u00f3rmula</th>';
-  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:8%;">Target</th>';
-  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:16%;">Valor Actual</th>';
-  html+='<th style="padding:9px 14px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:12%;">Estado</th>';
-  html+='</tr></thead>';
-  html+='<tbody>'+rows+'</tbody>';
-  html+='</table>';
-  html+='<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:0 4px;">';
-  html+='<div style="font-size:7pt;color:#94A3B8;">Stellantis Argentina \u00b7 Compound C\u00f3rdoba 00034 \u00b7 Portal de Mantenimiento '+APP_VERSION+'</div>';
-  html+='<div style="font-size:7pt;color:#94A3B8;">Uso interno confidencial</div>';
-  html+='</div>';
-  html+='</body></html>';
+  var N='#0D1F3C',LB='#1565C0',PU='#6A1B9A';
+  var html='<html><head><meta charset="UTF-8"><style>'
+    +'@page{size:A4 landscape;margin:.65cm;}'
+    +'@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}html,body{height:100%;}}'
+    +'*{box-sizing:border-box;margin:0;padding:0;}'
+    +'body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#1A202C;background:#F0F4F8;height:100vh;display:flex;flex-direction:column;gap:7px;}'
+    +'</style></head><body>'
+    +'<div style="background:'+N+';padding:9px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:7px;flex-shrink:0;">'
+    +'<img src="data:image/png;base64,'+LOGO+'" style="height:52px;width:auto;max-width:240px;" alt="STELLANTIS">'
+    +'<div style="text-align:center;"><div style="font-size:16pt;font-weight:900;color:white;letter-spacing:1px;">KPI MÉTIER — SUPPLY CHAIN CÓRDOBA</div>'
+    +'<div style="font-size:8pt;color:rgba(255,255,255,.5);margin-top:2px;letter-spacing:.3px;">Compound 00034 · '+e(genDt)+'</div></div>'
+    +'<div style="display:flex;gap:6px;">'
+    +[['Diarios',dDay],['Semanal',wMon.slice(5)+' \u2013 '+wSun.slice(5)],['Mensual',month]].map(function(p){
+      return '<div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:4px 12px;text-align:center;">'
+        +'<div style="font-size:6pt;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;margin-bottom:1px;">'+e(p[0])+'</div>'
+        +'<div style="font-size:9pt;font-weight:700;color:white;">'+e(p[1])+'</div></div>';
+    }).join('')
+    +'</div></div>'
+    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'+secH('KPI Diarios',LB)
+    +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
+    +(dc.length?dc.map(function(o){return card(o);}).join('')+'<div style="flex:'+(3-dc.length)+';"></div>'
+      :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos</div>')
+    +'</div></div>'
+    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'+secH('KPI Semanales',LB)
+    +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
+    +(wc.length?wc.map(function(o){return card(o);}).join('')+'<div style="flex:'+(3-wc.length)+';"></div>'
+      :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos</div>')
+    +'</div></div>'
+    +'<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'+secH('KPI Mensuales',PU)
+    +'<div style="display:flex;gap:8px;flex:1;min-height:0;">'
+    +(mc.length?mc.map(function(o){return card(o);}).join('')+'<div style="flex:'+(3-mc.length)+';"></div>'
+      :'<div style="flex:1;background:white;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94A3B8;">Sin datos</div>')
+    +'</div></div>'
+    +'</body></html>';
 
   var w=window.open('','_blank','width=1120,height=800');
   if(!w){showToast('Habilitá ventanas emergentes para el PDF','info');return;}
   w.document.write(html);w.document.close();
   w.onload=function(){w.focus();setTimeout(function(){w.print();},600);};
 }
-
 
 async function importTrackingRows(rows, fileName){
   setImportProgress(35,'Procesando Tracking Reporting Tool: '+rows.length+' filas...');
