@@ -1476,7 +1476,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.9.2";
+var APP_VERSION="v4.9.3";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1883,7 +1883,7 @@ function computePending(rows, hist){
     var ad=pdate(v.assignment_date||v["Assignment date"]);if(!ad)continue;
     var md=String(v.model_descr||v["Model Descr"]||"").toUpperCase();
     var ab=String(v.blocks||v["Blocks"]||"").split(";").map(function(s){return s.trim().toUpperCase();});
-    var cc=String(v.compound_code||v["Compound Code"]||"00214").padStart(5,"0");
+    var cc=String(v.compound_code||v["Compound Code"]||"00034").padStart(5,"0");
     // Exclude units with exclusion blocks — out of service, legal hold, accident, etc.
     var EXCLUDE_BLOCKS=["C40","LEG","A10","A31"];
     if(ab.some(function(b){return EXCLUDE_BLOCKS.indexOf(b)>=0;}))continue;
@@ -7170,6 +7170,14 @@ function kpiCard(o){
   // Detail + source
   if(o.detail&&!o.chartType)html+='<div style="font-size:10px;color:var(--text3);margin-bottom:6px;line-height:1.4;">'+esc(o.detail)+'</div>';
   if(o.target)html+='<div style="font-size:9px;color:var(--text3);margin-bottom:3px;">Meta: <b style="color:'+col+'">'+esc(o.target)+'</b></div>';
+  // Numerator / denominator — show below chart for all card types (except donut_so which already shows them)
+  if(o.chartType!=='donut_so'&&(o.numerator!=null||o.denominator!=null)){
+    html+='<div style="font-size:9px;color:var(--text3);margin-top:5px;line-height:1.5;">';
+    if(o.numerator!=null)html+='<span style="color:'+col+';font-weight:700;">'+o.numerator+'</span>'+(o.numeratorLabel?' <span style="font-size:8px;">'+esc(o.numeratorLabel)+'</span>':'');
+    if(o.numerator!=null&&o.denominator!=null)html+=' / ';
+    if(o.denominator!=null)html+='<span style="font-weight:600;color:var(--text2);">'+o.denominator+'</span>'+(o.denominatorLabel?' <span style="font-size:8px;">'+esc(o.denominatorLabel)+'</span>':'');
+    html+='</div>';
+  }
   html+='<div style="font-size:8px;color:var(--text3);margin-top:6px;border-top:1px solid var(--border);padding-top:5px;font-style:italic;line-height:1.4;">'+esc(o.formula||'')+'</div>';
   if(o.source)html+='<div style="font-size:8px;color:var(--text3);margin-top:2px;">Fuente: '+esc(o.source)+'</div>';
   html+='</div>';
@@ -7306,7 +7314,8 @@ async function renderMetierDaily(){
         na:satVal===null,naMsg:rftSnap?null:'Importar Stock Playa.',
         chartType:'thermometer',chartThresholds:[80,90],chartMax:120,
         dataStatus:satVal===null?'na':'completo',
-        numerator:rftSnap?rftSnap.total_stock:null,denominator:metierConfig.internal_capacity}),
+        numerator:rftSnap?rftSnap.total_stock:null,numeratorLabel:'stock actual',
+        denominator:metierConfig.internal_capacity,denominatorLabel:'capacidad'}),
       kpiCard({icon:'TP',title:'% Daily Throughput',freq:'Diario',
         value:tpVal,unit:'%',color:semTP(tpVal),
         target:'>= 90% verde / 80-90% naranja / <= 80% rojo',
@@ -7532,7 +7541,8 @@ async function renderMetierMonthly(){
         detail:dmgDetail,na:dmgVal===null,naMsg:dmgMsg,badge:dmgBadge,
         chartType:dmgVal!==null?'bar_threshold':null,chartGoal:0.5,chartMax:2,
         dataStatus:dmgVal===null?'na':(dmgBadge?'parcial':'completo'),
-        numerator:uniqueDmgVins,denominator:totalDispMonth}),
+        numerator:uniqueDmgVins,numeratorLabel:'VINs dañados',
+        denominator:totalDispMonth,denominatorLabel:'despachados del mes'}),
     ];
     // Cache for PDF/Excel
     _kpiCache.monthly=[
