@@ -1563,6 +1563,21 @@ function sbGet(table,params){
     headers:Object.assign({},sbH(),{"Prefer":"count=none","Accept-Profile":"public"})
   }).then(sbParse);
 }
+// Paginated fetch — bypasses Supabase 1000-row default limit
+async function sbGetAll(table,params,pageSize){
+  pageSize=pageSize||1000;
+  var all=[];var offset=0;
+  while(true){
+    var page=await fetch(SB_URL+"/rest/v1/"+table+"?"+params+"&limit="+pageSize+"&offset="+offset,{
+      headers:Object.assign({},sbH(),{"Prefer":"count=none","Accept-Profile":"public","Range-Unit":"items","Range":offset+"-"+(offset+pageSize-1)})
+    }).then(sbParse);
+    if(!Array.isArray(page)||!page.length)break;
+    all=all.concat(page);
+    if(page.length<pageSize)break;
+    offset+=pageSize;
+  }
+  return all;
+}
 function sbPost(table,data){return fetch(SB_URL+"/rest/v1/"+table,{method:"POST",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
 function sbPatch(table,id,data){return fetch(SB_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
 function sbPatchWhere(table,where,data){return fetch(SB_URL+"/rest/v1/"+table+"?"+where,{method:"PATCH",headers:Object.assign({"Prefer":"return=representation"},sbH()),body:JSON.stringify(data)}).then(sbParse);}
@@ -1825,19 +1840,18 @@ async function loadCatalogo(){
 
 async function loadStock(){
   try{
-    var stockFilter="select=*&limit=15000";
     if(currentPatio&&!currentUser.todos_patios){
-      // compound_code is now always stored as 5-digit padded string (e.g. "00034")
-      stockFilter="compound_code=eq."+currentPatio.compound_code+"&select=*&limit=10000";
-      var data=await sbGet("stock",stockFilter);
-      // Fallback: also try without leading zeros in case of legacy data
+      // Single patio — paginate to get all units
+      var data=await sbGetAll("stock","compound_code=eq."+currentPatio.compound_code+"&select=*");
+      // Fallback: try without leading zeros in case of legacy data
       if(!Array.isArray(data)||!data.length){
         var cc=currentPatio.compound_code.replace(/^0+/,"");
-        data=await sbGet("stock","compound_code=eq."+cc+"&select=*&limit=10000");
+        data=await sbGetAll("stock","compound_code=eq."+cc+"&select=*");
       }
       stockCache=Array.isArray(data)?data:[];
     } else {
-      var data=await sbGet("stock",stockFilter);
+      // Admin/regional — paginate all patios (may exceed 1000 row default)
+      var data=await sbGetAll("stock","select=*");
       stockCache=Array.isArray(data)?data:[];
     }
     // Load historial via RPC function — returns only last unblock_date per VIN+code
