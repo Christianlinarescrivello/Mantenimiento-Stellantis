@@ -1480,7 +1480,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.9.8";
+var APP_VERSION="v4.9.10";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var _stockLoadedForPatio=null; // tracks which patio the current stockCache belongs to
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
@@ -5290,7 +5290,7 @@ function showPage(name){
   if(name==="gomas"){renderGomas();}
   if(name==="historial")renderHistorial();
   if(name==="kpis")renderKPIs();
-  if(name==="kpis-compound")onShowKpisCompound();
+  if(name==="kpis-compound"){if(typeof onShowKpisCompound==="function")onShowKpisCompound();}
   if(name==="resp"){
     var now=new Date();
     var rd=document.getElementById("resp-desde");var rh=document.getElementById("resp-hasta");
@@ -8363,7 +8363,7 @@ async function exportKpiMetierPDFStellantisFmt(){
     row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;text-align:center;font-size:9pt;font-weight:700;color:#1A3C6E;vertical-align:middle;">'+e(targetStr)+'</td>';
     // Tanque SVG
     row+='<td style="padding:6px 10px;border-bottom:1px solid #E8EDF3;text-align:center;vertical-align:middle;">';
-    row+=tank(o.value,o.goal||null,o.color||'#718096',o.maxVal||100,60,80);
+    row+=tank(o.value,o.goal||null,o.color||'#718096',o.maxVal||100,55,68);
     row+=numDen+naMsg;
     row+='</td>';
     // OK/KO
@@ -8396,7 +8396,7 @@ async function exportKpiMetierPDFStellantisFmt(){
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8">';
   html+='<style>';
-  html+='@page{size:A4 landscape;margin:.7cm;}';
+  html+='@page{size:A4 landscape;margin:.5cm;}';
   html+='@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}html,body{height:100%;}}';
   html+='*{box-sizing:border-box;margin:0;padding:0;}';
   html+='body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#1A202C;background:#EEF2F7;}';
@@ -8405,7 +8405,7 @@ async function exportKpiMetierPDFStellantisFmt(){
   html+='<div style="background:#0D1F3C;padding:10px 22px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;border-radius:6px;">';
   html+='<img src="data:image/png;base64,'+LOGO+'" style="height:40px;width:auto;" alt="STELLANTIS">';
   html+='<div style="text-align:center;">';
-  html+='<div style="font-size:15pt;font-weight:700;color:white;letter-spacing:.5px;">KPI M\u00c9TIER \u2014 SUPPLY CHAIN C\u00d3RDOBA</div>';
+  html+='<div style="font-size:13pt;font-weight:700;color:white;letter-spacing:.5px;">KPI M\u00c9TIER \u2014 SUPPLY CHAIN C\u00d3RDOBA</div>';
   html+='<div style="font-size:8pt;color:rgba(255,255,255,.5);margin-top:2px;">Compound 00034 \u00b7 '+e(genDt)+'</div>';
   html+='</div>';
   html+='<div style="display:flex;gap:8px;">'+periods+'</div>';
