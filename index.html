@@ -509,6 +509,7 @@ tbody td{padding:9px 12px;color:var(--text);}
           <button class="btn btn-primary btn-sm" onclick="renderKpiMetier()">🔄 Actualizar</button>
           <button class="btn btn-ghost btn-sm supervisor-only" onclick="showMetierConfig()">⚙️ Configurar</button>
           <button class="btn btn-sm no-print" style="background:linear-gradient(135deg,#1A3C6E,#0D1F3C);color:white;border:1px solid rgba(200,164,74,0.4);" onclick="exportKpiMetierPDF()">📄 PDF Métier</button>
+          <button class="btn btn-sm no-print" style="background:linear-gradient(135deg,#0D47A1,#1565C0);color:white;border:1px solid rgba(200,164,74,0.4);" onclick="exportKpiMetierPDFStellantisFmt()">📊 PDF Stellantis</button>
           <button class="btn btn-sm no-print" style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:white;border:1px solid rgba(46,125,50,0.4);" onclick="exportKpiMetierExcel()">⬇ Excel Métier</button>
           <span style="margin-left:auto;font-size:11px;color:var(--text3);" id="metier-update-time"></span>
         </div>
@@ -1479,7 +1480,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.9.6";
+var APP_VERSION="v4.9.7";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var _stockLoadedForPatio=null; // tracks which patio the current stockCache belongs to
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
@@ -8263,6 +8264,126 @@ async function exportKpiMetierPDF(){
 // ══════════════════════════════════════════════════════════════
 // TRACKING REPORTING TOOL IMPORTER v4.9.2
 // ══════════════════════════════════════════════════════════════
+async function exportKpiMetierPDFStellantisFmt(){
+  await renderKpiMetier();
+  await new Promise(function(r){setTimeout(r,900);});
+  if(!_kpiCache.ready){showToast('KPIs no disponibles, intentá en 2 segundos','info');return;}
+
+  var dc=_kpiCache.daily||[];
+  var wc=_kpiCache.weekly||[];
+  var mc=_kpiCache.monthly||[];
+  var dDay=_kpiCache.dDay||new Date().toISOString().slice(0,10);
+  var wMon=_kpiCache.wMon||getMondayOf();
+  var wSun=_kpiCache.wSun||getSundayOf(wMon);
+  var month=_kpiCache.month||new Date().toISOString().slice(0,7);
+  var genDt=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  function semCell(color,val,unit){
+    var isNA=val===null||val===undefined||String(val).trim()==='N/A';
+    if(isNA)return{bg:'#F1F5F9',fg:'#94A3B8',lbl:'N/A'};
+    var bg=color==='#C62828'?'#FFEBEE':color==='#E65100'?'#FFF3E0':color==='#2E7D32'?'#E8F5E9':'#FFF8E1';
+    var fg=color==='#C62828'?'#C62828':color==='#E65100'?'#E65100':color==='#2E7D32'?'#2E7D32':'#F57F17';
+    var lbl=(typeof val==='number'?val.toFixed(val%1===0?0:1):String(val))+(unit||'');
+    return{bg:bg,fg:fg,lbl:lbl};
+  }
+
+  function okko(color){
+    var isOk=color==='#2E7D32';
+    var isNA=color==='#718096'||color==='#94A3B8';
+    if(isNA)return '<span style="color:#94A3B8;font-size:9pt;">\u2014</span>';
+    return isOk
+      ? '<span style="color:#2E7D32;font-size:11pt;">\u25b2</span><span style="font-size:6pt;color:#2E7D32;vertical-align:middle;margin-left:2px;">OK</span>'
+      : '<span style="color:#C62828;font-size:11pt;">\u25bc</span><span style="font-size:6pt;color:#C62828;vertical-align:middle;margin-left:2px;">KO</span>';
+  }
+
+  function kpiRow(o,freq,odd){
+    var unit='%';
+    var sc=semCell(o.color,o.value,unit);
+    var numDen='';
+    if(o.numerator!=null&&o.denominator!=null){
+      numDen='<br><span style="font-size:6pt;color:#94A3B8;">'+o.numerator+' / '+o.denominator+'</span>';
+    }
+    var targetStr=o.goal!=null?o.goal+unit:'\u2014';
+    var rowBg=odd?'#F7F9FC':'#FFFFFF';
+    var row='<tr style="background:'+rowBg+';">';
+    row+='<td style="padding:8px 12px;border-bottom:1px solid #E8EDF3;font-weight:700;color:#1A3C6E;font-size:8.5pt;vertical-align:middle;">'+e(o.title)+'</td>';
+    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;text-align:center;font-size:8pt;color:#64748B;vertical-align:middle;">'+e(freq)+'</td>';
+    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;font-size:7.5pt;color:#475569;vertical-align:middle;max-width:200px;">'+e(o.formula||'\u2014')+'</td>';
+    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;text-align:center;font-size:9pt;font-weight:700;color:#1A3C6E;vertical-align:middle;">'+e(targetStr)+'</td>';
+    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;text-align:center;vertical-align:middle;">';
+    row+='<div style="display:inline-block;background:'+sc.bg+';color:'+sc.fg+';font-size:12pt;font-weight:900;padding:5px 16px;border-radius:6px;min-width:60px;text-align:center;">'+e(sc.lbl)+'</div>';
+    row+=numDen+'</td>';
+    row+='<td style="padding:8px 14px;border-bottom:1px solid #E8EDF3;text-align:center;vertical-align:middle;">'+okko(o.color)+'</td>';
+    row+='</tr>';
+    return row;
+  }
+
+  function secHeader(label){
+    return '<tr><td colspan="6" style="background:#1A3C6E;color:white;font-size:9pt;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:7px 12px;">'+e(label)+'</td></tr>';
+  }
+
+  var LOGO='iVBORw0KGgoAAAANSUhEUgAAAw0AAACyCAYAAAAAlSPdAAALMklEQVR42u3d2XbjthIFUJGL///LvA/XThxZkjlgKtTeT52Vbg0lEDxFcHg8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcliUAICR7fu+Px6Px7IsS8/37/kZAHpblQCA0RuG5z8DoGkAgMfj8d8j+47yAwAAAAAAAAAAAAAAAAAA09i/qATAde6eBMDUDcOrPwOgaQCAl02CxgFA0wAAAGgaAOih5HUBra4xePUwuFYPiItYLwBNAwC3QmuN12oRhns8UbrkdRSuyQA0DQBoPh';
+
+  var periods='';
+  [['D\u00eda',dDay],['Semana',wMon.slice(5)+' \u2013 '+wSun.slice(5)],['Mes',month]].forEach(function(p){
+    periods+='<div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 12px;text-align:center;">';
+    periods+='<div style="font-size:6pt;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;">'+e(p[0])+'</div>';
+    periods+='<div style="font-size:9pt;font-weight:700;color:white;">'+e(p[1])+'</div>';
+    periods+='</div>';
+  });
+
+  var rows='';
+  rows+=secHeader('KPI DIARIOS');
+  dc.forEach(function(o,i){rows+=kpiRow(o,'Diario',i%2===0);});
+  rows+=secHeader('KPI SEMANALES');
+  wc.forEach(function(o,i){rows+=kpiRow(o,'Semanal',i%2===0);});
+  rows+=secHeader('KPI MENSUALES');
+  mc.forEach(function(o,i){rows+=kpiRow(o,'Mensual',i%2===0);});
+
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">';
+  html+='<style>';
+  html+='@page{size:A4 landscape;margin:.7cm;}';
+  html+='@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}html,body{height:100%;}}';
+  html+='*{box-sizing:border-box;margin:0;padding:0;}';
+  html+='body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#1A202C;background:#EEF2F7;}';
+  html+='table{border-collapse:collapse;width:100%;}';
+  html+='</style></head><body>';
+  html+='<div style="background:#0D1F3C;padding:10px 22px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;border-radius:6px;">';
+  html+='<img src="data:image/png;base64,'+LOGO+'" style="height:40px;width:auto;" alt="STELLANTIS">';
+  html+='<div style="text-align:center;">';
+  html+='<div style="font-size:15pt;font-weight:700;color:white;letter-spacing:.5px;">KPI M\u00c9TIER \u2014 SUPPLY CHAIN C\u00d3RDOBA</div>';
+  html+='<div style="font-size:8pt;color:rgba(255,255,255,.5);margin-top:2px;">Compound 00034 \u00b7 '+e(genDt)+'</div>';
+  html+='</div>';
+  html+='<div style="display:flex;gap:8px;">'+periods+'</div>';
+  html+='</div>';
+  html+='<table style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">';
+  html+='<thead>';
+  html+='<tr style="background:#1A3C6E;">';
+  html+='<th style="padding:9px 12px;color:white;font-size:8.5pt;font-weight:700;text-align:left;letter-spacing:.5px;width:25%;">KPI</th>';
+  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:9%;">Frecuencia</th>';
+  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:left;width:30%;">F\u00f3rmula</th>';
+  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:9%;">Target</th>';
+  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:15%;">Valor Actual</th>';
+  html+='<th style="padding:9px 14px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:12%;">Estado</th>';
+  html+='</tr>';
+  html+='</thead>';
+  html+='<tbody>'+rows+'</tbody>';
+  html+='</table>';
+  html+='<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:0 4px;">';
+  html+='<div style="font-size:7pt;color:#94A3B8;">Stellantis Argentina \u00b7 Compound C\u00f3rdoba 00034 \u00b7 Portal de Mantenimiento '+APP_VERSION+'</div>';
+  html+='<div style="font-size:7pt;color:#94A3B8;">Uso interno confidencial</div>';
+  html+='</div>';
+  html+='</body></html>';
+
+  var w=window.open('','_blank','width=1120,height=800');
+  if(!w){showToast('Habilitá ventanas emergentes para el PDF','info');return;}
+  w.document.write(html);w.document.close();
+  w.onload=function(){w.focus();setTimeout(function(){w.print();},600);};
+}
+
+
 async function importTrackingRows(rows, fileName){
   setImportProgress(35,'Procesando Tracking Reporting Tool: '+rows.length+' filas...');
 
