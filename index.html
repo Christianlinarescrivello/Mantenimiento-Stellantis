@@ -1479,8 +1479,9 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.9.4";
+var APP_VERSION="v4.9.5";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
+var _stockLoadedForPatio=null; // tracks which patio the current stockCache belongs to
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
 // ══════════════════════════════════════════════════════
@@ -1841,7 +1842,12 @@ async function loadCatalogo(){
   }
 }
 
-async function loadStock(){
+async function loadStock(forceReload){
+  // Skip reload if same patio already loaded — avoids redundant HTTP requests
+  var patioKey=currentPatio?currentPatio.compound_code:"ALL";
+  if(!forceReload && _stockLoadedForPatio===patioKey && stockCache.length){
+    return; // already loaded for this patio
+  }
   try{
     if(currentPatio){
       // Patio selected (any role) — only load that patio's stock
@@ -1872,7 +1878,8 @@ async function loadStock(){
       if(Array.isArray(hdata))hist=hdata.filter(function(r){return MCODES.indexOf((r.block_code||"").toUpperCase().trim())>=0;});
     }catch(e){hist=[];}
     pendingCache=computePending(stockCache,hist);
-  }catch(e){stockCache=[];pendingCache=[];}
+    _stockLoadedForPatio=currentPatio?currentPatio.compound_code:"ALL";
+  }catch(e){stockCache=[];pendingCache=[];_stockLoadedForPatio=null;}
 }
 
 function computePending(rows, hist){
@@ -1917,7 +1924,8 @@ function computePending(rows, hist){
       var due=addDays(refDate,maint.days);
       var dtd=Math.round((due-today)/86400000);
       var urgency=urg(due);
-      // Show all units with pending services (no cutoff) — filter by urgency in the UI if needed
+      // Show overdue/urgent/soon/ok within 60 days, or if block code already active on unit
+      if(dtd>60&&ab.indexOf(maint.code)<0)continue;
       result.push({vin:vin,modelDescr:v.model_descr||v["Model Descr"]||"—",
         compoundCode:cc,compoundDescr:v.compound||v["Compound Descr"]||cc,
         boxatura:v.boxatura||v["Boxatura"]||"—",
@@ -3750,65 +3758,62 @@ function exportPendientesVin(){
   var items=pendingCache;
   if(currentPatio){
     var fcc=currentPatio.compound_code.replace(/^0+/,"");
-    items=pendingCache.filter(function(p){return String(p.compoundCode||"").replace(/^0+/,"")=== fcc;});
+    items=pendingCache.filter(function(p){return String(p.compoundCode||"").replace(/^0+/,"")===fcc;});
   }
   if(!items.length){showToast("Sin pendientes para exportar","info");return;}
-  // Agrupar por VIN manteniendo el orden de urgencia del item más crítico por VIN
   var URGORD={overdue:0,urgent:1,soon:2,ok:3};
-  var vinMap={};
-  items.forEach(function(p){
-    if(!vinMap[p.vin])vinMap[p.vin]=[];
-    vinMap[p.vin].push(p);
-  });
-  // Ordenar VINs por la urgencia más crítica que tienen, luego por daysToDue
-  var vins=Object.keys(vinMap).sort(function(a,b){
-    var ua=vinMap[a].reduce(function(m,p){return Math.min(m,URGORD[p.urgency]);},99);
-    var ub=vinMap[b].reduce(function(m,p){return Math.min(m,URGORD[p.urgency]);},99);
-    if(ua!==ub)return ua-ub;
-    var da=vinMap[a].reduce(function(m,p){return Math.min(m,p.daysToDue);},99999);
-    var db=vinMap[b].reduce(function(m,p){return Math.min(m,p.daysToDue);},99999);
-    return da-db;
-  });
-  var URGCOLOR_XLS={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
-  var URGLBL_XLS={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
-  var headers=["VIN","Modelo","Boxatura","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado"];
-  var rows=[];var rowIdx=0;
-  vins.forEach(function(vin){
-    var group=vinMap[vin];
-    // Sort within VIN by urgency then daysToDue
-    group.sort(function(a,b){return(URGORD[a.urgency]-URGORD[b.urgency])||a.daysToDue-b.daysToDue;});
-    group.forEach(function(p,gi){
-      var days=p.daysToDue<0?"VENCIDO "+Math.abs(p.daysToDue)+"d":p.daysToDue===0?"HOY":"+"+p.daysToDue+"d";
-      var col=URGCOLOR_XLS[p.urgency];
-      var isAlt=rowIdx%2===0;
-      rows.push(xlsRow([
-        {__val:gi===0?p.vin:"",__bold:true,__color:"#1A3C6E"},
-        {__val:gi===0?p.modelDescr:"",__color:"#374151"},
-        {__val:gi===0?p.boxatura:"",__color:"#374151"},
-        {__val:p.maint.code,__bold:true,__color:col},
-        p.maint.service,
-        fmt(p.refDate),
-        fmt(p.dueDate),
-        {__val:days,__bold:true,__color:col},
-        {__val:URGLBL_XLS[p.urgency],__bold:true,__color:col}
-      ],isAlt));
-      rowIdx++;
-    });
-    // Separator row between VINs
-    rows.push('<tr style="height:4px"><td colspan="'+headers.length+'" style="background:#E5E7EB;"></td></tr>');
+  var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PROXIMO",ok:"A TIEMPO"};
+  // Ordenar: urgencia → daysToDue → VIN
+  var sorted=items.slice().sort(function(a,b){
+    return(URGORD[a.urgency]-URGORD[b.urgency])||a.daysToDue-b.daysToDue||(a.vin>b.vin?1:-1);
   });
   var patio=currentPatio?currentPatio.nombre:"Todos los patios";
   var hoy=new Date().toISOString().slice(0,10);
   var ov=items.filter(function(p){return p.urgency==="overdue";}).length;
   var urg=items.filter(function(p){return p.urgency==="urgent";}).length;
-  var html='<html><head><meta charset="UTF-8"></head><body>'
-    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
-    +xlsHeader("Mantenimiento Preventivo — "+patio,vins.length+" VINs · "+items.length+" servicios · "+ov+" vencidos · "+urg+" urgentes · "+hoy,headers.length)
-    +xlsColHeader(headers)+rows.join("")+"</table></body></html>";
-  styledXlsxDownload(html,"Preventivo_"+patio.replace(/\s/g,"_")+"_"+hoy);
-  showToast("Excel generado — "+vins.length+" VINs · "+items.length+" servicios","success");
+  // Build data array for SheetJS
+  var headers=["VIN","Modelo","Boxatura","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado","Patio"];
+  var data=[headers];
+  sorted.forEach(function(p){
+    var days=p.daysToDue<0?(-p.daysToDue):p.daysToDue; // número para poder filtrar/ordenar
+    data.push([
+      p.vin,
+      p.modelDescr,
+      p.boxatura,
+      p.maint.code,
+      p.maint.service,
+      fmt(p.refDate),
+      fmt(p.dueDate),
+      days,
+      URGLBL[p.urgency],
+      p.compoundDescr||p.compoundCode
+    ]);
+  });
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(data);
+  // Column widths
+  ws['!cols']=[{wch:20},{wch:30},{wch:12},{wch:8},{wch:22},{wch:13},{wch:13},{wch:8},{wch:10},{wch:14}];
+  // AutoFilter on all columns
+  ws['!autofilter']={ref:"A1:J"+(data.length)};
+  // Freeze header row
+  ws['!freeze']={xSplit:0,ySplit:1,topLeftCell:"A2",activePane:"bottomLeft",state:"frozen"};
+  XLSX.utils.book_append_sheet(wb,ws,"Pendientes");
+  // Info sheet
+  var infoData=[
+    ["Mantenimiento Preventivo — "+patio],
+    ["Generado:",hoy],
+    ["Patio:",patio],
+    ["Total servicios:",items.length],
+    ["VINs únicos:",new Set(items.map(function(p){return p.vin;})).size],
+    ["Vencidos:",ov],
+    ["Urgentes:",urg]
+  ];
+  var wsInfo=XLSX.utils.aoa_to_sheet(infoData);
+  wsInfo['!cols']=[{wch:20},{wch:30}];
+  XLSX.utils.book_append_sheet(wb,wsInfo,"Info");
+  XLSX.writeFile(wb,"Preventivo_"+patio.replace(/[^a-zA-Z0-9]/g,"_")+"_"+hoy+".xlsx");
+  showToast("Excel generado — "+new Set(items.map(function(p){return p.vin;})).size+" VINs · "+items.length+" servicios","success");
 }
-
 async function exportHistorial(){
   var data=await loadBloqueosHistorial();
   var desdeVal=document.getElementById("hist-desde").value;
@@ -4617,7 +4622,8 @@ async function onTopPatioChange(){
   var val=sel.value;
   if(val==="ALL"){currentPatio=null;}
   else{currentPatio=patiosCache.find(function(p){return p.id===val;})||null;}
-  // Reload everything for new patio
+  // Force reload for new patio
+  _stockLoadedForPatio=null;
   await loadStock();
   var activePage=document.querySelector(".page.active");
   if(activePage){
