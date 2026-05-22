@@ -321,7 +321,10 @@ tbody td{padding:9px 12px;color:var(--text);}
       <div style="margin-bottom:24px;" id="dash-obt-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;">⏳ Pendientes de OBT <span id="dash-obt-count" style="font-size:11px;font-weight:400;color:#E65100;text-transform:none;letter-spacing:0;margin-left:6px;"></span></div>
-          <button onclick="exportObtPendienteOperario()" style="background:rgba(200,164,74,0.15);border:1px solid var(--gold);color:var(--gold);padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">📋 Excel OBT</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="exportObtPendienteOperario()" style="background:rgba(200,164,74,0.15);border:1px solid var(--gold);color:var(--gold);padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">📋 Excel OBT</button>
+            <button onclick="exportPendientesVin()" style="background:rgba(46,125,50,0.15);border:1px solid #2E7D32;color:#2E7D32;padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">⬇ Excel Pendientes</button>
+          </div>
         </div>
         <div id="dash-obt-list"></div>
       </div>
@@ -1476,7 +1479,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.9.3";
+var APP_VERSION="v4.9.4";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
 
@@ -1840,8 +1843,8 @@ async function loadCatalogo(){
 
 async function loadStock(){
   try{
-    if(currentPatio&&!currentUser.todos_patios){
-      // Single patio — paginate to get all units
+    if(currentPatio){
+      // Patio selected (any role) — only load that patio's stock
       var data=await sbGetAll("stock","compound_code=eq."+currentPatio.compound_code+"&select=*");
       // Fallback: try without leading zeros in case of legacy data
       if(!Array.isArray(data)||!data.length){
@@ -1850,7 +1853,7 @@ async function loadStock(){
       }
       stockCache=Array.isArray(data)?data:[];
     } else {
-      // Admin/regional — paginate all patios (may exceed 1000 row default)
+      // No patio filter (admin ALL view) — paginate all patios
       var data=await sbGetAll("stock","select=*");
       stockCache=Array.isArray(data)?data:[];
     }
@@ -3742,6 +3745,70 @@ async function exportObtPendienteOperario(){
   showToast("Excel OBT generado — "+allOps.length+" servicios","success");
 }
 
+function exportPendientesVin(){
+  // Filtra pendingCache por patio actual
+  var items=pendingCache;
+  if(currentPatio){
+    var fcc=currentPatio.compound_code.replace(/^0+/,"");
+    items=pendingCache.filter(function(p){return String(p.compoundCode||"").replace(/^0+/,"")=== fcc;});
+  }
+  if(!items.length){showToast("Sin pendientes para exportar","info");return;}
+  // Agrupar por VIN manteniendo el orden de urgencia del item más crítico por VIN
+  var URGORD={overdue:0,urgent:1,soon:2,ok:3};
+  var vinMap={};
+  items.forEach(function(p){
+    if(!vinMap[p.vin])vinMap[p.vin]=[];
+    vinMap[p.vin].push(p);
+  });
+  // Ordenar VINs por la urgencia más crítica que tienen, luego por daysToDue
+  var vins=Object.keys(vinMap).sort(function(a,b){
+    var ua=vinMap[a].reduce(function(m,p){return Math.min(m,URGORD[p.urgency]);},99);
+    var ub=vinMap[b].reduce(function(m,p){return Math.min(m,URGORD[p.urgency]);},99);
+    if(ua!==ub)return ua-ub;
+    var da=vinMap[a].reduce(function(m,p){return Math.min(m,p.daysToDue);},99999);
+    var db=vinMap[b].reduce(function(m,p){return Math.min(m,p.daysToDue);},99999);
+    return da-db;
+  });
+  var URGCOLOR_XLS={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
+  var URGLBL_XLS={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
+  var headers=["VIN","Modelo","Boxatura","Código","Servicio","Fecha Ref.","Vencimiento","Días","Estado"];
+  var rows=[];var rowIdx=0;
+  vins.forEach(function(vin){
+    var group=vinMap[vin];
+    // Sort within VIN by urgency then daysToDue
+    group.sort(function(a,b){return(URGORD[a.urgency]-URGORD[b.urgency])||a.daysToDue-b.daysToDue;});
+    group.forEach(function(p,gi){
+      var days=p.daysToDue<0?"VENCIDO "+Math.abs(p.daysToDue)+"d":p.daysToDue===0?"HOY":"+"+p.daysToDue+"d";
+      var col=URGCOLOR_XLS[p.urgency];
+      var isAlt=rowIdx%2===0;
+      rows.push(xlsRow([
+        {__val:gi===0?p.vin:"",__bold:true,__color:"#1A3C6E"},
+        {__val:gi===0?p.modelDescr:"",__color:"#374151"},
+        {__val:gi===0?p.boxatura:"",__color:"#374151"},
+        {__val:p.maint.code,__bold:true,__color:col},
+        p.maint.service,
+        fmt(p.refDate),
+        fmt(p.dueDate),
+        {__val:days,__bold:true,__color:col},
+        {__val:URGLBL_XLS[p.urgency],__bold:true,__color:col}
+      ],isAlt));
+      rowIdx++;
+    });
+    // Separator row between VINs
+    rows.push('<tr style="height:4px"><td colspan="'+headers.length+'" style="background:#E5E7EB;"></td></tr>');
+  });
+  var patio=currentPatio?currentPatio.nombre:"Todos los patios";
+  var hoy=new Date().toISOString().slice(0,10);
+  var ov=items.filter(function(p){return p.urgency==="overdue";}).length;
+  var urg=items.filter(function(p){return p.urgency==="urgent";}).length;
+  var html='<html><head><meta charset="UTF-8"></head><body>'
+    +'<table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial;">'
+    +xlsHeader("Mantenimiento Preventivo — "+patio,vins.length+" VINs · "+items.length+" servicios · "+ov+" vencidos · "+urg+" urgentes · "+hoy,headers.length)
+    +xlsColHeader(headers)+rows.join("")+"</table></body></html>";
+  styledXlsxDownload(html,"Preventivo_"+patio.replace(/\s/g,"_")+"_"+hoy);
+  showToast("Excel generado — "+vins.length+" VINs · "+items.length+" servicios","success");
+}
+
 async function exportHistorial(){
   var data=await loadBloqueosHistorial();
   var desdeVal=document.getElementById("hist-desde").value;
@@ -5449,7 +5516,10 @@ async function exportWsLog(){
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <div id="op-tareas-count" style="font-size:12px;color:var(--text3);"></div>
-        <button onclick="exportObtPendienteOperario()" style="background:rgba(200,164,74,0.15);border:1px solid var(--gold);color:var(--gold);padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">📋 Excel OBT</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="exportObtPendienteOperario()" style="background:rgba(200,164,74,0.15);border:1px solid var(--gold);color:var(--gold);padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">📋 Excel OBT</button>
+          <button onclick="exportPendientesVin()" style="background:rgba(46,125,50,0.15);border:1px solid #2E7D32;color:#2E7D32;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif;">⬇ Excel Pendientes</button>
+        </div>
       </div>
       <div id="op-tareas-list"></div>
     </div>
