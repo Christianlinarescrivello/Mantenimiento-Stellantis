@@ -1850,7 +1850,9 @@ async function loadStock(){
         body:"{}"
       });
       var hdata=await hrpc.json();
-      if(Array.isArray(hdata))hist=hdata;
+      // Only keep maintenance codes — exclude C30, C37, and other non-maintenance blocks
+      // to prevent them from incorrectly resetting service reference dates
+      if(Array.isArray(hdata))hist=hdata.filter(function(r){return MCODES.indexOf((r.block_code||"").toUpperCase().trim())>=0;});
     }catch(e){hist=[];}
     pendingCache=computePending(stockCache,hist);
   }catch(e){stockCache=[];pendingCache=[];}
@@ -1898,8 +1900,7 @@ function computePending(rows, hist){
       var due=addDays(refDate,maint.days);
       var dtd=Math.round((due-today)/86400000);
       var urgency=urg(due);
-      // Show if vencido/urgente/soon, or if it's in the blocks field (already triggered)
-      if(dtd>60&&ab.indexOf(maint.code)<0)continue;
+      // Show all units with pending services (no cutoff) — filter by urgency in the UI if needed
       result.push({vin:vin,modelDescr:v.model_descr||v["Model Descr"]||"—",
         compoundCode:cc,compoundDescr:v.compound||v["Compound Descr"]||cc,
         boxatura:v.boxatura||v["Boxatura"]||"—",
@@ -3786,8 +3787,6 @@ async function exportHistorial(){
     +xlsColHeader(headers)+hrows+'</table></body></html>';
   styledXlsxDownload(html2,"Historial_Bloqueos_"+now2.toISOString().slice(0,10));
 }
-
-async function exportKPIs(){return exportKPIsExcel();}
 
 // ══════════════════════════════════════════════════════
 // REGISTRAR MANTENIMIENTO REALIZADO
