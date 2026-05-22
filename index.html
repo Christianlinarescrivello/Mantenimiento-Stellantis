@@ -1480,7 +1480,7 @@ var URGCOLOR={overdue:"#C62828",urgent:"#E65100",soon:"#1565C0",ok:"#2E7D32"};
 var URGLBL={overdue:"VENCIDO",urgent:"URGENTE",soon:"PRÓXIMO",ok:"A TIEMPO"};
 var URGORD={overdue:0,urgent:1,soon:2,ok:3};
 
-var APP_VERSION="v4.9.7";
+var APP_VERSION="v4.9.8";
 var currentUser=null, stockCache=[], pendingCache=[], operariosCache=[], asignPending=null;
 var _stockLoadedForPatio=null; // tracks which patio the current stockCache belongs to
 var completedThisSession={}; // key: "VIN__CODE" → unblock_date string
@@ -8280,41 +8280,93 @@ async function exportKpiMetierPDFStellantisFmt(){
 
   function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-  function semCell(color,val,unit){
-    var isNA=val===null||val===undefined||String(val).trim()==='N/A';
-    if(isNA)return{bg:'#F1F5F9',fg:'#94A3B8',lbl:'N/A'};
-    var bg=color==='#C62828'?'#FFEBEE':color==='#E65100'?'#FFF3E0':color==='#2E7D32'?'#E8F5E9':'#FFF8E1';
-    var fg=color==='#C62828'?'#C62828':color==='#E65100'?'#E65100':color==='#2E7D32'?'#2E7D32':'#F57F17';
-    var lbl=(typeof val==='number'?val.toFixed(val%1===0?0:1):String(val))+(unit||'');
-    return{bg:bg,fg:fg,lbl:lbl};
+  // === TANQUE SVG — idéntico al PDF Métier actual ===
+  function tank(val,goal,color,maxVal,w,h2){
+    w=w||60; h2=h2||80;
+    var numVal=parseFloat(val);
+    var isNA=isNaN(numVal)||(val===null||val===undefined||String(val).trim()==='N/A');
+    if(isNA){
+      return '<svg width="'+w+'" height="'+h2+'" viewBox="0 0 '+w+' '+h2+'">'
+        +'<rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7" fill="#EEF2F7" stroke="#CBD5E1" stroke-width="1.5"/>'
+        +'<text x="'+(w/2)+'" y="'+(h2/2+4)+'" text-anchor="middle" font-size="10" fill="#94A3B8" font-family="Arial">N/A</text>'
+        +'</svg>';
+    }
+    maxVal=maxVal||100;
+    var pct=Math.min(Math.max(numVal/maxVal,0),1);
+    var innerH=h2-4;
+    var fillH=Math.max(Math.round(pct*innerH),2);
+    var fillY=2+(innerH-fillH);
+    var goalY=goal!==null?Math.round((1-Math.min(goal/maxVal,1))*innerH)+2:null;
+    var gId='g'+Math.round(Math.random()*99999);
+    var cId='c'+gId;
+    var ti=fillH>28;
+    var tY=ti?fillY+Math.floor(fillH/2)+5:fillY-9;
+    var tF=ti?'white':color;
+    var svg='<svg width="'+w+'" height="'+h2+'" viewBox="0 0 '+w+' '+h2+'">';
+    svg+='<defs><linearGradient id="'+gId+'" x1="0" y1="0" x2="0" y2="1">';
+    svg+='<stop offset="0%" stop-color="'+color+'" stop-opacity="0.75"/>';
+    svg+='<stop offset="100%" stop-color="'+color+'" stop-opacity="1"/>';
+    svg+='</linearGradient></defs>';
+    svg+='<rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7" fill="#EEF2F7" stroke="#D1D9E6" stroke-width="1.5"/>';
+    svg+='<clipPath id="'+cId+'"><rect x="2" y="2" width="'+(w-4)+'" height="'+(h2-4)+'" rx="7"/></clipPath>';
+    svg+='<rect x="3" y="'+fillY+'" width="'+(w-6)+'" height="'+fillH+'" fill="url(#'+gId+')" clip-path="url(#'+cId+')"/>';
+    if(fillH>12) svg+='<rect x="8" y="'+(fillY+2)+'" width="'+Math.round(w*0.28)+'" height="'+Math.min(fillH-4,12)+'" rx="3" fill="rgba(255,255,255,0.2)" clip-path="url(#'+cId+')"/>';
+    if(goalY!==null){
+      svg+='<line x1="2" y1="'+goalY+'" x2="'+(w-2)+'" y2="'+goalY+'" stroke="rgba(0,0,0,.28)" stroke-width="1.5" stroke-dasharray="4,3"/>';
+      svg+='<text x="4" y="'+(goalY-3)+'" font-size="7" fill="rgba(0,0,0,.4)" font-family="Arial">'+goal+'%</text>';
+    }
+    svg+='<text x="'+(w/2)+'" y="'+tY+'" text-anchor="middle" font-size="13" font-weight="900" fill="'+tF+'" font-family="Arial Black,Arial">'+numVal+'</text>';
+    svg+='<text x="'+(w/2)+'" y="'+(tY+12)+'" text-anchor="middle" font-size="8" fill="'+(ti?'rgba(255,255,255,0.75)':color)+'" font-family="Arial">%</text>';
+    svg+='</svg>';
+    return svg;
   }
 
   function okko(color){
     var isOk=color==='#2E7D32';
     var isNA=color==='#718096'||color==='#94A3B8';
-    if(isNA)return '<span style="color:#94A3B8;font-size:9pt;">\u2014</span>';
+    if(isNA) return '<span style="color:#94A3B8;font-size:9pt;">\u2014</span>';
     return isOk
       ? '<span style="color:#2E7D32;font-size:11pt;">\u25b2</span><span style="font-size:6pt;color:#2E7D32;vertical-align:middle;margin-left:2px;">OK</span>'
       : '<span style="color:#C62828;font-size:11pt;">\u25bc</span><span style="font-size:6pt;color:#C62828;vertical-align:middle;margin-left:2px;">KO</span>';
   }
 
+  function badge(st){
+    var bg=st==='Completo'?'#DCFCE7':st==='Parcial'?'#FEF3C7':'#F1F5F9';
+    var fg=st==='Completo'?'#166534':st==='Parcial'?'#92400E':'#475569';
+    return '<span style="background:'+bg+';color:'+fg+';font-size:7pt;font-weight:700;padding:2px 7px;border-radius:10px;">'+e(st||'\u2014')+'</span>';
+  }
+
   function kpiRow(o,freq,odd){
-    var unit='%';
-    var sc=semCell(o.color,o.value,unit);
+    var rowBg=odd?'#F7F9FC':'#FFFFFF';
+    var targetStr=o.goal!=null?o.goal+'%':'\u2014';
     var numDen='';
     if(o.numerator!=null&&o.denominator!=null){
-      numDen='<br><span style="font-size:6pt;color:#94A3B8;">'+o.numerator+' / '+o.denominator+'</span>';
+      numDen='<div style="font-size:6pt;color:#94A3B8;margin-top:3px;">'+o.numerator+' / '+o.denominator+'</div>';
     }
-    var targetStr=o.goal!=null?o.goal+unit:'\u2014';
-    var rowBg=odd?'#F7F9FC':'#FFFFFF';
+    var naMsg='';
+    if((o.value===null||o.value===undefined)&&o.naMsg){
+      naMsg='<div style="font-size:6.5pt;color:#DC2626;font-weight:600;margin-top:3px;">\u26a0 '+e(o.naMsg)+'</div>';
+    }
+    var badgeHtml=badge(o.status);
     var row='<tr style="background:'+rowBg+';">';
-    row+='<td style="padding:8px 12px;border-bottom:1px solid #E8EDF3;font-weight:700;color:#1A3C6E;font-size:8.5pt;vertical-align:middle;">'+e(o.title)+'</td>';
+    // KPI title + badge
+    row+='<td style="padding:8px 12px;border-bottom:1px solid #E8EDF3;vertical-align:middle;">';
+    row+='<div style="font-weight:700;color:#1A3C6E;font-size:8.5pt;">'+e(o.title)+'</div>';
+    row+='<div style="margin-top:3px;">'+badgeHtml+'</div>';
+    if(o.badge) row+='<div style="font-size:6.5pt;color:#64748B;background:#F8FAFC;border:1px solid #E8EDF3;padding:2px 5px;border-radius:4px;margin-top:3px;display:inline-block;">'+e(o.badge)+'</div>';
+    row+='</td>';
+    // Frecuencia
     row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;text-align:center;font-size:8pt;color:#64748B;vertical-align:middle;">'+e(freq)+'</td>';
-    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;font-size:7.5pt;color:#475569;vertical-align:middle;max-width:200px;">'+e(o.formula||'\u2014')+'</td>';
+    // Fórmula
+    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;font-size:7.5pt;color:#475569;vertical-align:middle;max-width:220px;">'+e(o.formula||'\u2014')+'</td>';
+    // Target
     row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;text-align:center;font-size:9pt;font-weight:700;color:#1A3C6E;vertical-align:middle;">'+e(targetStr)+'</td>';
-    row+='<td style="padding:8px 10px;border-bottom:1px solid #E8EDF3;text-align:center;vertical-align:middle;">';
-    row+='<div style="display:inline-block;background:'+sc.bg+';color:'+sc.fg+';font-size:12pt;font-weight:900;padding:5px 16px;border-radius:6px;min-width:60px;text-align:center;">'+e(sc.lbl)+'</div>';
-    row+=numDen+'</td>';
+    // Tanque SVG
+    row+='<td style="padding:6px 10px;border-bottom:1px solid #E8EDF3;text-align:center;vertical-align:middle;">';
+    row+=tank(o.value,o.goal||null,o.color||'#718096',o.maxVal||100,60,80);
+    row+=numDen+naMsg;
+    row+='</td>';
+    // OK/KO
     row+='<td style="padding:8px 14px;border-bottom:1px solid #E8EDF3;text-align:center;vertical-align:middle;">'+okko(o.color)+'</td>';
     row+='</tr>';
     return row;
@@ -8359,16 +8411,14 @@ async function exportKpiMetierPDFStellantisFmt(){
   html+='<div style="display:flex;gap:8px;">'+periods+'</div>';
   html+='</div>';
   html+='<table style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">';
-  html+='<thead>';
-  html+='<tr style="background:#1A3C6E;">';
-  html+='<th style="padding:9px 12px;color:white;font-size:8.5pt;font-weight:700;text-align:left;letter-spacing:.5px;width:25%;">KPI</th>';
+  html+='<thead><tr style="background:#1A3C6E;">';
+  html+='<th style="padding:9px 12px;color:white;font-size:8.5pt;font-weight:700;text-align:left;width:25%;">KPI</th>';
   html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:9%;">Frecuencia</th>';
   html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:left;width:30%;">F\u00f3rmula</th>';
-  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:9%;">Target</th>';
-  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:15%;">Valor Actual</th>';
+  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:8%;">Target</th>';
+  html+='<th style="padding:9px 10px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:16%;">Valor Actual</th>';
   html+='<th style="padding:9px 14px;color:white;font-size:8.5pt;font-weight:700;text-align:center;width:12%;">Estado</th>';
-  html+='</tr>';
-  html+='</thead>';
+  html+='</tr></thead>';
   html+='<tbody>'+rows+'</tbody>';
   html+='</table>';
   html+='<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:0 4px;">';
